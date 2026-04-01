@@ -24,11 +24,17 @@ const TOOLCHAIN_SPECS: Record<ToolchainChannel, ToolchainSpec> = {
   },
   stable: {
     verifiedAt: '2026-03-22',
+    // renovate: datasource=npm depName=create-vite
     viteCreate: '7.1.4',
+    // renovate: datasource=npm depName=shadcn
     shadcn: '4.1.0',
+    // renovate: datasource=npm depName=@react-native-reusables/cli
     reactNativeReusables: '0.5.0',
+    // renovate: datasource=npm depName=wxt
     wxt: '0.20.20',
+    // renovate: datasource=npm depName=@tauri-apps/cli
     tauriCli: '2.8.4',
+    // renovate: datasource=npm depName=@tauri-apps/api
     tauriApi: '2.8.0',
   },
 };

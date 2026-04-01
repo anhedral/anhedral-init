@@ -36,6 +36,7 @@
     "test:cli:validation": "node scripts/test-cli-validation.js",
     "test:cli:scaffold": "node scripts/test-cli-scaffold-headless.js",
     "test:e2e": "node scripts/test-e2e-public-stacks.js",
+    "test:e2e:latest": "node scripts/test-e2e-public-stacks.js --toolchain latest",
     "test:all": "pnpm test && pnpm test:e2e"
   },
   "keywords": [
