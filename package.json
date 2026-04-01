@@ -4,7 +4,7 @@
   "description": "Opinionated init CLI for Next, Next + Fastify, Expo + Fastify, and backend starters with Neon, Drizzle, R2, auth, and billing integrations.",
   "type": "module",
   "bin": {
-    "anhedral": "./bin/anhedral.js"
+    "anhedral": "bin/anhedral.js"
   },
   "files": [
     "bin",

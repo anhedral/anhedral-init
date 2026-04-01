@@ -18,6 +18,13 @@ pnpm dlx anhedral init expo-fullstack
 pnpm dlx anhedral init backend
 ```
 
+```sh
+npx anhedral init next
+npx anhedral init next-fullstack
+npx anhedral init expo-fullstack
+npx anhedral init backend
+```
+
 Global install also works:
 
 ```sh
