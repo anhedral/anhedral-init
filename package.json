@@ -4,7 +4,7 @@
   "description": "Opinionated init CLI for Next, Next + Fastify, Expo + Fastify, and backend starters with Neon, Drizzle, R2, auth, and billing integrations.",
   "type": "module",
   "bin": {
-    "anhedral": "./bin/anhedral.js"
+    "anhedral": "bin/anhedral.js"
   },
   "files": [
     "bin",
@@ -15,11 +15,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rswearin/Anhedral-Init.git"
+    "url": "git+https://github.com/anhedral/anhedral-init.git"
   },
-  "homepage": "https://github.com/rswearin/Anhedral-Init#readme",
+  "homepage": "https://github.com/anhedral/anhedral-init#readme",
   "bugs": {
-    "url": "https://github.com/rswearin/Anhedral-Init/issues"
+    "url": "https://github.com/anhedral/anhedral-init/issues"
   },
   "engines": {
     "node": ">=20.0.0"
