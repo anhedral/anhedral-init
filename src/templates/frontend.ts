@@ -12,7 +12,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName 
   // ── 1. Scaffold via react-native-reusables CLI ────────────────────────
   console.log('  Scaffolding Expo app with react-native-reusables...');
   fs.mkdirSync(dir, { recursive: true });
-  execExpect(
+  await execExpect(
     `pnpm dlx ${toolPackageRef('@react-native-reusables/cli', toolchain.reactNativeReusables)} init -t clerk-auth`,
     dir,
     [
