@@ -1,0 +1,60 @@
+{
+  "name": "anhedral",
+  "version": "0.1.0",
+  "description": "Opinionated init CLI for Next, Next + Fastify, Expo + Fastify, and backend starters with Neon, Drizzle, R2, auth, and billing integrations.",
+  "type": "module",
+  "bin": {
+    "anhedral": "./bin/anhedral.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "LICENSE",
+    "README.md",
+    "anhedral.svg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anhedral/anhedral-init.git"
+  },
+  "homepage": "https://github.com/anhedral/anhedral-init#readme",
+  "bugs": {
+    "url": "https://github.com/anhedral/anhedral-init/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "scaffold": "node dist/index.js init",
+    "build": "tsc",
+    "prepare": "pnpm build",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm test:cli",
+    "pretest": "pnpm build",
+    "prepublishOnly": "pnpm test:all",
+    "test:cli": "node scripts/test-cli.js",
+    "test:cli:validation": "node scripts/test-cli-validation.js",
+    "test:cli:scaffold": "node scripts/test-cli-scaffold-headless.js",
+    "test:e2e": "node scripts/test-e2e-public-stacks.js",
+    "test:all": "pnpm test && pnpm test:e2e"
+  },
+  "keywords": [
+    "cli",
+    "scaffold",
+    "fastify",
+    "expo",
+    "clerk",
+    "drizzle",
+    "neondb",
+    "revenuecat",
+    "better-auth",
+    "shadcn"
+  ],
+  "license": "MIT",
+  "packageManager": "pnpm@10.15.1",
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
