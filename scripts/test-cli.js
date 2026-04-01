@@ -22,6 +22,7 @@ function runScript(scriptName) {
 
 runScript('test-cli-validation.js');
 runScript('test-command-builders.js');
+runScript('test-util-exec-expect.js');
 runScript('test-util-lift-nested-project.js');
 runScript('test-default-web-template.js');
 runScript('test-cli-scaffold-headless.js');

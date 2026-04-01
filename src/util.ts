@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 
 export function writeFile(filePath: string, content: string): void {
@@ -71,47 +71,90 @@ export function liftNestedProject(root: string, nestedName: string): void {
   }
 }
 
-function bashSingleQuoteEscape(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
+function trimOutputTail(output: string, maxLength = 4000): string {
+  if (output.length <= maxLength) {
+    return output;
+  }
+
+  return output.slice(output.length - maxLength);
 }
 
-function tclDoubleQuoteEscape(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\[/g, '\\[')
-    .replace(/\]/g, '\\]')
-    .replace(/\$/g, '\\$')
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n');
-}
-
-/**
- * Escape a string for use inside a Tcl double-quoted `send` argument.
- * Converts JS escape sequences to their Tcl equivalents.
- */
-function tclSendEscape(s: string): string {
-  return tclDoubleQuoteEscape(s).replace(/\x1b/g, '\\033');
-}
-
-export function execExpect(cmd: string, cwd: string, prompts: [waitFor: string, answer: string][]): void {
+export async function execExpect(
+  cmd: string,
+  cwd: string,
+  prompts: [waitFor: string, answer: string][],
+  timeoutMs = 120_000,
+): Promise<void> {
   console.log(`  $ ${cmd}`);
-  const shellCommand = `cd ${bashSingleQuoteEscape(cwd)} && ${cmd}`;
-  const sendLines = prompts
-    .map(([wait, answer]) => `expect "${wait}"\nsend "${tclSendEscape(answer)}\\r"`)
-    .join('\n');
-  const expectScript = [
-    `set timeout 120`,
-    `set shell_command "${tclDoubleQuoteEscape(shellCommand)}"`,
-    `spawn bash -lc $shell_command`,
-    sendLines,
-    `expect eof`,
-    `catch wait result`,
-    `exit [lindex $result 3]`,
-  ].join('\n');
-  execSync(`expect << 'EXPECT_EOF'\n${expectScript}\nEXPECT_EOF`, {
-    cwd,
-    stdio: 'inherit',
-    shell: '/bin/bash',
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('bash', ['-lc', cmd], {
+      cwd,
+      env: process.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let combinedOutput = '';
+    let promptIndex = 0;
+    let settled = false;
+
+    const finish = (handler: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeoutId);
+      handler();
+    };
+
+    const maybeAnswerPrompt = () => {
+      while (promptIndex < prompts.length && combinedOutput.includes(prompts[promptIndex][0])) {
+        child.stdin.write(`${prompts[promptIndex][1]}\n`);
+        promptIndex += 1;
+      }
+    };
+
+    const handleChunk = (chunk: Buffer, target: NodeJS.WriteStream) => {
+      const text = chunk.toString();
+      combinedOutput += text;
+      target.write(text);
+      maybeAnswerPrompt();
+    };
+
+    const timeoutId = setTimeout(() => {
+      child.kill('SIGTERM');
+      finish(() => {
+        reject(new Error(
+          `Command timed out after ${timeoutMs}ms: ${cmd}\n` +
+          `Answered ${promptIndex}/${prompts.length} prompts.\n` +
+          `Recent output:\n${trimOutputTail(combinedOutput)}`,
+        ));
+      });
+    }, timeoutMs);
+
+    child.stdout.on('data', (chunk: Buffer) => handleChunk(chunk, process.stdout));
+    child.stderr.on('data', (chunk: Buffer) => handleChunk(chunk, process.stderr));
+
+    child.on('error', (error) => {
+      finish(() => {
+        reject(error);
+      });
+    });
+
+    child.on('close', (code) => {
+      finish(() => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+
+        reject(new Error(
+          `Command failed with exit code ${code}: ${cmd}\n` +
+          `Answered ${promptIndex}/${prompts.length} prompts.\n` +
+          `Recent output:\n${trimOutputTail(combinedOutput)}`,
+        ));
+      });
+    });
   });
 }

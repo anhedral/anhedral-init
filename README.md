@@ -58,11 +58,25 @@ pnpm test:all
 
 This package is published once to the npm registry. `pnpm`, `npm`, `yarn`, and `bun` users all install that same published package.
 
+Manual local publish still works:
+
 ```sh
 pnpm build
 pnpm test:all
 npm publish
 ```
+
+GitHub Actions release automation is also configured in `.github/workflows/release.yml`.
+
+Recommended release flow:
+
+```sh
+pnpm release:check
+npm version patch
+git push --follow-tags
+```
+
+The release workflow will publish on tags like `v0.1.1`. For npm trusted publishing, configure the package on npmjs.com to trust the `release.yml` workflow in `anhedral/anhedral-init`.
 
 ## Maintenance
 
@@ -78,6 +92,7 @@ The practical rule is simple: detect drift on `latest`, verify it, then promote 
 - Renovate is configured in `renovate.json` to keep this repo's own dependencies current.
 - GitHub Actions CI runs on pushes and pull requests in `.github/workflows/ci.yml`.
 - Weekly toolchain drift checks run in `.github/workflows/toolchain-drift.yml` for both `stable` and `latest`.
+- Tagged releases publish through `.github/workflows/release.yml`.
 - Stable toolchain pins in `src/toolchain.ts` are annotated so Renovate can open PRs when upstream scaffold CLIs publish updates.
 - `prepublishOnly` stays strict. Every publish still runs `pnpm test:all`.
 
