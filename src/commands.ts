@@ -31,7 +31,7 @@ export function getDefaultWebInitCommand(toolchain: ToolchainSpec, projectName: 
 export function getDefaultWebDependencyCommands(): ScaffoldCommand[] {
   return [
     {
-      cmd: 'pnpm add @clerk/nextjs @clerk/ui drizzle-orm @neondatabase/serverless stripe @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner',
+      cmd: 'pnpm add @clerk/nextjs drizzle-orm @neondatabase/serverless stripe @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner',
       skippable: true,
     },
     {

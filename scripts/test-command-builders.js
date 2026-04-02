@@ -21,7 +21,8 @@ assert.match(initCommand, /--css-variables/);
 
 const defaultDependencyCommands = getDefaultWebDependencyCommands().map((command) => command.cmd);
 assert.equal(defaultDependencyCommands.length, 2);
-assert.match(defaultDependencyCommands[0], /@clerk\/ui/);
+assert.match(defaultDependencyCommands[0], /@clerk\/nextjs/);
+assert.doesNotMatch(defaultDependencyCommands[0], /@clerk\/ui/);
 assert.match(defaultDependencyCommands[1], /\bbabel-plugin-react-compiler\b/);
 assert.match(defaultDependencyCommands[1], /\btsx\b/);
 assert.match(defaultDependencyCommands[1], /\bdotenv\b/);
