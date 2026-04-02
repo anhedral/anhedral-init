@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ANHEDRAL_LOGO_PUBLIC_PATH, writeAnhedralLogo } from '../branding.js';
+import { writeAnhedralWebBranding } from '../branding.js';
 import { writeFile } from '../util.js';
 
 export function writeDefaultWebEnvExample(root: string): void {
@@ -411,7 +411,7 @@ export async function getDashboardState(input: DashboardStateInput): Promise<Das
   writeFile(path.join(root, 'lib/ui/button.ts'), `import { cva, type VariantProps } from 'class-variance-authority';
 
 export const buttonVariants = cva(
-  'group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4',
+  'group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4',
   {
     variants: {
       variant: {
@@ -429,14 +429,14 @@ export const buttonVariants = cva(
       size: {
         default:
           'h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
-        xs: 'h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*="size-"])]:size-3',
-        sm: 'h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*="size-"])]:size-3.5',
+        xs: 'h-6 gap-1 rounded-md px-2 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*="size-"])]:size-3',
+        sm: 'h-7 gap-1 rounded-md px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*="size-"])]:size-3.5',
         lg: 'h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3',
         icon: 'size-8',
         'icon-xs':
-          'size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*="size-"])]:size-3',
+          'size-6 rounded-md in-data-[slot=button-group]:rounded-md [&_svg:not([class*="size-"])]:size-3',
         'icon-sm':
-          'size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg',
+          'size-7 rounded-md in-data-[slot=button-group]:rounded-md',
         'icon-lg': 'size-9',
       },
     },
@@ -477,7 +477,7 @@ export { Button, buttonVariants };
   writeFile(path.join(root, 'components/dashboard/header-user-menu.tsx'), `'use client';
 
 import Image from 'next/image';
-import { SignOutButton } from '@clerk/nextjs';
+import { useClerk } from '@clerk/nextjs';
 import { Camera, ChevronDown, Coins, CreditCard, Loader2, LogOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -500,10 +500,12 @@ async function readJsonSafely(response: Response) {
 }
 
 export function HeaderUserMenu(props: HeaderUserMenuProps) {
+  const { signOut } = useClerk();
   const [avatarUrl, setAvatarUrl] = useState(props.avatarUrl);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPortalPending, setIsPortalPending] = useState(false);
   const [isUploadPending, setIsUploadPending] = useState(false);
+  const [isSignOutPending, setIsSignOutPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initials = props.displayName
     .split(' ')
@@ -530,6 +532,15 @@ export function HeaderUserMenu(props: HeaderUserMenuProps) {
       }
     } finally {
       setIsPortalPending(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setIsSignOutPending(true);
+    try {
+      await signOut({ redirectUrl: '/' });
+    } finally {
+      setIsSignOutPending(false);
     }
   };
 
@@ -660,12 +671,10 @@ export function HeaderUserMenu(props: HeaderUserMenuProps) {
             Upload avatar to R2
           </Button>
 
-          <SignOutButton redirectUrl="/">
-            <button className="inline-flex h-8 items-center justify-center gap-2 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground" type="button">
-              <LogOut className="size-4" />
-              Sign out
-            </button>
-          </SignOutButton>
+          <Button disabled={isSignOutPending} onClick={() => void handleSignOut()} type="button" variant="ghost">
+            {isSignOutPending ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+            Sign out
+          </Button>
         </div>
 
         {notice ? (
@@ -861,14 +870,15 @@ export async function POST(request: Request) {
 `);
 
   writeFile(path.join(root, 'app/dashboard/page.tsx'), `import Link from 'next/link';
-import { auth, currentUser } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
-import { ArrowRight, CreditCard, Database, HardDriveUpload, Sparkles } from 'lucide-react';
-import { HeaderUserMenu } from '@/components/dashboard/header-user-menu';
-import { getClerkProfile } from '@/lib/auth/clerk';
-import { getDashboardState } from '@/lib/app/dashboard';
-import { buttonVariants } from '@/lib/ui/button';
-import { cn } from '@/lib/utils';
+  import { auth, currentUser } from '@clerk/nextjs/server';
+  import { redirect } from 'next/navigation';
+  import { ArrowRight, CreditCard, Database, HardDriveUpload } from 'lucide-react';
+  import { ThemeToggle } from '@/components/theme-toggle';
+  import { HeaderUserMenu } from '@/components/dashboard/header-user-menu';
+  import { getClerkProfile } from '@/lib/auth/clerk';
+  import { getDashboardState } from '@/lib/app/dashboard';
+  import { buttonVariants } from '@/lib/ui/button';
+  import { cn } from '@/lib/utils';
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -888,55 +898,59 @@ export default async function DashboardPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(29,78,216,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.14),transparent_24%)]">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-6 sm:px-8">
-        <header className="flex items-center justify-between gap-4 rounded-[2rem] border border-border/70 bg-background/85 px-4 py-3 shadow-sm backdrop-blur">
-          <div>
-            <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">anhedral starter</p>
-            <h1 className="text-lg font-semibold tracking-tight">{displayName}</h1>
+    <main className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="container mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <img alt="Anhedral logo" className="size-7" src="/anhedral.svg" />
+            <div>
+              <p className="text-base font-semibold tracking-tight">Anhedral</p>
+              <p className="text-sm text-muted-foreground">Dashboard</p>
+            </div>
           </div>
-          <HeaderUserMenu
-            avatarUrl={dashboard.avatarUrl}
-            creditsBalance={dashboard.creditsBalance}
-            displayName={dashboard.displayName}
-            email={dashboard.email}
-            subscriptionStatus={dashboard.subscriptionStatus}
-            subscriptionTier={dashboard.subscriptionTier}
-          />
-        </header>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <HeaderUserMenu
+              avatarUrl={dashboard.avatarUrl}
+              creditsBalance={dashboard.creditsBalance}
+              displayName={dashboard.displayName}
+              email={dashboard.email}
+              subscriptionStatus={dashboard.subscriptionStatus}
+              subscriptionTier={dashboard.subscriptionTier}
+            />
+          </div>
+        </div>
+      </header>
 
-        <section className="grid flex-1 gap-6 py-10 lg:grid-cols-[1.4fr_0.9fr]">
-          <div className="space-y-6">
-            <div className="rounded-[2rem] border border-border/70 bg-background/90 p-8 shadow-sm">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                <Sparkles className="size-3.5" />
-                Dashboard starter
-              </div>
-              <h2 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                Ship the logged-in shell first. Replace the placeholders after your product model is clear.
+      <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
+          <div className="min-w-0 space-y-6">
+            <section className="min-w-0 rounded-lg border bg-card p-6 text-card-foreground">
+              <h2 className="text-3xl font-semibold tracking-tight">
+                Dashboard scaffold
               </h2>
-              <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+              <p className="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
                 The scaffold already wires a protected dashboard, a subscription surface, seeded credits, and R2-backed avatar upload.
                 Your team can start inside the app shell instead of building this plumbing from scratch.
               </p>
 
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <form action="/api/stripe/checkout" method="post">
-                  <button className={cn(buttonVariants({ size: 'lg' }))} type="submit">
+                  <button className={cn(buttonVariants())} type="submit">
                     Start starter checkout
-                    <ArrowRight className="size-4" />
+                    <ArrowRight className="ml-2 size-4" />
                   </button>
                 </form>
 
-                <Link className={cn(buttonVariants({ size: 'lg', variant: 'outline' }))} href="/">
+                <Link className={cn(buttonVariants({ variant: 'outline' }))} href="/">
                   View landing page
                 </Link>
               </div>
-            </div>
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <article className="rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+            <div className="min-w-0 grid gap-4 md:grid-cols-3">
+              <article className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <CreditCard className="size-3.5" />
                   Billing
                 </div>
@@ -946,8 +960,8 @@ export default async function DashboardPage() {
                 </p>
               </article>
 
-              <article className="rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              <article className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Database className="size-3.5" />
                   Credits
                 </div>
@@ -957,8 +971,8 @@ export default async function DashboardPage() {
                 </p>
               </article>
 
-              <article className="rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              <article className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <HardDriveUpload className="size-3.5" />
                   Storage
                 </div>
@@ -970,26 +984,26 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <aside className="space-y-4 rounded-[2rem] border border-border/70 bg-background/90 p-6 shadow-sm">
+          <aside className="min-w-0 space-y-4 rounded-lg border bg-card p-6 text-card-foreground">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Template notes</p>
-              <h3 className="mt-3 text-2xl font-semibold tracking-tight">Replace these first</h3>
+              <p className="text-sm text-muted-foreground">Template notes</p>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight">Replace these first</h3>
             </div>
 
             <ul className="space-y-3 text-sm text-muted-foreground">
-              <li className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-3">
+              <li className="rounded-md border bg-muted/50 px-4 py-3">
                 Swap the starter Stripe price id with your real recurring product and add webhook handlers.
               </li>
-              <li className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-3">
+              <li className="rounded-md border bg-muted/50 px-4 py-3">
                 Replace the seeded credits model with your real usage accounting rules.
               </li>
-              <li className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-3">
+              <li className="rounded-md border bg-muted/50 px-4 py-3">
                 Expand the dashboard once your primary signed-in workflow is defined.
               </li>
             </ul>
 
             {!dashboard.databaseReady ? (
-              <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+              <div className="rounded-md border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
                 Database connectivity is not ready yet. The starter falls back to placeholder subscription and credits data until your Neon env and Drizzle migrations are in place.
               </div>
             ) : null}
@@ -1001,28 +1015,487 @@ export default async function DashboardPage() {
 }
 `);
 
-  writeFile(path.join(root, 'app/layout.tsx'), `import { shadcn } from '@clerk/ui/themes';
-import { ClerkProvider } from '@clerk/nextjs';
+  writeFile(path.join(root, 'components/auth/sign-in-panel.tsx'), `'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { useSignIn } from '@clerk/nextjs';
+import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/lib/ui/button';
+import { cn } from '@/lib/utils';
+
+type ClerkHookError = {
+  longMessage?: string;
+  message?: string;
+};
+
+type ClerkHookErrorState = {
+  fields?: Record<string, ClerkHookError | undefined>;
+  global?: ClerkHookError[] | null;
+  raw?: ClerkHookError[] | null;
+};
+
+const inputClassName = 'flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50';
+const labelClassName = 'text-sm font-medium';
+
+function getMessage(error?: ClerkHookError | null) {
+  return error?.longMessage ?? error?.message ?? null;
+}
+
+function getGlobalError(errors?: ClerkHookErrorState | null, fallback?: string | null) {
+  return (
+    fallback ??
+    getMessage(errors?.global?.[0]) ??
+    getMessage(errors?.raw?.[0]) ??
+    null
+  );
+}
+
+async function finalizeSignIn(
+  signIn: Awaited<ReturnType<typeof useSignIn>>['signIn'],
+  router: ReturnType<typeof useRouter>,
+) {
+  await signIn.finalize({
+    navigate: async ({ decorateUrl }) => {
+      const url = decorateUrl('/dashboard');
+
+      if (url.startsWith('http')) {
+        window.location.href = url;
+      } else {
+        router.replace(url);
+      }
+    },
+  });
+}
+
+export function SignInPanel() {
+  const router = useRouter();
+  const { signIn, errors, fetchStatus } = useSignIn();
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [unexpectedError, setUnexpectedError] = React.useState<string | null>(null);
+  const isSubmitting = fetchStatus === 'fetching';
+  const typedErrors = errors as unknown as ClerkHookErrorState | null | undefined;
+  const emailError = getMessage(typedErrors?.fields?.identifier);
+  const passwordError = getMessage(typedErrors?.fields?.password);
+  const globalError = getGlobalError(typedErrors, unexpectedError);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setUnexpectedError(null);
+
+    try {
+      const { error } = await signIn.password({
+        identifier: email.trim(),
+        password,
+      });
+
+      if (error) {
+        return;
+      }
+
+      if (signIn.status === 'complete') {
+        await finalizeSignIn(signIn, router);
+        return;
+      }
+
+      setUnexpectedError('This starter currently supports email-and-password sign-in only.');
+    } catch (submissionError) {
+      setUnexpectedError(submissionError instanceof Error ? submissionError.message : 'Something went wrong. Please try again.');
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md rounded-lg border bg-card p-6 text-card-foreground">
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This route is already wired to Clerk hooks and redirects to the dashboard after authentication.
+        </p>
+      </div>
+
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <div className="space-y-2">
+          <label className={labelClassName} htmlFor="email">Email</label>
+          <input
+            autoComplete="email"
+            className={inputClassName}
+            id="email"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+            type="email"
+            value={email}
+          />
+          {emailError ? <p className="text-sm text-destructive">{emailError}</p> : null}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <label className={labelClassName} htmlFor="password">Password</label>
+            <span className="text-xs text-muted-foreground">Email + password</span>
+          </div>
+          <input
+            autoComplete="current-password"
+            className={inputClassName}
+            id="password"
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Enter your password"
+            type="password"
+            value={password}
+          />
+          {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
+        </div>
+
+        {globalError ? (
+          <div className="flex items-start gap-3 rounded-md border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <p>{globalError}</p>
+          </div>
+        ) : null}
+
+        <Button className="w-full" disabled={isSubmitting} type="submit">
+          {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+          Continue to dashboard
+        </Button>
+      </form>
+
+      <p className="mt-5 text-center text-sm text-muted-foreground">
+        Need an account?{' '}
+        <Link className={cn(buttonVariants({ variant: 'link', size: 'sm' }), 'h-auto px-0 align-baseline')} href="/sign-up">
+          Create one
+        </Link>
+      </p>
+    </div>
+  );
+}
+`);
+
+  writeFile(path.join(root, 'components/auth/sign-up-panel.tsx'), `'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { useSignUp } from '@clerk/nextjs';
+import { AlertCircle, ArrowRight, BadgeCheck, Loader2, MailCheck, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/lib/ui/button';
+import { cn } from '@/lib/utils';
+
+type ClerkHookError = {
+  longMessage?: string;
+  message?: string;
+};
+
+type ClerkHookErrorState = {
+  fields?: Record<string, ClerkHookError | undefined>;
+  global?: ClerkHookError[] | null;
+  raw?: ClerkHookError[] | null;
+};
+
+const inputClassName = 'flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50';
+const labelClassName = 'text-sm font-medium';
+
+function getMessage(error?: ClerkHookError | null) {
+  return error?.longMessage ?? error?.message ?? null;
+}
+
+function getGlobalError(errors?: ClerkHookErrorState | null, fallback?: string | null) {
+  return (
+    fallback ??
+    getMessage(errors?.global?.[0]) ??
+    getMessage(errors?.raw?.[0]) ??
+    null
+  );
+}
+
+async function finalizeSignUp(
+  signUp: Awaited<ReturnType<typeof useSignUp>>['signUp'],
+  router: ReturnType<typeof useRouter>,
+) {
+  await signUp.finalize({
+    navigate: async ({ decorateUrl }) => {
+      const url = decorateUrl('/dashboard');
+
+      if (url.startsWith('http')) {
+        window.location.href = url;
+      } else {
+        router.replace(url);
+      }
+    },
+  });
+}
+
+export function SignUpPanel() {
+  const router = useRouter();
+  const { signUp, errors, fetchStatus } = useSignUp();
+  const [step, setStep] = React.useState<'details' | 'verify'>('details');
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [verificationCode, setVerificationCode] = React.useState('');
+  const [unexpectedError, setUnexpectedError] = React.useState<string | null>(null);
+  const isSubmitting = fetchStatus === 'fetching';
+  const typedErrors = errors as unknown as ClerkHookErrorState | null | undefined;
+  const emailError = getMessage(typedErrors?.fields?.emailAddress);
+  const passwordError = getMessage(typedErrors?.fields?.password);
+  const codeError = getMessage(typedErrors?.fields?.code);
+  const globalError = getGlobalError(typedErrors, unexpectedError);
+
+  async function onCreateAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setUnexpectedError(null);
+
+    try {
+      const { error } = await signUp.password({
+        emailAddress: email.trim(),
+        password,
+      });
+
+      if (error) {
+        return;
+      }
+
+      if (signUp.status === 'complete') {
+        await finalizeSignUp(signUp, router);
+        return;
+      }
+
+      const { error: sendEmailError } = await signUp.verifications.sendEmailCode();
+      if (sendEmailError) {
+        return;
+      }
+
+      setStep('verify');
+      setVerificationCode('');
+    } catch (submissionError) {
+      setUnexpectedError(submissionError instanceof Error ? submissionError.message : 'Something went wrong. Please try again.');
+    }
+  }
+
+  async function onVerify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setUnexpectedError(null);
+
+    try {
+      const { error } = await signUp.verifications.verifyEmailCode({
+        code: verificationCode.trim(),
+      });
+
+      if (error) {
+        return;
+      }
+
+      if (signUp.status === 'complete') {
+        await finalizeSignUp(signUp, router);
+        return;
+      }
+
+      setUnexpectedError('Verification is still incomplete. Request a fresh code and try again.');
+    } catch (verificationError) {
+      setUnexpectedError(verificationError instanceof Error ? verificationError.message : 'Something went wrong. Please try again.');
+    }
+  }
+
+  async function onResendCode() {
+    if (isSubmitting) return;
+
+    setUnexpectedError(null);
+
+    try {
+      const { error } = await signUp.verifications.sendEmailCode();
+      if (error) {
+        return;
+      }
+    } catch (resendError) {
+      setUnexpectedError(resendError instanceof Error ? resendError.message : 'Unable to send a new code right now.');
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md rounded-lg border bg-card p-6 text-card-foreground">
+      <div className="mb-6">
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight">
+          {step === 'details' ? 'Create your account' : 'Verify your email'}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {step === 'details'
+            ? 'This route is already wired to Clerk hooks and redirects to the dashboard after signup.'
+            : \`Enter the verification code Clerk sent to \${email.trim() || 'your inbox'} to finish account creation.\`}
+        </p>
+      </div>
+
+      {step === 'details' ? (
+        <form className="space-y-4" onSubmit={onCreateAccount}>
+          <div className="space-y-2">
+            <label className={labelClassName} htmlFor="sign-up-email">Email</label>
+            <input
+              autoComplete="email"
+              className={inputClassName}
+              id="sign-up-email"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="founder@company.com"
+              type="email"
+              value={email}
+            />
+            {emailError ? <p className="text-sm text-destructive">{emailError}</p> : null}
+          </div>
+
+          <div className="space-y-2">
+            <label className={labelClassName} htmlFor="sign-up-password">Password</label>
+            <input
+              autoComplete="new-password"
+              className={inputClassName}
+              id="sign-up-password"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Choose a strong password"
+              type="password"
+              value={password}
+            />
+            {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
+          </div>
+
+          {globalError ? (
+          <div className="flex items-start gap-3 rounded-md border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <p>{globalError}</p>
+          </div>
+          ) : null}
+
+          <div id="clerk-captcha" />
+
+          <Button className="w-full" disabled={isSubmitting} type="submit">
+            {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+            Create account
+          </Button>
+        </form>
+      ) : (
+        <form className="space-y-4" onSubmit={onVerify}>
+          <div className="rounded-md border bg-muted/50 p-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <MailCheck className="size-4" />
+              Email verification
+            </div>
+            <p className="mt-2">
+              Clerk handles the verification challenge while this route stays inside your app.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className={labelClassName} htmlFor="verification-code">Verification code</label>
+            <input
+              className={inputClassName}
+              id="verification-code"
+              inputMode="numeric"
+              onChange={(event) => setVerificationCode(event.target.value)}
+              placeholder="123456"
+              type="text"
+              value={verificationCode}
+            />
+            {codeError ? <p className="text-sm text-destructive">{codeError}</p> : null}
+          </div>
+
+          {globalError ? (
+          <div className="flex items-start gap-3 rounded-md border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <p>{globalError}</p>
+          </div>
+          ) : null}
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <Button className="md:col-span-2" disabled={isSubmitting} type="submit">
+              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
+              Verify and continue
+            </Button>
+
+            <Button
+              disabled={isSubmitting}
+              onClick={onResendCode}
+              type="button"
+              variant="secondary"
+            >
+              <RotateCcw className="size-4" />
+              Resend code
+            </Button>
+
+            <Button
+              className="md:col-span-3"
+              disabled={isSubmitting}
+              onClick={() => {
+                setStep('details');
+                setVerificationCode('');
+                setUnexpectedError(null);
+              }}
+              type="button"
+              variant="outline"
+            >
+              Use another email
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <p className="mt-5 text-center text-sm text-muted-foreground">
+        Already have an account?{' '}
+        <Link className={cn(buttonVariants({ variant: 'link', size: 'sm' }), 'h-auto px-0 align-baseline')} href="/sign-in">
+          Sign in
+        </Link>
+      </p>
+    </div>
+  );
+}
+`);
+
+  writeFile(path.join(root, 'components/theme-toggle.tsx'), `'use client';
+
+import * as React from 'react';
+import { Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Button } from '@/components/ui/button';
+
+export function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = mounted && resolvedTheme === 'dark';
+
+  return (
+    <Button
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      size="icon"
+      type="button"
+      variant="outline"
+    >
+      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </Button>
+  );
+}
+`);
+
+  writeFile(path.join(root, 'app/layout.tsx'), `import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
+import { clerkEnvReady } from '@/lib/demo-env';
 
 export const metadata: Metadata = {
-  title: '${displayName}',
+  title: 'Anhedral',
   description: 'Anhedral starter with Clerk auth, Stripe billing, Neon + Drizzle, and R2 avatars.',
-};
-
-const clerkAppearance = {
-  theme: shadcn,
-  variables: {
-    colorPrimary: 'oklch(0.205 0 0)',
-    colorBackground: 'oklch(1 0 0)',
-    borderRadius: '1rem',
-  },
-  options: {
-    logoImageUrl: '${ANHEDRAL_LOGO_PUBLIC_PATH}',
-    socialButtonsVariant: 'iconButton' as const,
-    socialButtonsPlacement: 'top' as const,
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
   },
 };
 
@@ -1031,107 +1504,265 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = (
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className="antialiased font-sans"
+    >
+      <body>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+
+  if (!clerkEnvReady) {
+    return content;
+  }
+
   return (
-    <ClerkProvider appearance={clerkAppearance}>
-      <html
-        lang="en"
-        suppressHydrationWarning
-        className="antialiased font-sans"
-      >
-        <body>
-          <ThemeProvider>{children}</ThemeProvider>
-        </body>
-      </html>
+    <ClerkProvider>
+      {content}
     </ClerkProvider>
   );
 }
 `);
 
-  writeFile(path.join(root, 'app/page.tsx'), `import { auth } from '@clerk/nextjs/server';
-import { ArrowRight, Cloud, CreditCard, Database, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
-import { buttonVariants } from '@/lib/ui/button';
-import { cn } from '@/lib/utils';
+  writeFile(path.join(root, 'lib/demo-env.ts'), `const REQUIRED_ENV_GROUPS = [
+  {
+    title: 'App',
+    fields: ['NEXT_PUBLIC_APP_URL'],
+  },
+  {
+    title: 'Clerk',
+    fields: [
+      'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
+      'CLERK_SECRET_KEY',
+      'NEXT_PUBLIC_CLERK_SIGN_IN_URL',
+      'NEXT_PUBLIC_CLERK_SIGN_UP_URL',
+      'NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL',
+      'NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL',
+    ],
+  },
+  {
+    title: 'Neon + Drizzle',
+    fields: ['DATABASE_URL'],
+  },
+  {
+    title: 'Cloudflare R2',
+    fields: ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'],
+  },
+  {
+    title: 'Stripe',
+    fields: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_STARTER'],
+  },
+] as const;
 
-const pillars = [
-  {
-    title: 'Landing page here',
-    description: 'This placeholder is intentional. Replace the copy, media, and pricing once your narrative is ready.',
-    icon: Cloud,
+function hasRealValue(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return !value.includes('***') && !value.includes('demo_placeholder');
+}
+
+function isValidPublishableKey(value: string | undefined) {
+  if (!hasRealValue(value)) {
+    return false;
+  }
+
+  return /^pk_(test|live)_[A-Za-z0-9]+$/.test(value ?? '');
+}
+
+function isValidSecretKey(value: string | undefined) {
+  if (!hasRealValue(value)) {
+    return false;
+  }
+
+  return /^sk_(test|live)_[A-Za-z0-9]+$/.test(value ?? '');
+}
+
+export const clerkEnvReady =
+  isValidPublishableKey(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) &&
+  isValidSecretKey(process.env.CLERK_SECRET_KEY);
+
+export const requiredEnvGroups = REQUIRED_ENV_GROUPS;
+`);
+
+  writeFile(path.join(root, 'app/page.tsx'), `import { auth } from '@clerk/nextjs/server';
+  import { AlertCircle, ArrowRight, Cloud, CreditCard, Database, ShieldCheck } from 'lucide-react';
+  import Link from 'next/link';
+  import { ThemeToggle } from '@/components/theme-toggle';
+  import { clerkEnvReady, requiredEnvGroups } from '@/lib/demo-env';
+  import { buttonVariants } from '@/lib/ui/button';
+  import { cn } from '@/lib/utils';
+
+// Edit the content in this file to turn the starter into your own app.
+const homePageContent = {
+  hero: {
+    title: 'A simple starter, ready to customize.',
+    description:
+      'This template keeps auth, billing, data, and storage wired up without adding extra visual noise. Replace the placeholder sections with your product-specific content and workflows.',
+    primaryLabel: 'Create your first account',
+    signedInPrimaryLabel: 'Go to dashboard',
+    secondaryLabel: 'Open sign-in',
   },
-  {
-    title: 'Clerk custom auth',
-    description: 'Custom-branded sign-in and sign-up routes are already mounted at /sign-in and /sign-up.',
-    icon: ShieldCheck,
+  setup: {
+    title: 'Add your env vars',
+    description:
+      'Copy .env.example to .env, replace every placeholder below, then restart the dev server.',
+    steps: [
+      'Copy .env.example to .env.',
+      'Fill in every App, Clerk, database, storage, and Stripe value listed below.',
+      'Restart pnpm dev after saving the file.',
+    ],
   },
-  {
-    title: 'Stripe + credits',
-    description: 'The signed-in shell already reserves space for subscription state, checkout, and credit balances.',
-    icon: CreditCard,
-  },
-  {
-    title: 'Neon + Drizzle + R2',
-    description: 'Core persistence and avatar upload plumbing are scaffolded so your product team starts higher in the stack.',
-    icon: Database,
-  },
-];
+  sections: [
+    {
+      title: 'Landing content',
+      description:
+        'Replace this placeholder with your headline, screenshots, pricing, and any product proof you want on the homepage.',
+      href: '#hero',
+      linkLabel: 'Jump to hero copy',
+      icon: Cloud,
+    },
+    {
+      title: 'Authentication',
+      description:
+        'Sign-in and sign-up routes are already mounted, so you can focus on your app-specific onboarding and copy.',
+      href: '/sign-in',
+      linkLabel: 'Open sign-in',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Billing',
+      description:
+        'Checkout, subscription state, and starter credit surfaces are already scaffolded into the signed-in experience.',
+      href: '/dashboard',
+      linkLabel: 'Open billing shell',
+      icon: CreditCard,
+    },
+    {
+      title: 'Data and storage',
+      description:
+        'Neon, Drizzle, and R2 hooks are in place for account data, uploads, and the rest of your product-specific models.',
+      href: '/dashboard',
+      linkLabel: 'Open app shell',
+      icon: Database,
+    },
+  ],
+} as const;
 
 export default async function HomePage() {
-  const { userId } = await auth();
+  const { userId } = clerkEnvReady ? await auth() : { userId: null };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(29,78,216,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.14),transparent_25%)]">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 sm:px-8">
-        <header className="flex items-center justify-between gap-4 rounded-[2rem] border border-border/70 bg-background/85 px-4 py-3 shadow-sm backdrop-blur">
-          <div>
-            <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">anhedral starter</p>
-            <p className="text-lg font-semibold tracking-tight">${displayName}</p>
-          </div>
-
+    <main className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="container mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <Link className={cn(buttonVariants({ variant: 'ghost' }))} href="/sign-in">
-              Sign in
-            </Link>
-            <Link className={cn(buttonVariants())} href={userId ? '/dashboard' : '/sign-up'}>
-              {userId ? 'Open dashboard' : 'Start with sign up'}
-            </Link>
-          </div>
-        </header>
-
-        <section className="grid flex-1 items-center gap-8 py-14 lg:grid-cols-[1.3fr_0.9fr]">
-          <div className="rounded-[2.25rem] border border-border/70 bg-background/90 p-8 shadow-sm sm:p-10">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Replace me with your real story
-            </div>
-            <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-tight sm:text-6xl">
-              Landing page here. Keep the shell, then turn it into your actual acquisition motion.
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg text-muted-foreground">
-              The generated project starts with a real auth flow, a signed-in dashboard shell, Stripe billing entry points,
-              and an R2 avatar path so your first sprint is focused on product, not setup.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link className={cn(buttonVariants({ size: 'lg' }))} href={userId ? '/dashboard' : '/sign-up'}>
-                {userId ? 'Go to dashboard' : 'Create your first account'}
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link className={cn(buttonVariants({ size: 'lg', variant: 'outline' }))} href="/sign-in">
-                See the sign-in flow
-              </Link>
-            </div>
+            <img alt="Anhedral logo" className="size-7" src="/anhedral.svg" />
+            <p className="text-base font-semibold tracking-tight">Anhedral</p>
           </div>
 
-          <div className="grid gap-4">
-            {pillars.map(({ title, description, icon: Icon }) => (
-              <article key={title} className="rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
+            {clerkEnvReady ? (
+              <>
+                <Link className={cn(buttonVariants({ variant: 'ghost' }))} href="/sign-in">
+                  Sign in
+                </Link>
+                <Link className={cn(buttonVariants())} href={userId ? '/dashboard' : '/sign-up'}>
+                  {userId ? 'Open dashboard' : 'Start with sign up'}
+                </Link>
+              </>
+            ) : (
+              <div className="inline-flex h-8 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                Setup mode
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          {clerkEnvReady ? (
+            <section id="hero" className="min-w-0 rounded-lg border bg-card p-6 text-card-foreground">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                {homePageContent.hero.title}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
+                {homePageContent.hero.description}
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link className={cn(buttonVariants())} href={userId ? '/dashboard' : '/sign-up'}>
+                  {userId ? homePageContent.hero.signedInPrimaryLabel : homePageContent.hero.primaryLabel}
+                  <ArrowRight className="ml-2 size-4" />
+                </Link>
+                <Link className={cn(buttonVariants({ variant: 'outline' }))} href="/sign-in">
+                  {homePageContent.hero.secondaryLabel}
+                </Link>
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-lg border bg-card p-6 text-card-foreground sm:p-8">
+              <div className="inline-flex items-center gap-2 rounded-md border bg-muted px-3 py-1 text-sm text-muted-foreground">
+                <AlertCircle className="size-3.5" />
+                Setup mode
+              </div>
+              <h2 className="mt-4 text-xl font-semibold tracking-tight">{homePageContent.setup.title}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {homePageContent.setup.description}
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div className="rounded-md border bg-muted/50 p-5">
+                  <p className="text-sm font-medium text-muted-foreground">Environment checklist</p>
+                  <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    {homePageContent.setup.steps.map((step, index) => (
+                      <li key={step}>
+                        {index + 1}. {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="space-y-4">
+                  {requiredEnvGroups.map((group) => (
+                    <article key={group.title} className="min-w-0 rounded-md border bg-card p-4">
+                      <h3 className="text-sm font-medium text-muted-foreground">{group.title}</h3>
+                      <ul className="mt-3 space-y-2 text-foreground/90">
+                        {group.fields.map((field) => (
+                          <li key={field} className="min-w-0">
+                            <code className="block break-all font-mono text-xs">{field}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          <div className="min-w-0 grid gap-4">
+            {homePageContent.sections.map(({ title, description, href, linkLabel, icon: Icon }) => (
+              <article key={title} className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground">
+                  <div className="flex size-9 items-center justify-center rounded-md bg-muted text-foreground">
                     <Icon className="size-5" />
                   </div>
-                  <h2 className="text-lg font-semibold">{title}</h2>
+                  <h2 className="text-base font-semibold">{title}</h2>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+                <Link className={cn(buttonVariants({ size: 'sm', variant: 'link' }), 'mt-4 h-auto px-0')} href={href}>
+                  {linkLabel}
+                  <ArrowRight className="ml-1 size-4" />
+                </Link>
               </article>
             ))}
           </div>
@@ -1142,85 +1773,26 @@ export default async function HomePage() {
 }
 `);
 
-  writeFile(path.join(root, 'app/sign-in/[[...sign-in]]/page.tsx'), `import { SignIn } from '@clerk/nextjs';
-import Link from 'next/link';
+  writeFile(path.join(root, 'app/sign-in/[[...sign-in]]/page.tsx'), `import { SignInPanel } from '@/components/auth/sign-in-panel';
 
 export default function SignInPage() {
   return (
-    <main className="grid min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(29,78,216,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.14),transparent_24%)] px-6 py-10 sm:px-8 lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="flex flex-col justify-between rounded-[2rem] border border-border/70 bg-background/90 p-8 shadow-sm">
-        <div>
-          <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">Clerk custom UI</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">Sign in without rebuilding the basics.</h1>
-          <p className="mt-4 max-w-xl text-base text-muted-foreground">
-            This route is intentionally branded and lives alongside your app shell. Swap the copy and continue shipping.
-          </p>
-        </div>
-
-        <div className="rounded-[1.75rem] border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Already wired:</p>
-          <ul className="mt-3 space-y-2">
-            <li>Custom route at /sign-in</li>
-            <li>Clerk shadcn theme through ClerkProvider</li>
-            <li>Dashboard redirect after authentication</li>
-          </ul>
-          <p className="mt-4">
-            Need a different conversion flow? Pair this page with the installed Clerk skill and replace it with a hook-driven form later.
-          </p>
-        </div>
-      </section>
-
-      <section className="flex items-center justify-center py-8 lg:py-0">
-        <div className="w-full max-w-md rounded-[2rem] border border-border/70 bg-background/95 p-4 shadow-xl">
-          <SignIn forceRedirectUrl="/dashboard" path="/sign-in" routing="path" signUpUrl="/sign-up" />
-          <p className="px-4 pb-2 text-center text-sm text-muted-foreground">
-            Need an account?{' '}
-            <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/sign-up">
-              Create one
-            </Link>
-          </p>
-        </div>
+    <main className="min-h-screen bg-background">
+      <section className="container mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
+        <SignInPanel />
       </section>
     </main>
   );
 }
 `);
 
-  writeFile(path.join(root, 'app/sign-up/[[...sign-up]]/page.tsx'), `import { SignUp } from '@clerk/nextjs';
-import Link from 'next/link';
+  writeFile(path.join(root, 'app/sign-up/[[...sign-up]]/page.tsx'), `import { SignUpPanel } from '@/components/auth/sign-up-panel';
 
 export default function SignUpPage() {
   return (
-    <main className="grid min-h-screen bg-[radial-gradient(circle_at_top_right,rgba(29,78,216,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_24%)] px-6 py-10 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
-      <section className="flex items-center justify-center py-8 lg:order-2 lg:py-0">
-        <div className="w-full max-w-md rounded-[2rem] border border-border/70 bg-background/95 p-4 shadow-xl">
-          <SignUp forceRedirectUrl="/dashboard" path="/sign-up" routing="path" signInUrl="/sign-in" />
-          <p className="px-4 pb-2 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/sign-in">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </section>
-
-      <section className="flex flex-col justify-between rounded-[2rem] border border-border/70 bg-background/90 p-8 shadow-sm lg:order-1">
-        <div>
-          <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">Starter onboarding</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">Get users into the product shell immediately.</h1>
-          <p className="mt-4 max-w-xl text-base text-muted-foreground">
-            The generated starter sends new accounts straight into the dashboard with billing, credits, and avatar plumbing already waiting.
-          </p>
-        </div>
-
-        <div className="rounded-[1.75rem] border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Good first replacements:</p>
-          <ul className="mt-3 space-y-2">
-            <li>Swap the starter tier labels and pricing copy</li>
-            <li>Add your real onboarding questionnaire or workspace creation step</li>
-            <li>Connect webhook-driven billing state once Stripe products are finalized</li>
-          </ul>
-        </div>
+    <main className="min-h-screen bg-background">
+      <section className="container mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
+        <SignUpPanel />
       </section>
     </main>
   );
@@ -1230,14 +1802,12 @@ export default function SignUpPage() {
   writeFile(path.join(root, 'app/globals.css'), `@import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@clerk/ui/themes/shadcn.css';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-app-sans);
-  --font-sans: var(--font-app-sans);
-  --font-mono: var(--font-app-mono);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -1279,8 +1849,6 @@ export default function SignUpPage() {
 }
 
 :root {
-  --font-app-sans: 'Avenir Next', 'Inter', 'Segoe UI', sans-serif;
-  --font-app-mono: 'JetBrains Mono', 'SFMono-Regular', monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -1304,7 +1872,7 @@ export default function SignUpPage() {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.875rem;
+  --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -1381,8 +1949,12 @@ export default nextConfig;
 `);
 
   writeFile(path.join(root, 'proxy.ts'), `import { clerkMiddleware } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import { clerkEnvReady } from './lib/demo-env';
 
-export default clerkMiddleware();
+const proxy = clerkEnvReady ? clerkMiddleware() : () => NextResponse.next();
+
+export default proxy;
 
 export const config = {
   matcher: [
@@ -1392,5 +1964,5 @@ export const config = {
 };
 `);
 
-  writeAnhedralLogo(root);
+  writeAnhedralWebBranding(root);
 }
