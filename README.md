@@ -58,25 +58,27 @@ pnpm test:all
 
 This package is published once to the npm registry. `pnpm`, `npm`, `yarn`, and `bun` users all install that same published package.
 
-Manual local publish still works:
-
-```sh
-pnpm build
-pnpm test:all
-npm publish
-```
-
-GitHub Actions release automation is also configured in `.github/workflows/release.yml`.
+Official releases are automatic on merges to `main`. GitHub Actions runs the release checks, bumps the patch version, creates a release commit and tag, and then publishes that tag to npm with provenance.
 
 Recommended release flow:
 
 ```sh
-pnpm release:check
-npm version patch
-git push --follow-tags
+git push origin main
 ```
 
-The release workflow will publish on tags like `v0.1.1`. For npm trusted publishing, configure the package on npmjs.com to trust the `release.yml` workflow in `anhedral/anhedral-init`.
+Release publishing is handled by:
+
+- `.github/workflows/release-on-main.yml`: runs on pushes to `main`, verifies the repo, bumps `package.json`, and pushes a `v*.*.*` tag.
+- `.github/workflows/release.yml`: publishes tagged releases to npm with trusted GitHub Actions provenance.
+
+For npm trusted publishing, configure the package on npmjs.com to trust the `release.yml` workflow in `anhedral/anhedral-init`.
+
+Manual local publish is still available as an emergency fallback:
+
+```sh
+pnpm release:check
+npm publish --provenance=false
+```
 
 ## Maintenance
 
