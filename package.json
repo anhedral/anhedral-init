@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Opinionated init CLI for Next, Next + Fastify, Expo + Fastify, and backend starters with Neon, Drizzle, R2, auth, and billing integrations.",
   "type": "module",
   "bin": {
