@@ -60,7 +60,7 @@ pnpm test:all
 
 This package is published once to the npm registry. `pnpm`, `npm`, `yarn`, and `bun` users all install that same published package.
 
-Official releases are automatic on merges to `main`. GitHub Actions runs the release checks, bumps the patch version, creates a release commit and tag, and then publishes that tag to npm with provenance.
+Official releases are automatic on merges to `main`. GitHub Actions bumps the patch version, runs the release checks once, creates a release commit and tag, and publishes that version to npm.
 
 Recommended release flow:
 
@@ -70,16 +70,16 @@ git push origin main
 
 Release publishing is handled by:
 
-- `.github/workflows/release-on-main.yml`: runs on pushes to `main`, verifies the repo, bumps `package.json`, and pushes a `v*.*.*` tag.
-- `.github/workflows/release.yml`: publishes tagged releases to npm with trusted GitHub Actions provenance.
+- `.github/workflows/release-on-main.yml`: runs on pushes to `main`, bumps `package.json`, verifies the repo, pushes a `v*.*.*` tag, and publishes to npm.
+- `.github/workflows/release.yml`: manual retry workflow for publishing the current checked-out package version.
 
-For npm trusted publishing, configure the package on npmjs.com to trust the `release.yml` workflow in `anhedral/anhedral-init`.
+The repository is private, so npm provenance publishing is not supported. GitHub Actions publishes with `--provenance=false` and skips npm lifecycle scripts because `pnpm release:check` has already run. Configure an npm automation token as `NPM_TOKEN` in the `npm` GitHub environment or repository secrets.
 
 Manual local publish is still available as an emergency fallback:
 
 ```sh
 pnpm release:check
-npm publish --provenance=false
+npm publish --provenance=false --ignore-scripts
 ```
 
 ## Maintenance
@@ -96,9 +96,9 @@ The practical rule is simple: detect drift on `latest`, verify it, then promote 
 - Renovate is configured in `renovate.json` to keep this repo's own dependencies current.
 - GitHub Actions CI runs on pushes and pull requests in `.github/workflows/ci.yml`.
 - Weekly toolchain drift checks run in `.github/workflows/toolchain-drift.yml` for both `stable` and `latest`.
-- Tagged releases publish through `.github/workflows/release.yml`.
+- Automatic releases publish through `.github/workflows/release-on-main.yml`; `.github/workflows/release.yml` is for manual retry only.
 - Stable toolchain pins in `src/toolchain.ts` are annotated so Renovate can open PRs when upstream scaffold CLIs publish updates.
-- `prepublishOnly` stays strict. Every publish still runs `pnpm test:all`.
+- `prepublishOnly` stays strict for manual local publishing. GitHub Actions skips npm lifecycle scripts during publish after running `pnpm release:check`.
 
 ### Upgrade workflow
 

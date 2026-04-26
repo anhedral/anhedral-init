@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/**'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
   group: release-main
@@ -15,9 +21,10 @@ concurrency:
 
 jobs:
   version:
-    name: Version and tag
+    name: Version, tag, and publish
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    environment: npm
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -36,12 +43,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Run release checks
-        run: pnpm release:check
 
       - name: Configure git
         run: |
@@ -55,6 +60,16 @@ jobs:
           VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check npm version is unpublished
+        run: |
+          if npm view "anhedral@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "anhedral@${{ steps.version.outputs.version }} is already published"
+            exit 1
+          fi
+
+      - name: Run release checks
+        run: pnpm release:check
+
       - name: Commit release version
         run: |
           git add package.json
@@ -65,3 +80,8 @@ jobs:
         run: |
           git push origin HEAD:main
           git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Publish package
+        run: npm publish --provenance=false --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
