@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Opinionated init CLI for Expo or Next.js fullstack workspaces with Fastify, WXT, shared packages, Neon, Drizzle, Clerk, Stripe, RevenueCat, and R2.",
   "type": "module",
   "bin": {
