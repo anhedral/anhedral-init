@@ -16,14 +16,41 @@ export function appendGitignore(root: string, lines: string[]): void {
   writeFile(filePath, merged.join('\n') + '\n');
 }
 
+const VERBOSE = process.env.ANHEDRAL_VERBOSE === '1';
+
+function dumpFailure(error: unknown, cmd: string): never {
+  const err = error as { stdout?: Buffer | string; stderr?: Buffer | string; status?: number | null };
+  const stdoutText = err.stdout ? err.stdout.toString() : '';
+  const stderrText = err.stderr ? err.stderr.toString() : '';
+  if (stdoutText) process.stderr.write(stdoutText);
+  if (stderrText) process.stderr.write(stderrText);
+  throw new Error(`Command failed (exit ${err.status ?? '?'}): ${cmd}`);
+}
+
 export function exec(cmd: string, cwd: string): void {
-  console.log(`  $ ${cmd}`);
-  execSync(cmd, { cwd, stdio: 'inherit' });
+  if (VERBOSE) {
+    console.log(`  $ ${cmd}`);
+    execSync(cmd, { cwd, stdio: 'inherit' });
+    return;
+  }
+  try {
+    execSync(cmd, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    dumpFailure(error, cmd);
+  }
 }
 
 export function execWithInput(cmd: string, cwd: string, stdinInput: string): void {
-  console.log(`  $ ${cmd}`);
-  execSync(cmd, { cwd, stdio: ['pipe', 'inherit', 'inherit'], input: stdinInput });
+  if (VERBOSE) {
+    console.log(`  $ ${cmd}`);
+    execSync(cmd, { cwd, stdio: ['pipe', 'inherit', 'inherit'], input: stdinInput });
+    return;
+  }
+  try {
+    execSync(cmd, { cwd, stdio: ['pipe', 'pipe', 'pipe'], input: stdinInput });
+  } catch (error) {
+    dumpFailure(error, cmd);
+  }
 }
 
 function moveDirectoryContents(sourceDir: string, targetDir: string): void {
@@ -85,12 +112,15 @@ export async function execExpect(
   prompts: [waitFor: string, answer: string][],
   timeoutMs = 120_000,
 ): Promise<void> {
-  console.log(`  $ ${cmd}`);
+  if (VERBOSE) {
+    console.log(`  $ ${cmd}`);
+  }
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn('bash', ['-lc', cmd], {
+    const child = spawn(cmd, {
       cwd,
       env: process.env,
+      shell: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -118,7 +148,7 @@ export async function execExpect(
     const handleChunk = (chunk: Buffer, target: NodeJS.WriteStream) => {
       const text = chunk.toString();
       combinedOutput += text;
-      target.write(text);
+      if (VERBOSE) target.write(text);
       maybeAnswerPrompt();
     };
 

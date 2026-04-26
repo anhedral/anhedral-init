@@ -1,7 +1,7 @@
 {
   "name": "anhedral",
   "version": "0.1.2",
-  "description": "Opinionated init CLI for Next, Next + Fastify, Expo + Fastify, and backend starters with Neon, Drizzle, R2, auth, and billing integrations.",
+  "description": "Opinionated init CLI for Expo or Next.js fullstack workspaces with Fastify, WXT, shared packages, Neon, Drizzle, Clerk, Stripe, RevenueCat, and R2.",
   "type": "module",
   "bin": {
     "anhedral": "bin/anhedral.js"
@@ -36,14 +36,13 @@
     "test": "pnpm test:cli",
     "pretest": "pnpm build",
     "prepublishOnly": "pnpm test:all",
-    "test:cli": "node scripts/test-cli.js",
-    "test:cli:validation": "node scripts/test-cli-validation.js",
-    "test:cli:scaffold": "node scripts/test-cli-scaffold-headless.js",
-    "test:e2e": "node scripts/test-e2e-public-stacks.js",
-    "test:e2e:latest": "node scripts/test-e2e-public-stacks.js --toolchain latest",
+    "test:cli": "node tests/test-cli.js",
+    "test:cli:validation": "node tests/test-cli-validation.js",
+    "test:e2e": "node tests/test-e2e-public-stacks.js",
+    "test:e2e:latest": "node tests/test-e2e-public-stacks.js --toolchain latest",
     "test:all": "pnpm test && pnpm test:e2e",
     "release:check": "pnpm test:all && npm pack --dry-run",
-    "demo:refresh": "pnpm build && node scripts/refresh-demo.js"
+    "demo:refresh": "pnpm build && node tests/refresh-demo.js"
   },
   "keywords": [
     "cli",
@@ -54,7 +53,7 @@
     "drizzle",
     "neondb",
     "revenuecat",
-    "better-auth",
+    "wxt",
     "shadcn"
   ],
   "license": "MIT",

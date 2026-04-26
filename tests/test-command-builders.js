@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
-const { getBackendInstallCommands, getDefaultWebDependencyCommands, getDefaultWebInitCommand, getHeadlessInstallCommands, getSkillCommands } = await import(path.join(repoRoot, 'dist', 'commands.js'));
+const { getBackendInstallCommands, getDefaultWebDependencyCommands, getDefaultWebInitCommand, getSkillCommands } = await import(path.join(repoRoot, 'dist', 'commands.js'));
 const { resolveToolchain } = await import(path.join(repoRoot, 'dist', 'toolchain.js'));
 
 const toolchain = resolveToolchain('stable');
@@ -27,36 +27,26 @@ assert.match(defaultDependencyCommands[1], /\bbabel-plugin-react-compiler\b/);
 assert.match(defaultDependencyCommands[1], /\btsx\b/);
 assert.match(defaultDependencyCommands[1], /\bdotenv\b/);
 
-const headlessInstallCommands = getHeadlessInstallCommands().map((command) => command.cmd);
-assert.equal(headlessInstallCommands.length, 2);
-assert.match(headlessInstallCommands[0], /@aws-sdk\/client-s3/);
-assert.match(headlessInstallCommands[1], /typescript@5\.9\.3/);
-assert.match(headlessInstallCommands[1], /@types\/node@25\.5\.0/);
-
 const backendInstallCommands = getBackendInstallCommands().map((command) => command.cmd);
 assert.equal(backendInstallCommands.length, 2);
 assert.match(backendInstallCommands[0], /@aws-sdk\/s3-request-presigner/);
 assert.match(backendInstallCommands[1], /eslint@9\.39\.4/);
 assert.match(backendInstallCommands[1], /@eslint\/js@9\.39\.4/);
 
-assert.deepEqual(getSkillCommands('next'), [
+assert.deepEqual(getSkillCommands({ frontend: 'next', extension: false }), [
   'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
   'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
 ]);
 
-assert.deepEqual(getSkillCommands('next-fullstack'), [
+assert.deepEqual(getSkillCommands({ frontend: 'next', extension: true }), [
   'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
   'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
 ]);
 
-assert.deepEqual(getSkillCommands('expo-fullstack'), [
+assert.deepEqual(getSkillCommands({ frontend: 'expo', extension: false }), [
   'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
   'pnpm dlx skills add https://github.com/revenuecat/revenuecat-skill --skill revenuecat',
   'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
-]);
-
-assert.deepEqual(getSkillCommands('backend'), [
-  'pnpm dlx skills add https://github.com/better-auth/skills --skill better-auth-best-practices',
 ]);
 
 console.log('Command builder regression tests passed');

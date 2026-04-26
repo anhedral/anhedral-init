@@ -803,7 +803,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'No email address found for the signed-in user.' }, { status: 400 });
   }
 
-  await syncUserProfile({
+  const user = await syncUserProfile({
     clerkUserId: userId,
     email,
     displayName,
@@ -811,6 +811,21 @@ export async function POST(request: Request) {
 
   const origin = new URL(request.url).origin;
   const stripe = getStripe();
+  let stripeCustomerId = user?.stripeCustomerId ?? null;
+
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email,
+      name: displayName,
+      metadata: {
+        clerkUserId: userId,
+      },
+    });
+
+    stripeCustomerId = customer.id;
+    await updateStripeCustomerForUser(userId, stripeCustomerId);
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [
@@ -820,7 +835,7 @@ export async function POST(request: Request) {
       },
     ],
     allow_promotion_codes: true,
-    customer_email: email,
+    customer: stripeCustomerId,
     client_reference_id: userId,
     success_url: \`\${origin}/dashboard?checkout=success\`,
     cancel_url: \`\${origin}/dashboard?checkout=cancelled\`,
@@ -828,10 +843,6 @@ export async function POST(request: Request) {
       clerkUserId: userId,
     },
   });
-
-  if (typeof session.customer === 'string' && session.customer.length > 0) {
-    await updateStripeCustomerForUser(userId, session.customer);
-  }
 
   return Response.json({ url: session.url });
 }
@@ -877,10 +888,15 @@ export async function POST(request: Request) {
   import { HeaderUserMenu } from '@/components/dashboard/header-user-menu';
   import { getClerkProfile } from '@/lib/auth/clerk';
   import { getDashboardState } from '@/lib/app/dashboard';
+  import { clerkEnvReady } from '@/lib/demo-env';
   import { buttonVariants } from '@/lib/ui/button';
   import { cn } from '@/lib/utils';
 
 export default async function DashboardPage() {
+  if (!clerkEnvReady) {
+    redirect('/');
+  }
+
   const { userId } = await auth();
 
   if (!userId) {
@@ -1568,25 +1584,9 @@ function hasRealValue(value: string | undefined) {
   return !value.includes('***') && !value.includes('demo_placeholder');
 }
 
-function isValidPublishableKey(value: string | undefined) {
-  if (!hasRealValue(value)) {
-    return false;
-  }
-
-  return /^pk_(test|live)_[A-Za-z0-9]+$/.test(value ?? '');
-}
-
-function isValidSecretKey(value: string | undefined) {
-  if (!hasRealValue(value)) {
-    return false;
-  }
-
-  return /^sk_(test|live)_[A-Za-z0-9]+$/.test(value ?? '');
-}
-
 export const clerkEnvReady =
-  isValidPublishableKey(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) &&
-  isValidSecretKey(process.env.CLERK_SECRET_KEY);
+  hasRealValue(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) &&
+  hasRealValue(process.env.CLERK_SECRET_KEY);
 
 export const requiredEnvGroups = REQUIRED_ENV_GROUPS;
 `);
@@ -1773,9 +1773,15 @@ export default async function HomePage() {
 }
 `);
 
-  writeFile(path.join(root, 'app/sign-in/[[...sign-in]]/page.tsx'), `import { SignInPanel } from '@/components/auth/sign-in-panel';
+  writeFile(path.join(root, 'app/sign-in/[[...sign-in]]/page.tsx'), `import { redirect } from 'next/navigation';
+import { SignInPanel } from '@/components/auth/sign-in-panel';
+import { clerkEnvReady } from '@/lib/demo-env';
 
 export default function SignInPage() {
+  if (!clerkEnvReady) {
+    redirect('/');
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <section className="container mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
@@ -1786,9 +1792,15 @@ export default function SignInPage() {
 }
 `);
 
-  writeFile(path.join(root, 'app/sign-up/[[...sign-up]]/page.tsx'), `import { SignUpPanel } from '@/components/auth/sign-up-panel';
+  writeFile(path.join(root, 'app/sign-up/[[...sign-up]]/page.tsx'), `import { redirect } from 'next/navigation';
+import { SignUpPanel } from '@/components/auth/sign-up-panel';
+import { clerkEnvReady } from '@/lib/demo-env';
 
 export default function SignUpPage() {
+  if (!clerkEnvReady) {
+    redirect('/');
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <section className="container mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
@@ -1936,12 +1948,14 @@ export default function SignUpPage() {
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.resolve(__dirname, '../..');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
+  transpilePackages: ['@anhedral/db'],
   turbopack: {
-    root: __dirname,
+    root: monorepoRoot,
   },
 };
 

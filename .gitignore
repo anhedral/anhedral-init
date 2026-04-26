@@ -13,3 +13,4 @@ yarn-error.log*
 *.tgz
 *.tsbuildinfo
 /demo
+/.claude/
