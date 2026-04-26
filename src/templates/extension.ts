@@ -1,45 +1,61 @@
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { writeFile, exec } from '../util.js';
+import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldExtension(root: string, { projectName, displayName }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'extension');
+  const appsRoot = path.join(root, 'apps');
+  const dir = path.join(appsRoot, 'extension');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
-  // ── 1. Scaffold via WXT CLI ───────────────────────────────────────────
-  console.log('  Scaffolding WXT extension...');
-  exec(`pnpm dlx ${toolPackageRef('wxt', toolchain.wxt)} init extension -t react --pm pnpm`, root);
+  anhedralPrint.section('Chrome extension (WXT)');
 
-  // ── 2. Overwrite package.json with proper scripts ──────────────────────
+  anhedralPrint.step('Scaffolding WXT extension');
+  writeFile(path.join(appsRoot, '.gitkeep'), '');
+  exec(`pnpm dlx ${toolPackageRef('wxt', toolchain.wxt)} init extension -t react --pm pnpm`, appsRoot);
   writePackageJson(dir, projectName);
+  anhedralPrint.done('WXT extension scaffolded');
 
-  // ── 3. Install dependencies ───────────────────────────────────────────
-  console.log('  Installing Clerk + React + UI dependencies...');
-  exec('pnpm add @clerk/chrome-extension react react-dom clsx tailwind-merge class-variance-authority lucide-react', dir);
-  exec(`pnpm add -D @types/chrome @types/react @types/react-dom @wxt-dev/module-react autoprefixer postcss tailwindcss typescript ${toolPackageRef('wxt', toolchain.wxt)}`, dir);
+  anhedralPrint.step('Installing Clerk + React + Tailwind dependencies');
+  exec(`pnpm add -D @types/chrome @types/react @types/react-dom @wxt-dev/module-react autoprefixer postcss tailwindcss@3.4.19 typescript@5.9.3 ${toolPackageRef('wxt', toolchain.wxt)}`, dir);
+  exec('pnpm add @clerk/chrome-extension react react-dom clsx tailwind-merge class-variance-authority lucide-react@0.468.0', dir);
+  anhedralPrint.done('Extension dependencies installed');
 
-  // ── 4. Write config files ─────────────────────────────────────────────
+  cleanWxtStarterFiles(dir);
   writeWxtConfig(dir, displayName);
   writeTsConfig(dir);
   writeEnvExample(dir);
+  writeEnvFile(dir);
   writePostcssConfig(dir);
   writeTailwindConfig(dir);
   writeShadcnConfig(dir);
+  writeReadme(dir, displayName);
   writeCnUtil(dir);
-
-  // ── 5. Write source files ─────────────────────────────────────────────
   writeAuthContext(dir);
   writeApiClient(dir);
   writeBackground(dir);
+  writeContentScript(dir);
   writeSidepanelEntry(dir);
   writeSidepanelHtml(dir, displayName);
   writeSidepanelApp(dir);
   writeStyles(dir);
 
-  // ── 6. Add shadcn button component (sets up CSS variables + component) ─
-  console.log('  Adding shadcn button component...');
+  anhedralPrint.step('Adding shadcn button component');
   exec(`pnpm dlx ${toolPackageRef('shadcn', toolchain.shadcn)} add button`, dir);
+  writeStyles(dir);
+  anhedralPrint.done('shadcn button installed');
+}
+
+function cleanWxtStarterFiles(dir: string): void {
+  for (const relativePath of [
+    'entrypoints',
+    'assets/react.svg',
+    'public/wxt.svg',
+  ]) {
+    rmSync(path.join(dir, relativePath), { recursive: true, force: true });
+  }
 }
 
 function writePackageJson(dir: string, projectName: string): void {
@@ -74,7 +90,7 @@ export default defineConfig({
       description: '${displayName} Chrome Extension',
       version: '0.1.0',
       ...(crxPublicKey ? { key: crxPublicKey } : {}),
-      permissions: ['cookies', 'storage'],
+      permissions: ['activeTab', 'cookies', 'storage'],
       host_permissions: [],
       action: {
         default_title: 'Open ${displayName}',
@@ -98,6 +114,7 @@ function writeTsConfig(dir: string): void {
       forceConsistentCasingInFileNames: true,
       resolveJsonModule: true,
       isolatedModules: true,
+      allowImportingTsExtensions: true,
       noEmit: true,
       jsx: 'react-jsx',
       lib: ['DOM', 'DOM.Iterable', 'ESNext'],
@@ -128,8 +145,26 @@ VITE_RC_BILLING_URL=
 `);
 }
 
+function writeEnvFile(dir: string): void {
+  writeFile(path.join(dir, '.env'), `# Clerk Authentication
+VITE_CLERK_PUBLISHABLE_KEY=
+
+# Backend API URL
+VITE_API_URL=http://localhost:8787
+
+# Website URL (for sign-up and subscription links)
+VITE_WEBSITE_URL=http://localhost:8081
+
+# Chrome Extension CRX public key (optional, for stable extension ID)
+VITE_CRX_PUBLIC_KEY=
+
+# RevenueCat Web Billing URL (optional, for subscription management)
+VITE_RC_BILLING_URL=
+`);
+}
+
 function writePostcssConfig(dir: string): void {
-  writeFile(path.join(dir, 'postcss.config.js'), `module.exports = {
+  writeFile(path.join(dir, 'postcss.config.cjs'), `module.exports = {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
@@ -173,12 +208,78 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 function writeTailwindConfig(dir: string): void {
-  writeFile(path.join(dir, 'tailwind.config.js'), `/** @type {import('tailwindcss').Config} */
+  writeFile(path.join(dir, 'tailwind.config.cjs'), `/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{ts,tsx,html}'],
-  theme: { extend: {} },
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+    },
+  },
   plugins: [],
 };
+`);
+}
+
+function writeReadme(dir: string, displayName: string): void {
+  writeFile(path.join(dir, 'README.md'), `# ${displayName} Chrome Extension
+
+WXT side-panel extension generated by anhedral.
+
+## Development
+
+\`\`\`bash
+pnpm dev
+pnpm build
+pnpm zip
+\`\`\`
+
+Set \`VITE_CLERK_PUBLISHABLE_KEY\` and \`VITE_API_URL\` in \`.env\` before using auth-backed routes. Set \`VITE_CRX_PUBLIC_KEY\` only when you need a stable Chrome extension ID.
+
+## Chrome
+
+Run \`pnpm build\`, then load \`.output/chrome-mv3\` as an unpacked extension from \`chrome://extensions\`.
+
+The browser action opens the side panel. The background script initializes Clerk, the side panel handles sign-in/subscription state, and the content script is ready for page-to-extension messages.
 `);
 }
 
@@ -399,6 +500,24 @@ export default defineBackground(() => {
 `);
 }
 
+function writeContentScript(dir: string): void {
+  writeFile(path.join(dir, 'src/entrypoints/content.ts'), `export default defineContentScript({
+  matches: ['<all_urls>'],
+  main() {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== 'ANHEDRAL_PAGE_SNAPSHOT') return false;
+
+      sendResponse({
+        title: document.title,
+        location: window.location.href,
+      });
+      return true;
+    });
+  },
+});
+`);
+}
+
 function writeSidepanelEntry(dir: string): void {
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/main.tsx'), `import * as React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -440,9 +559,33 @@ function writeSidepanelApp(dir: string): void {
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/app.tsx'), `import * as React from 'react';
 import { useAuth } from '../../contexts/auth-context';
 import { SignIn } from '@clerk/chrome-extension';
+import { Button } from '../../components/ui/button';
+
+type PageSnapshot = {
+  title: string;
+  location: string;
+};
 
 export function SidePanelApp() {
   const { isSignedIn, isLoading, signOut, subscription } = useAuth();
+  const [page, setPage] = React.useState<PageSnapshot | null>(null);
+  const [pageError, setPageError] = React.useState<string | null>(null);
+
+  const readActivePage = React.useCallback(async () => {
+    setPageError(null);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab.id) {
+      setPageError('No active tab is available.');
+      return;
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'ANHEDRAL_PAGE_SNAPSHOT' });
+      setPage(response as PageSnapshot);
+    } catch {
+      setPageError('Refresh the active page, then try again.');
+    }
+  }, []);
 
   if (isLoading) {
     return <div style={{ padding: 24, textAlign: 'center' }}>Loading...</div>;
@@ -460,7 +603,15 @@ export function SidePanelApp() {
     <div style={{ padding: 24 }}>
       <h2>Welcome!</h2>
       <p>Subscription: {subscription.status}</p>
-      <button onClick={signOut}>Sign Out</button>
+      <Button type="button" onClick={() => void readActivePage()}>Read active page</Button>
+      {page ? (
+        <div style={{ marginTop: 16 }}>
+          <strong>{page.title || 'Untitled page'}</strong>
+          <p style={{ overflowWrap: 'anywhere' }}>{page.location}</p>
+        </div>
+      ) : null}
+      {pageError ? <p style={{ color: 'hsl(var(--destructive))' }}>{pageError}</p> : null}
+      <Button type="button" variant="outline" onClick={signOut}>Sign Out</Button>
     </div>
   );
 }
@@ -471,6 +622,40 @@ function writeStyles(dir: string): void {
   writeFile(path.join(dir, 'src/styles/main.css'), `@tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 63.9%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
 
 body {
   margin: 0;

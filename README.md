@@ -12,37 +12,39 @@ Opinionated init CLI for product teams shipping with Next.js, Expo, Fastify, Dri
 Run the latest published CLI directly without installing it globally:
 
 ```sh
-pnpm dlx anhedral@latest init next
-pnpm dlx anhedral@latest init next-fullstack
-pnpm dlx anhedral@latest init expo-fullstack
-pnpm dlx anhedral@latest init backend
+pnpm dlx anhedral@latest init
+pnpm dlx anhedral@latest init --next
+pnpm dlx anhedral@latest init --extension
+pnpm dlx anhedral@latest init --next --extension
 ```
 
 ```sh
-npx anhedral@latest init next
-npx anhedral@latest init next-fullstack
-npx anhedral@latest init expo-fullstack
-npx anhedral@latest init backend
+npx anhedral@latest init
+npx anhedral@latest init --next
+npx anhedral@latest init --extension
+npx anhedral@latest init --next --extension
 ```
 
 Global install also works:
 
 ```sh
 pnpm add -g anhedral@latest
-anhedral init next
+anhedral init
 ```
 
 ```sh
 npm install -g anhedral@latest
-anhedral init next
+anhedral init
 ```
 
 ## Stacks
 
-- `next`: Next.js App Router for the fastest web-only SaaS path.
-- `next-fullstack`: Next.js frontend plus Fastify backend for clearer service boundaries.
-- `expo-fullstack`: Expo app plus Fastify backend for mobile-first or multi-client products.
-- `backend`: Fastify-only API foundation for headless products and integrations.
+- `init`: Expo app plus Fastify backend. This is the default.
+- `init --next`: Next.js frontend plus Fastify backend.
+- `init --extension`: default Expo fullstack plus a WXT Chrome extension.
+- `init --next --extension`: Next.js fullstack plus a WXT Chrome extension.
+
+Every scaffold is a pnpm workspace with `apps/*` and `packages/*`. Shared code such as the Drizzle schema lives under `packages/db` so apps do not need separate database schemas.
 
 Each scaffold writes a `stack.json` file with the selected architecture and generated outputs.
 

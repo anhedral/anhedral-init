@@ -1,12 +1,14 @@
 import path from 'node:path';
 import { writeFile, exec } from '../util.js';
+import { anhedralPrint } from '../print.js';
 import { getBackendInstallCommands } from '../commands.js';
 import type { ProjectOptions } from '../scaffold.js';
 
 export async function scaffoldBackend(root: string, { projectName, displayName, frontendUrl }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'backend');
+  const dir = path.join(root, 'apps/api');
 
-  // writeFile creates parent dirs automatically via mkdirSync
+  anhedralPrint.section('Backend (Fastify)');
+  anhedralPrint.step('Writing backend source files');
   writePackageJson(dir, projectName);
   writeTsConfig(dir);
   writeEslintConfig(dir);
@@ -15,7 +17,6 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   writeEnvFile(dir, frontendUrl);
   writeDrizzleConfig(dir);
   writeVitestConfig(dir);
-  writeVercelJson(dir);
 
   writeTypes(dir);
   writeDbFiles(dir);
@@ -28,10 +29,18 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   writeAppAndIndex(dir, displayName);
   writeVercelEntry(dir);
   writeTestFiles(dir);
+  anhedralPrint.done('Backend source files written');
 
+  if (process.env.ANHEDRAL_SKIP_INSTALL === '1') {
+    anhedralPrint.info('Skipping backend dependency install (ANHEDRAL_SKIP_INSTALL=1)');
+    return;
+  }
+
+  anhedralPrint.step('Installing backend dependencies');
   for (const command of getBackendInstallCommands()) {
     exec(command.cmd, dir);
   }
+  anhedralPrint.done('Backend dependencies installed');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -49,7 +58,7 @@ function writePackageJson(dir: string, projectName: string): void {
       build: 'pnpm typecheck',
       typecheck: 'tsc --noEmit',
       'db:generate': 'drizzle-kit generate',
-      'db:migrate': 'pnpm tsx --env-file=.env src/db/migrate.ts',
+      'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
       'db:studio': 'drizzle-kit studio',
       'db:push': 'drizzle-kit push',
       lint: 'eslint . --ext .js,.ts',
@@ -58,6 +67,9 @@ function writePackageJson(dir: string, projectName: string): void {
     },
     keywords: [],
     license: 'MIT',
+    dependencies: {
+      '@anhedral/db': 'workspace:*',
+    },
   }, null, 2) + '\n');
 }
 
@@ -65,8 +77,8 @@ function writeTsConfig(dir: string): void {
   writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({
     compilerOptions: {
       target: 'ESNext',
-      module: 'NodeNext',
-      moduleResolution: 'NodeNext',
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
       skipLibCheck: true,
       rootDir: '.',
       outDir: 'dist',
@@ -115,6 +127,7 @@ function writeEnvExample(dir: string, frontendUrl = 'http://localhost:8081'): vo
 PORT=8787
 NODE_ENV=development
 LOG_LEVEL=info
+ANHEDRAL_DEMO=false
 
 # Database (NeonDB)
 DATABASE_URL="postgresql://neondb_owner:***@***.neon.tech/neondb?sslmode=require"
@@ -146,6 +159,7 @@ function writeEnvFile(dir: string, frontendUrl = 'http://localhost:8081'): void 
 PORT=8787
 NODE_ENV=development
 LOG_LEVEL=info
+ANHEDRAL_DEMO=true
 
 # Database (NeonDB)
 DATABASE_URL="postgresql://user:pass@localhost:5432/app?sslmode=disable"
@@ -175,8 +189,8 @@ RC_OFFERING_ID=default
 function writeDrizzleConfig(dir: string): void {
   writeFile(path.join(dir, 'drizzle.config.ts'), `import type { Config } from 'drizzle-kit';
 export default {
-  schema: './src/db/schema.ts',
-  out: './src/db/migrations',
+  schema: '../../packages/db/src/schema.ts',
+  out: '../../packages/db/migrations',
   dialect: 'postgresql',
   dbCredentials: { url: process.env.DATABASE_URL! }
 } satisfies Config;
@@ -199,14 +213,6 @@ export default defineConfig({
 `);
 }
 
-function writeVercelJson(dir: string): void {
-  writeFile(path.join(dir, 'vercel.json'), JSON.stringify({
-    version: 2,
-    builds: [{ src: 'api/index.ts', use: '@vercel/node' }],
-    routes: [{ src: '/(.*)', dest: 'api/index.ts' }],
-  }, null, 2) + '\n');
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -224,6 +230,7 @@ export interface AppEnv {
   PORT: number;
   NODE_ENV: string;
   LOG_LEVEL: string;
+  ANHEDRAL_DEMO?: string | null;
   CLERK_PUBLISHABLE_KEY?: string | null;
   CLERK_SECRET_KEY?: string | null;
   FRONTEND_URL?: string | null;
@@ -286,185 +293,14 @@ export {};
 // ═══════════════════════════════════════════════════════════════════════════
 
 function writeDbFiles(dir: string): void {
-  writeFile(path.join(dir, 'src/db/index.ts'), `import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is not defined');
-}
-
-const sql = neon(process.env.DATABASE_URL);
-export const db = drizzle(sql);
-export type Database = typeof db;
+  writeFile(path.join(dir, 'src/db/index.ts'), `export { db } from '@anhedral/db';
+export type { Database } from '@anhedral/db';
 `);
 
-  writeFile(path.join(dir, 'src/db/schema.ts'), `import { pgTable, text, timestamp, boolean, integer, index, jsonb } from 'drizzle-orm/pg-core';
-import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
-
-export const SUBSCRIPTION_TIERS = ['free', 'pro'] as const;
-export type SubscriptionTier = (typeof SUBSCRIPTION_TIERS)[number];
-
-export const SUBSCRIPTION_STATUSES = ['active', 'expired', 'canceled'] as const;
-export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
-
-export const SUBSCRIPTION_METHODS = ['trialing', 'redeemed', 'paid'] as const;
-export type SubscriptionMethod = (typeof SUBSCRIPTION_METHODS)[number];
-
-export const SUBSCRIPTION_ORIGINS = ['web', 'apple', 'google'] as const;
-export type SubscriptionOrigin = (typeof SUBSCRIPTION_ORIGINS)[number];
-
-export const SUBSCRIPTION_EVENT_TYPES = [
-  'trial_started', 'trial_converted', 'trial_expired',
-  'initial_purchase', 'renewal', 'product_change',
-  'cancellation_scheduled', 'cancellation_unscheduled', 'subscription_expired', 'subscription_canceled',
-  'promo_redeemed', 'billing_issue', 'billing_recovered',
-] as const;
-export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
-
-export type SubscriptionMetadata = {
-  revenueCatProductId?: string; lastWebhookUpdate?: string; cancelReason?: string;
-  redeemCode?: string; redeemCodeRedeemedAt?: string;
-};
-
-export type SubscriptionEventMetadata = {
-  revenueCatEventType?: string; revenueCatProductId?: string; promoCode?: string;
-  billingPeriod?: string; price?: { amount: number; currency: string };
-  store?: string; transactionId?: string; reason?: string;
-};
-
-export const PROMO_CODE_DURATIONS = [1, 6, 12] as const;
-export type PromoCodeDuration = (typeof PROMO_CODE_DURATIONS)[number];
-
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
-  displayName: text('display_name'),
-  lastLoginAt: timestamp('last_login_at'),
-  profileImageUrl: text('profile_image_url'),
-  avatarObjectKey: text('avatar_object_key'),
-  avatarMimeType: text('avatar_mime_type'),
-  creditsBalance: integer('credits_balance').notNull().default(250),
-  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
-});
-
-export const subscriptions = pgTable('subscriptions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
-  tier: text('tier').$type<SubscriptionTier>().notNull().default('free'),
-  status: text('status').$type<SubscriptionStatus>().notNull().default('active'),
-  method: text('method').$type<SubscriptionMethod>(),
-  origin: text('origin').$type<SubscriptionOrigin>(),
-  billingPeriod: text('billing_period'),
-  currentPeriodStart: timestamp('current_period_start'),
-  currentPeriodEnd: timestamp('current_period_end'),
-  canceledAt: timestamp('canceled_at'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
-  trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end'),
-  dailyLimit: integer('daily_limit'),
-  metadata: jsonb('metadata').$type<SubscriptionMetadata>(),
-  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
-  updatedAt: timestamp('updated_at').$defaultFn(() => new Date()).notNull(),
-}, (t) => [
-  index('subscriptions_user_idx').on(t.userId),
-  index('subscriptions_status_idx').on(t.status),
-  index('subscriptions_tier_idx').on(t.tier),
-  index('subscriptions_period_end_idx').on(t.currentPeriodEnd),
-]);
-
-export const subscriptionEvents = pgTable('subscription_events', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  subscriptionId: text('subscription_id').references(() => subscriptions.id, { onDelete: 'set null' }),
-  eventType: text('event_type').$type<SubscriptionEventType>().notNull(),
-  previousTier: text('previous_tier').$type<SubscriptionTier>(),
-  previousStatus: text('previous_status').$type<SubscriptionStatus>(),
-  previousMethod: text('previous_method').$type<SubscriptionMethod>(),
-  newTier: text('new_tier').$type<SubscriptionTier>(),
-  newStatus: text('new_status').$type<SubscriptionStatus>(),
-  newMethod: text('new_method').$type<SubscriptionMethod>(),
-  revenueCatEventType: text('revenuecat_event_type'),
-  revenueCatProductId: text('revenuecat_product_id'),
-  origin: text('origin').$type<SubscriptionOrigin>(),
-  periodStart: timestamp('period_start'),
-  periodEnd: timestamp('period_end'),
-  metadata: jsonb('metadata').$type<SubscriptionEventMetadata>(),
-  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
-}, (t) => [
-  index('sub_events_user_idx').on(t.userId),
-  index('sub_events_user_created_idx').on(t.userId, t.createdAt),
-  index('sub_events_type_idx').on(t.eventType),
-]);
-
-export const trialClaims = pgTable('trial_claims', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
-  email: text('email').notNull().unique(),
-  claimedAt: timestamp('claimed_at').$defaultFn(() => new Date()).notNull(),
-}, (t) => [index('trial_claims_email_idx').on(t.email)]);
-
-export const promoCodes = pgTable('promo_codes', {
-  id: text('id').primaryKey(),
-  code: text('code').notNull().unique(),
-  months: integer('months').$type<PromoCodeDuration>().notNull(),
-  maxRedemptions: integer('max_redemptions').notNull().default(1),
-  redeemedCount: integer('redeemed_count').notNull().default(0),
-  expiresAt: timestamp('expires_at'),
-  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
-}, (t) => [index('promo_codes_code_idx').on(t.code)]);
-
-export const promoRedemptions = pgTable('promo_redemptions', {
-  id: text('id').primaryKey(),
-  promoCodeId: text('promo_code_id').notNull().references(() => promoCodes.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  redeemedAt: timestamp('redeemed_at').$defaultFn(() => new Date()).notNull(),
-  entitlementExpiresAt: timestamp('entitlement_expires_at').notNull(),
-}, (t) => [
-  index('promo_redemptions_user_idx').on(t.userId),
-  index('promo_redemptions_code_idx').on(t.promoCodeId),
-]);
-
-export type Users = InferSelectModel<typeof users>;
-export type NewUsers = InferInsertModel<typeof users>;
-export type Subscriptions = InferSelectModel<typeof subscriptions>;
-export type NewSubscriptions = InferInsertModel<typeof subscriptions>;
-export type SubscriptionEvents = InferSelectModel<typeof subscriptionEvents>;
-export type NewSubscriptionEvents = InferInsertModel<typeof subscriptionEvents>;
-export type TrialClaims = InferSelectModel<typeof trialClaims>;
-export type NewTrialClaims = InferInsertModel<typeof trialClaims>;
-export type PromoCodes = InferSelectModel<typeof promoCodes>;
-export type NewPromoCodes = InferInsertModel<typeof promoCodes>;
-export type PromoRedemptions = InferSelectModel<typeof promoRedemptions>;
-export type NewPromoRedemptions = InferInsertModel<typeof promoRedemptions>;
+  writeFile(path.join(dir, 'src/db/schema.ts'), `export * from '@anhedral/db/schema';
 `);
 
-  writeFile(path.join(dir, 'src/db/migrate.ts'), `import { drizzle } from 'drizzle-orm/neon-http';
-import { migrate } from 'drizzle-orm/neon-http/migrator';
-import { neon } from '@neondatabase/serverless';
-import dotenv from 'dotenv';
-
-dotenv.config({ quiet: true });
-
-const runMigrate = async () => {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not defined');
-  }
-
-  const client = neon(process.env.DATABASE_URL);
-  const db = drizzle(client);
-
-  console.log('⏳ Running migrations...');
-  const start = Date.now();
-  await migrate(db, { migrationsFolder: './src/db/migrations' });
-  console.log('✅ Migrations completed in', Date.now() - start, 'ms');
-  process.exit(0);
-};
-
-runMigrate().catch((err) => {
-  console.error('❌ Migration failed');
-  console.error(err);
-  process.exit(1);
-});
+  writeFile(path.join(dir, 'src/db/migrate.ts'), `import '@anhedral/db/migrate';
 `);
 }
 
@@ -1340,6 +1176,7 @@ const configPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       PORT: { type: 'number' },
       NODE_ENV: { type: 'string', default: 'development' },
       LOG_LEVEL: { type: 'string', default: 'info' },
+      ANHEDRAL_DEMO: { type: 'string', default: 'false' },
       CLERK_PUBLISHABLE_KEY: { type: 'string', nullable: true },
       CLERK_SECRET_KEY: { type: 'string', nullable: true },
       FRONTEND_URL: { type: 'string', nullable: true },
@@ -1409,6 +1246,15 @@ export const clerkAuthPlugin: FastifyPluginAsync = async (fastify: FastifyInstan
 
   const authenticate = async (req: FastifyRequest, _reply: FastifyReply) => {
     if (req.method === 'OPTIONS' || req.url.startsWith('/health')) return;
+
+    if (fastify.env?.ANHEDRAL_DEMO === 'true') {
+      req.user = {
+        id: 'user_demo',
+        subscriptionTier: 'pro',
+        subscriptionStatus: 'active',
+      };
+      return;
+    }
 
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) throw AuthError.unauthorized();
@@ -1987,6 +1833,23 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   }, async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.user?.id) throw AuthError.unauthorized();
 
+    if (fastify.env.ANHEDRAL_DEMO === 'true') {
+      return reply.send({
+        user: {
+          id: 'user_demo',
+          email: 'demo@anhedral.dev',
+          firstName: 'Demo',
+          lastName: 'Builder',
+          displayName: '${displayName} Demo',
+          imageUrl: null,
+          avatarUrl: null,
+          creditsBalance: 250,
+          subscriptionTier: 'pro',
+          subscriptionStatus: 'active',
+        },
+      });
+    }
+
     const clerkUser = await clerkClient.users.getUser(req.user.id);
     const userData = await fastify.repos.users.getDashboardProfile(req.user.id);
     const primaryEmail = clerkUser.emailAddresses.find(
@@ -2107,6 +1970,19 @@ const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }, async (req, reply) => {
       const userId = req.user?.id;
       if (!userId) throw AuthError.unauthorized();
+      if (app.env.ANHEDRAL_DEMO === 'true') {
+        reply.header('Cache-Control', 'private, no-store');
+        return reply.send({
+          pro: true,
+          inTrial: false,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          periodStart: new Date().toISOString(),
+          periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          method: 'paid',
+          managementUrl: 'https://app.revenuecat.com/',
+          cancelAtPeriodEnd: false,
+        });
+      }
       const refreshRaw = (req.query as unknown as { refresh?: unknown }).refresh;
       const requestedRefresh = refreshRaw === true || refreshRaw === 'true' || refreshRaw === 1 || refreshRaw === '1';
       const forceRefresh = Boolean(app.env.RC_SECRET_API_KEY) && requestedRefresh;
@@ -2120,6 +1996,9 @@ const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }, async (req, reply) => {
       const userId = req.user?.id;
       if (!userId) throw AuthError.unauthorized();
+      if (app.env.ANHEDRAL_DEMO === 'true') {
+        return { ok: true, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
+      }
       const { code } = req.body;
       const validation = await app.repos.promoCodes.validateCode(code, userId);
       if (!validation.valid || !validation.promoCode) {
@@ -2363,6 +2242,13 @@ async function getApp(): Promise<FastifyInstance> {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const app = await getApp();
+  if (req.url === '/api' || req.url === '/backend') {
+    req.url = '/';
+  } else if (req.url?.startsWith('/api/')) {
+    req.url = req.url.slice('/api'.length);
+  } else if (req.url?.startsWith('/backend/')) {
+    req.url = req.url.slice('/backend'.length);
+  }
   app.server.emit('request', req, res);
 }
 `);

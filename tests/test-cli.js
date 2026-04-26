@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
 function runScript(scriptName) {
-  const result = spawnSync('node', [path.join('scripts', scriptName)], {
+  const result = spawnSync('node', [path.join('tests', scriptName)], {
     cwd: repoRoot,
     encoding: 'utf8',
   });
@@ -25,6 +25,5 @@ runScript('test-command-builders.js');
 runScript('test-util-exec-expect.js');
 runScript('test-util-lift-nested-project.js');
 runScript('test-default-web-template.js');
-runScript('test-cli-scaffold-headless.js');
 
 console.log('All CLI tests passed');

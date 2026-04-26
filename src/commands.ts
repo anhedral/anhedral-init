@@ -1,8 +1,5 @@
-import type { InitMode } from './scaffold.js';
+import type { InitOptions } from './scaffold.js';
 import { toolPackageRef, type ToolchainSpec } from './toolchain.js';
-
-const TYPESCRIPT_VERSION = '5.9.3';
-const NODE_TYPES_VERSION = '25.5.0';
 
 export type ScaffoldCommand = {
   cmd: string;
@@ -41,19 +38,6 @@ export function getDefaultWebDependencyCommands(): ScaffoldCommand[] {
   ];
 }
 
-export function getHeadlessInstallCommands(): ScaffoldCommand[] {
-  return [
-    {
-      cmd: 'pnpm add fastify @fastify/cors better-auth drizzle-orm @neondatabase/serverless @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner dotenv',
-      skippable: true,
-    },
-    {
-      cmd: `pnpm add -D typescript@${TYPESCRIPT_VERSION} tsx @types/node@${NODE_TYPES_VERSION} drizzle-kit`,
-      skippable: true,
-    },
-  ];
-}
-
 export function getBackendInstallCommands(): ScaffoldCommand[] {
   return [
     {
@@ -65,23 +49,15 @@ export function getBackendInstallCommands(): ScaffoldCommand[] {
   ];
 }
 
-export function getSkillCommands(mode: InitMode): string[] {
-  switch (mode) {
-    case 'next':
-    case 'next-fullstack':
-      return [
-        'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
-        'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
-      ];
-    case 'expo-fullstack':
-      return [
-        'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
-        'pnpm dlx skills add https://github.com/revenuecat/revenuecat-skill --skill revenuecat',
-        'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
-      ];
-    case 'backend':
-      return [
-        'pnpm dlx skills add https://github.com/better-auth/skills --skill better-auth-best-practices',
-      ];
+export function getSkillCommands(options: Pick<InitOptions, 'frontend' | 'extension'>): string[] {
+  const commands = [
+    'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',
+    'pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices',
+  ];
+
+  if (options.frontend === 'expo') {
+    commands.splice(1, 0, 'pnpm dlx skills add https://github.com/revenuecat/revenuecat-skill --skill revenuecat');
   }
+
+  return commands;
 }

@@ -1,16 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeAnhedralLogo } from '../branding.js';
+import { anhedralPrint } from '../print.js';
 import { appendGitignore, writeFile, exec, execExpect, liftNestedProject } from '../util.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldFrontend(root: string, { projectName, displayName }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'frontend');
+  const dir = path.join(root, 'apps/mobile');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
-  // ── 1. Scaffold via react-native-reusables CLI ────────────────────────
-  console.log('  Scaffolding Expo app with react-native-reusables...');
+  anhedralPrint.section('Mobile (Expo)');
+
+  anhedralPrint.step('Scaffolding Expo app with react-native-reusables');
   fs.mkdirSync(dir, { recursive: true });
   await execExpect(
     `pnpm dlx ${toolPackageRef('@react-native-reusables/cli', toolchain.reactNativeReusables)} init -t clerk-auth`,
@@ -21,16 +23,15 @@ export async function scaffoldFrontend(root: string, { projectName, displayName 
       ['Would you like to initialize a Git repository?', 'n'],
     ],
   );
-
-  // The CLI scaffolds into a subdir named after the project — move contents up
   liftNestedProject(dir, projectName);
+  anhedralPrint.done('Expo app scaffolded');
 
-  console.log('  Installing frontend dependencies...');
-  exec('pnpm install', dir);
+  anhedralPrint.step('Installing mobile dependencies');
+  exec('pnpm install --no-frozen-lockfile', dir);
   patchFrontendPackageJson(dir);
   appendGitignore(dir, ['.env', '.env.*', '!.env.example']);
+  anhedralPrint.done('Mobile dependencies installed');
 
-  // ── 2. Patch in API client ────────────────────────────────────────────
   writeApiClient(dir);
   writeConfigFile(dir);
   writeApiHook(dir);
@@ -40,15 +41,13 @@ export async function scaffoldFrontend(root: string, { projectName, displayName 
   writeEnvExample(dir);
   writeEnvFile(dir);
   writeAnhedralLogo(dir);
-
-  // ── 2b. Write subscription files ─────────────────────────────────────
   writeSubscriptionProvider(dir);
   writeUseSubscription(dir);
 
-  // ── 3. Install extra dependencies ─────────────────────────────────────
-  console.log('  Installing additional dependencies...');
+  anhedralPrint.step('Installing image picker + RevenueCat SDKs');
   exec('pnpm exec expo install expo-image-picker', dir);
   exec('pnpm add react-native-purchases react-native-purchases-ui @revenuecat/purchases-js', dir);
+  anhedralPrint.done('Additional mobile SDKs installed');
 }
 
 function patchFrontendPackageJson(dir: string): void {
@@ -59,6 +58,7 @@ function patchFrontendPackageJson(dir: string): void {
 
   packageJson.scripts = {
     ...(packageJson.scripts ?? {}),
+    build: 'pnpm typecheck',
     typecheck: 'tsc --noEmit',
   };
 
