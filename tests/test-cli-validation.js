@@ -7,7 +7,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const cliEntry = path.join(repoRoot, 'dist', 'index.js');
 const {
-  DEFAULT_FRONTEND_MODE,
   USAGE,
   buildOptions,
   parseCli,
@@ -44,7 +43,7 @@ const cases = [
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
-    stderrIncludes: 'Unexpected argument: demo. Use flags: --next, --extension, --toolchain',
+    stderrIncludes: 'Unexpected argument: demo. Use flags: --toolchain, --skip-install',
   },
   {
     name: 'defaults stack before validating toolchain',
@@ -59,8 +58,20 @@ const cases = [
     stderrIncludes: 'Unknown flag: --desktop',
   },
   {
+    name: 'rejects old next stack flag',
+    args: ['init', '--next'],
+    expectedExit: 1,
+    stderrIncludes: 'Unknown flag: --next',
+  },
+  {
+    name: 'rejects old extension stack flag',
+    args: ['init', '--extension'],
+    expectedExit: 1,
+    stderrIncludes: 'Unknown flag: --extension',
+  },
+  {
     name: 'rejects invalid toolchain values',
-    args: ['init', '--next', '--toolchain', 'preview'],
+    args: ['init', '--toolchain', 'preview'],
     expectedExit: 1,
     stderrIncludes: '--toolchain must be one of: latest, stable',
   },
@@ -85,15 +96,13 @@ for (const testCase of cases) {
 }
 
 const defaultFlags = parseCli([]);
-assert.equal(defaultFlags.next, false, 'parseCli should default to Expo');
-assert.equal(defaultFlags.extension, false, 'parseCli should not add extension by default');
-assert.equal(buildOptions(defaultFlags).frontend, DEFAULT_FRONTEND_MODE, 'buildOptions should preserve the default frontend');
+assert.equal(buildOptions(defaultFlags).payments, 'revenuecat_stripe', 'buildOptions should use RevenueCat + Stripe');
+assert.equal(buildOptions(defaultFlags).skipInstall, false, 'buildOptions should install dependencies by default');
+assert.equal(buildOptions(parseCli(['--skip-install'])).skipInstall, true, '--skip-install should disable dependency installs');
 assert.equal(
-  buildOptions(parseCli(['--toolchain', 'stable'])).frontend,
-  DEFAULT_FRONTEND_MODE,
+  buildOptions(parseCli(['--toolchain', 'stable'])).api,
+  'fastify',
   'toolchain flags should not require an explicit stack',
 );
-assert.equal(buildOptions(parseCli(['--next'])).frontend, 'next', '--next should select the Next.js frontend');
-assert.equal(buildOptions(parseCli(['--extension'])).extension, true, '--extension should enable WXT');
 
 console.log(`Validation tests passed: ${cases.length}`);

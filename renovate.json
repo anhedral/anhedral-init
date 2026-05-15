@@ -69,12 +69,12 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Pinned stable scaffold toolchain versions",
+      "description": "Pinned verified generated dependency versions",
       "fileMatch": [
-        "^src/toolchain\\.ts$"
+        "^src/dependencies\\.ts$"
       ],
       "matchStrings": [
-        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[A-Za-z]+: '(?<currentValue>[^']+)'"
+        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:['\\\"]?[^:'\\\"]+['\\\"]?): '(?<currentValue>[^']+)'"
       ]
     }
   ]

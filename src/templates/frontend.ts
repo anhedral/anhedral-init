@@ -4,13 +4,14 @@ import { writeAnhedralLogo } from '../branding.js';
 import { anhedralPrint } from '../print.js';
 import { appendGitignore, writeFile, exec, execExpect, liftNestedProject } from '../util.js';
 import type { ProjectOptions } from '../scaffold.js';
+import { FRONTEND_ADDON_DEPENDENCIES, withVersions } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
-export async function scaffoldFrontend(root: string, { projectName, displayName }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'apps/mobile');
+export async function scaffoldFrontend(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
+  const dir = path.join(root, 'apps/frontend');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
-  anhedralPrint.section('Mobile (Expo)');
+  anhedralPrint.section('Frontend (Expo)');
 
   anhedralPrint.step('Scaffolding Expo app with react-native-reusables');
   fs.mkdirSync(dir, { recursive: true });
@@ -26,11 +27,15 @@ export async function scaffoldFrontend(root: string, { projectName, displayName 
   liftNestedProject(dir, projectName);
   anhedralPrint.done('Expo app scaffolded');
 
-  anhedralPrint.step('Installing mobile dependencies');
-  exec('pnpm install --no-frozen-lockfile', dir);
+  anhedralPrint.step('Installing frontend dependencies');
   patchFrontendPackageJson(dir);
+  patchExpoAppConfig(dir);
+  if (!skipInstall) {
+    exec('pnpm install --no-frozen-lockfile', dir);
+    exec('pnpm exec expo install --fix --pnpm', dir);
+  }
   appendGitignore(dir, ['.env', '.env.*', '!.env.example']);
-  anhedralPrint.done('Mobile dependencies installed');
+  anhedralPrint.done(skipInstall ? 'Frontend dependency manifests written' : 'Frontend dependencies installed');
 
   writeApiClient(dir);
   writeConfigFile(dir);
@@ -40,197 +45,92 @@ export async function scaffoldFrontend(root: string, { projectName, displayName 
   writeAppShellFiles(dir, displayName);
   writeEnvExample(dir);
   writeEnvFile(dir);
+  writeVercelConfig(dir);
   writeAnhedralLogo(dir);
   writeSubscriptionProvider(dir);
   writeUseSubscription(dir);
 
-  anhedralPrint.step('Installing image picker + RevenueCat SDKs');
-  exec('pnpm exec expo install expo-image-picker', dir);
-  exec('pnpm add react-native-purchases react-native-purchases-ui @revenuecat/purchases-js', dir);
-  anhedralPrint.done('Additional mobile SDKs installed');
+  anhedralPrint.step('Installing Expo native packages');
+  if (skipInstall) {
+    anhedralPrint.info('Skipping Expo native package install (--skip-install)');
+    anhedralPrint.info('Run after init: pnpm --filter ./apps/frontend exec expo install --pnpm expo-image-picker');
+  } else {
+    exec('pnpm exec expo install --pnpm expo-image-picker', dir);
+    exec('pnpm exec expo install --fix --pnpm', dir);
+  }
+  anhedralPrint.done(skipInstall ? 'Expo native package install skipped' : 'Expo native packages installed');
+
+  anhedralPrint.step('Installing RevenueCat SDKs');
+  const revenueCatDependencies = withVersions({
+    'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
+    'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
+    '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
+  });
+  if (skipInstall) {
+    anhedralPrint.info(`Skipping RevenueCat SDK install (--skip-install). Run after init: pnpm --filter ./apps/frontend add ${revenueCatDependencies.join(' ')}`);
+  } else {
+    exec(`pnpm add ${revenueCatDependencies.join(' ')}`, dir);
+  }
+  anhedralPrint.done(skipInstall ? 'RevenueCat SDK install skipped' : 'Additional Expo SDKs installed');
 }
 
 function patchFrontendPackageJson(dir: string): void {
   const filePath = path.join(dir, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
     scripts?: Record<string, string>;
+    dependencies?: Record<string, string>;
+  };
+
+  packageJson.dependencies = {
+    ...(packageJson.dependencies ?? {}),
+    '@anhedral/api-client': FRONTEND_ADDON_DEPENDENCIES['@anhedral/api-client'],
+    'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
+    'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
+    '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
   };
 
   packageJson.scripts = {
     ...(packageJson.scripts ?? {}),
-    build: 'pnpm typecheck',
+    build: 'pnpm typecheck && pnpm build:web',
+    'build:web': 'expo export --platform web',
     typecheck: 'tsc --noEmit',
   };
 
   writeFile(filePath, JSON.stringify(packageJson, null, 2) + '\n');
 }
 
-function writeApiClient(dir: string): void {
-  writeFile(path.join(dir, 'api/client.ts'), `/**
- * API Client with SWR caching
- */
-
-const SWR_MAX_SIZE = 200;
-const SWR_DEFAULT_STALE_MS = 15_000;
-const SWR_DEFAULT_MAX_AGE_MS = 300_000;
-
-type SWREntry<T> = { data: T; fetchedAt: number; staleMs: number; maxAgeMs: number };
-const SWR_CACHE = new Map<string, SWREntry<unknown>>();
-const SWR_INFLIGHT = new Map<string, Promise<unknown>>();
-
-function swrEvict() {
-  if (SWR_CACHE.size <= SWR_MAX_SIZE) return;
-  const entries = [...SWR_CACHE.entries()].sort((a, b) => a[1].fetchedAt - b[1].fetchedAt);
-  const toRemove = entries.slice(0, entries.length - SWR_MAX_SIZE);
-  for (const [key] of toRemove) SWR_CACHE.delete(key);
-}
-
-export class APIRequestError extends Error {
-  constructor(
-    public statusCode: number,
-    message: string,
-    public errorCode?: string,
-  ) {
-    super(message);
-    this.name = 'APIRequestError';
+function patchExpoAppConfig(dir: string): void {
+  const filePath = path.join(dir, 'app.json');
+  if (!fs.existsSync(filePath)) {
+    return;
   }
-}
 
-export class APIClient {
-  constructor(
-    private baseUrl: string,
-    private getToken: () => Promise<string | null>,
-  ) {}
-
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const token = await this.getToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Platform': 'web',
+  const appJson = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+    expo?: Record<string, unknown> & {
+      web?: Record<string, unknown>;
     };
-    if (token) headers['Authorization'] = \`Bearer \${token}\`;
+  };
 
-    const res = await fetch(\`\${this.baseUrl}\${path}\`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  appJson.expo ??= {};
+  appJson.expo.web = {
+    ...(appJson.expo.web ?? {}),
+    bundler: 'metro',
+    output: 'static',
+  };
 
-    if (!res.ok) {
-      let err: { error?: string; message?: string } = {};
-      try { err = await res.json(); } catch {}
-      throw new APIRequestError(res.status, err.message || \`Request failed (\${res.status})\`, err.error);
-    }
+  writeFile(filePath, JSON.stringify(appJson, null, 2) + '\n');
+}
 
-    if (res.status === 204) return {} as T;
-    return res.json();
-  }
+function writeApiClient(dir: string): void {
+  writeFile(path.join(dir, 'api/client.ts'), `import { ApiClient, APIRequestError } from '@anhedral/api-client';
 
-  async get<T>(path: string): Promise<T> { return this.request<T>('GET', path); }
-  async post<T>(path: string, body?: unknown): Promise<T> { return this.request<T>('POST', path, body); }
-  async delete<T>(path: string): Promise<T> { return this.request<T>('DELETE', path); }
-
-  async getCached<T>(
-    path: string,
-    opts?: { staleMs?: number; maxAgeMs?: number },
-  ): Promise<T> {
-    const staleMs = opts?.staleMs ?? SWR_DEFAULT_STALE_MS;
-    const maxAgeMs = opts?.maxAgeMs ?? SWR_DEFAULT_MAX_AGE_MS;
-    const now = Date.now();
-    const cached = SWR_CACHE.get(path) as SWREntry<T> | undefined;
-
-    if (cached) {
-      const age = now - cached.fetchedAt;
-      if (age < staleMs) return cached.data;
-      if (age < maxAgeMs) {
-        if (!SWR_INFLIGHT.has(path)) {
-          const p = this.get<T>(path).then((data) => {
-            SWR_CACHE.set(path, { data, fetchedAt: Date.now(), staleMs, maxAgeMs });
-            return data;
-          }).finally(() => SWR_INFLIGHT.delete(path));
-          SWR_INFLIGHT.set(path, p);
-        }
-        return cached.data;
-      }
-    }
-
-    const inflight = SWR_INFLIGHT.get(path) as Promise<T> | undefined;
-    if (inflight) return inflight;
-
-    const p = this.get<T>(path).then((data) => {
-      SWR_CACHE.set(path, { data, fetchedAt: Date.now(), staleMs, maxAgeMs });
-      swrEvict();
-      return data;
-    }).finally(() => SWR_INFLIGHT.delete(path));
-    SWR_INFLIGHT.set(path, p);
-    return p;
-  }
-
-  invalidateCache(path: string): void { SWR_CACHE.delete(path); }
-  invalidateCachePrefix(prefix: string): void {
-    for (const key of SWR_CACHE.keys()) {
-      if (key.startsWith(prefix)) SWR_CACHE.delete(key);
-    }
-  }
-
-  clearAllCaches(): void {
-    SWR_CACHE.clear();
-    SWR_INFLIGHT.clear();
-  }
-
-  // ── Auth endpoints ──────────────────────────────────────────────────
-  async getMe() {
-    return this.get<{
-      user: {
-        id: string;
-        email: string;
-        firstName?: string | null;
-        lastName?: string | null;
-        displayName: string;
-        imageUrl?: string | null;
-        avatarUrl?: string | null;
-        creditsBalance: number;
-        subscriptionTier: string;
-        subscriptionStatus: string;
-      };
-    }>('/auth/me');
-  }
-
-  async signOut() {
-    return this.post<{ success: boolean }>('/auth/signout');
-  }
-
-  async uploadAvatar(input: { base64: string; mimeType: string; fileName?: string }) {
-    return this.post<{ ok: boolean; avatarUrl: string }>('/auth/avatar', input);
-  }
-
-  async deleteAccount() {
-    return this.delete<void>('/auth/account');
-  }
-
-  // ── Subscription endpoints ───────────────────────────────────────────
-  async getSubscriptionPricing() {
-    return this.getCached<{
-      tiers: { tier: string; displayName: string; description: string; priceMonthly: number | null; priceYearly: number | null; currency: string; limits: { dailyLimit: number | null }; paymentInfo?: { revenueCatEntitlementId: string; revenueCatOfferingId: string } }[];
-    }>('/subscriptions/pricing', { staleMs: 300_000, maxAgeMs: 3_600_000 });
-  }
-
-  async getSubscriptionEntitlements(options?: { refresh?: boolean }) {
-    const path = options?.refresh ? '/subscriptions/entitlements/me?refresh=true' : '/subscriptions/entitlements/me';
-    return this.get<{
-      pro: boolean; inTrial: boolean; trialEndsAt?: string; expiresAt?: string;
-      periodStart?: string; periodEnd?: string;
-      method?: 'trialing' | 'redeemed' | 'paid' | null;
-      managementUrl?: string; cancelAtPeriodEnd?: boolean;
-    }>(path);
-  }
-
-  async redeemPromoCode(code: string) {
-    return this.post<{ ok: boolean; expiresAt: string }>('/subscriptions/redeem', { code });
+export class APIClient extends ApiClient {
+  constructor(baseUrl: string, getToken: () => Promise<string | null>) {
+    super({ baseUrl, getToken, platform: 'frontend' });
   }
 }
 
-export { SWR_CACHE };
+export { APIRequestError };
 `);
 
   writeFile(path.join(dir, 'api/index.ts'), `export { APIClient, APIRequestError } from './client';
@@ -303,6 +203,23 @@ export function useAPI() {
   return useMemo(() => new APIClient(apiBaseUrl, getToken), [getToken]);
 }
 `);
+}
+
+function writeVercelConfig(dir: string): void {
+  writeFile(path.join(dir, 'vercel.json'), JSON.stringify({
+    $schema: 'https://openapi.vercel.sh/vercel.json',
+    buildCommand: 'pnpm build:web',
+    outputDirectory: 'dist',
+    devCommand: 'pnpm dev',
+    cleanUrls: true,
+    framework: null,
+    rewrites: [
+      {
+        source: '/:path*',
+        destination: '/index.html',
+      },
+    ],
+  }, null, 2) + '\n');
 }
 
 function writeAccountHook(dir: string): void {
@@ -885,7 +802,7 @@ import { ScrollView, View } from 'react-native';
 const FEATURES = [
   {
     title: 'Landing page here',
-    description: 'Replace this placeholder copy with the actual acquisition story for your mobile and web app.',
+    description: 'Replace this placeholder copy with the actual acquisition story for your Expo app.',
     icon: CloudIcon,
   },
   {

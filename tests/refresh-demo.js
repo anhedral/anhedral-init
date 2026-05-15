@@ -35,30 +35,12 @@ These demos are generated from the local Anhedral CLI in this repository using t
 
 ## Stacks
 
-- \`demo/expo\` — Expo app, Fastify backend, and shared packages
-- \`demo/next\` — Next.js frontend, Fastify backend, and shared packages
 - \`demo/expo-extension\` — Expo app, Fastify backend, WXT extension, and shared packages
-- \`demo/next-extension\` — Next.js frontend, Fastify backend, WXT extension, and shared packages
 
 ## Start Commands
 
 \`\`\`sh
-cd demo/next
-pnpm dev
-\`\`\`
-
-\`\`\`sh
-cd demo/expo
-pnpm dev
-\`\`\`
-
-\`\`\`sh
 cd demo/expo-extension
-pnpm dev
-\`\`\`
-
-\`\`\`sh
-cd demo/next-extension
 pnpm dev
 \`\`\`
 
@@ -66,8 +48,8 @@ pnpm dev
 
 - API env files are generated with \`ANHEDRAL_DEMO=true\` for provider-free smoke testing.
 - Auth, billing, storage, and database operations need real provider credentials for production behavior.
-- The main UI pages worth previewing immediately are the landing page, sign-in page, sign-up page, dashboard, mobile app shell, and extension side panel.
-- Root \`pnpm build\` passes in all four demos after generation.
+- The main UI surfaces worth previewing immediately are the Expo app shell and extension side panel.
+- Root \`pnpm build\` passes in the demo after generation.
 - Refresh the demos from the repo root with \`pnpm demo:refresh\`.
 `);
 }
@@ -75,28 +57,13 @@ pnpm dev
 function removeNestedGitDirs(projectRoot) {
   rmSync(path.join(projectRoot, '.git'), { recursive: true, force: true });
   rmSync(path.join(projectRoot, 'apps', 'web', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'mobile', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'frontend', '.git'), { recursive: true, force: true });
   rmSync(path.join(projectRoot, 'apps', 'api', '.git'), { recursive: true, force: true });
   rmSync(path.join(projectRoot, 'apps', 'extension', '.git'), { recursive: true, force: true });
 }
 
 const scenarios = [
-  {
-    args: [],
-    dir: 'expo',
-  },
-  {
-    args: ['--next'],
-    dir: 'next',
-  },
-  {
-    args: ['--extension'],
-    dir: 'expo-extension',
-  },
-  {
-    args: ['--next', '--extension'],
-    dir: 'next-extension',
-  },
+  { args: [], dir: 'expo-extension' },
 ];
 
 rmSync(demoRoot, { recursive: true, force: true });

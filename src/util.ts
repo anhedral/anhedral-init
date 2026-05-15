@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { execSync, spawn } from 'node:child_process';
+import { execSync, spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 export function writeFile(filePath: string, content: string): void {
@@ -27,6 +27,10 @@ function dumpFailure(error: unknown, cmd: string): never {
   throw new Error(`Command failed (exit ${err.status ?? '?'}): ${cmd}`);
 }
 
+function commandLabel(command: string, args: string[]): string {
+  return [command, ...args].join(' ');
+}
+
 export function exec(cmd: string, cwd: string): void {
   if (VERBOSE) {
     console.log(`  $ ${cmd}`);
@@ -38,6 +42,30 @@ export function exec(cmd: string, cwd: string): void {
   } catch (error) {
     dumpFailure(error, cmd);
   }
+}
+
+export function execCommand(command: string, args: string[], cwd: string): void {
+  const label = commandLabel(command, args);
+  if (VERBOSE) {
+    console.log(`  $ ${label}`);
+  }
+
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: VERBOSE ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (result.status === 0) {
+    return;
+  }
+
+  if (!VERBOSE) {
+    if (result.stdout) process.stderr.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
+
+  throw new Error(`Command failed (exit ${result.status ?? '?'}): ${label}`);
 }
 
 export function execWithInput(cmd: string, cwd: string, stdinInput: string): void {

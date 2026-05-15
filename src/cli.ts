@@ -1,53 +1,33 @@
 import path from 'node:path';
 import { env } from 'node:process';
-import type { FrontendMode, InitOptions } from './scaffold.js';
+import type { InitOptions } from './scaffold.js';
 import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
 
-export const DEFAULT_FRONTEND_MODE: FrontendMode = 'expo';
-
 export const USAGE = `
-anhedral init [--next] [--extension] [--toolchain <latest|stable>]
+anhedral init [--toolchain <latest|stable>] [--skip-install]
 
 Commands:
   anhedral init
-    Expo, Fastify, Drizzle ORM, Neon Postgres, Clerk Auth, RevenueCat + Stripe, Cloudflare R2, shared packages
-
-  anhedral init --next
-    Next.js App Router, shadcn/ui, Tailwind CSS, TypeScript, Fastify, Drizzle ORM, Neon Postgres, Clerk Auth, Stripe, Cloudflare R2, shared packages
-
-  anhedral init --extension
-    Expo + Fastify plus a WXT Chrome extension
-
-  anhedral init --next --extension
-    Next.js + Fastify plus a WXT Chrome extension
+    Expo + React Native Reusables, Fastify, WXT extension, Neon + Drizzle, Cloudflare R2/CDN, Clerk, RevenueCat + Stripe, Vercel
 `;
 
 export type ParsedFlags = {
-  next: boolean;
-  extension: boolean;
   toolchain?: string;
+  skipInstall?: boolean;
 };
 
 export function parseCli(args: string[]): ParsedFlags {
-  const flags: ParsedFlags = {
-    next: false,
-    extension: false,
-  };
+  const flags: ParsedFlags = {};
 
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
 
     if (!token.startsWith('--')) {
-      throw new Error(`Unexpected argument: ${token}. Use flags: --next, --extension, --toolchain`);
+      throw new Error(`Unexpected argument: ${token}. Use flags: --toolchain, --skip-install`);
     }
 
-    if (token === '--next') {
-      flags.next = true;
-      continue;
-    }
-
-    if (token === '--extension') {
-      flags.extension = true;
+    if (token === '--skip-install') {
+      flags.skipInstall = true;
       continue;
     }
 
@@ -93,17 +73,15 @@ export function buildOptions(flags: ParsedFlags): InitOptions {
   }
 
   return {
-    frontend: flags.next ? 'next' : DEFAULT_FRONTEND_MODE,
-    extension: flags.extension,
     projectName,
     displayName,
     auth: 'clerk',
-    payments: flags.next ? 'stripe' : 'revenuecat',
+    payments: 'revenuecat_stripe',
     db: 'neon',
     orm: 'drizzle',
     storage: 'r2',
     api: 'fastify',
-    monorepo: true,
+    skipInstall: flags.skipInstall === true || env.ANHEDRAL_SKIP_INSTALL === '1',
     toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN),
   };
 }
