@@ -17,6 +17,8 @@ assert.doesNotMatch(scaffoldSource, /default\('starter'\)/);
 
 assert.match(frontendSource, /output: 'static'/);
 assert.match(frontendSource, /destination: '\/index\.html'/);
+assert.match(frontendSource, /redeemPromoCode\(code: string\)/);
+assert.match(frontendSource, /return this\.redeemCode\(code\)/);
 assert.doesNotMatch(frontendSource, /output: 'single'/);
 
 assert.match(backendSource, /version: 2/);
