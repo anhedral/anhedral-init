@@ -84,6 +84,7 @@ function patchFrontendPackageJson(dir: string): void {
   packageJson.dependencies = {
     ...(packageJson.dependencies ?? {}),
     '@anhedral/api-client': FRONTEND_ADDON_DEPENDENCIES['@anhedral/api-client'],
+    '@clerk/clerk-expo': FRONTEND_ADDON_DEPENDENCIES['@clerk/clerk-expo'],
     'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
     'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
     '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],

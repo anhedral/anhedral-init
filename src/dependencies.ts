@@ -160,6 +160,8 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
 
 export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   '@anhedral/api-client': 'workspace:*',
+  // renovate: datasource=npm depName=@clerk/clerk-expo
+  '@clerk/clerk-expo': '2.19.31',
   // renovate: datasource=npm depName=react-native-purchases
   'react-native-purchases': '10.1.1',
   // renovate: datasource=npm depName=react-native-purchases-ui
