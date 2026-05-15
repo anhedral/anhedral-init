@@ -51,7 +51,7 @@ anhedral init
 - RevenueCat + Stripe
 - Vercel deploy
 
-The scaffold is a pnpm workspace with `apps/*` and `packages/*`. Shared code such as the Drizzle schema lives under `packages/db` so apps do not need separate database schemas.
+The scaffold is a pnpm workspace with top-level `Frontend`, `Backend`, `Extension`, and `packages/*` folders. Shared code such as the Drizzle schema lives under `packages/db` so apps do not need separate database schemas.
 
 Each scaffold writes a `stack.json` file with the selected architecture, generated outputs, and the verified dependency manifest used for that run.
 
@@ -59,25 +59,35 @@ Each scaffold writes a `stack.json` file with the selected architecture, generat
 
 The generated workspace is one Git repository with two Vercel projects:
 
-- `apps/frontend`: Expo web build. Build command: `pnpm build:web`. Output directory: `dist`.
-- `apps/api`: Fastify API. Build command: `pnpm build`. Requests rewrite to `api/index.ts`.
+- `Frontend`: Expo web build. Build command: `pnpm build:web`. Output directory: `dist`.
+- `Backend`: Fastify API. Build command: `pnpm build`. Vercel detects `src/index.ts` as the Fastify entrypoint.
 
-The `apps/frontend` source is also the EAS source for iOS and Android builds; Vercel only deploys its web export.
+The `Frontend` source is also the EAS source for iOS and Android builds; Vercel only deploys its web export.
 
 Import the same repository twice in Vercel and set each project Root Directory to the app path above. Enable source access outside the app root so `packages/*` workspace dependencies are available during builds.
 
 Vercel deployments are Git-driven. After both projects are connected, pushes and pull requests deploy the Expo web app and Fastify API automatically from GitHub commits.
 
-## Native App Deployment
-
-Use `apps/frontend` as the Expo project root for iOS and Android. Vercel only deploys the web export from this app; native builds go through EAS.
+Generated projects also include `PRODUCTION.md` with the provider checklist and these root verification scripts:
 
 ```sh
-cd apps/frontend
+pnpm verify
+pnpm verify:frontend
+pnpm verify:backend
+pnpm verify:extension
+```
+
+## Native App Deployment
+
+Use `Frontend` as the Expo project root for iOS and Android. Vercel only deploys the web export from this app; native builds go through EAS.
+
+```sh
+cd Frontend
 pnpm dlx eas-cli@latest login
 pnpm dlx eas-cli@latest init
-pnpm dlx eas-cli@latest build:configure
 ```
+
+The scaffold generates `Frontend/eas.json` with `development`, `preview`, and `production` profiles.
 
 Build commands:
 
@@ -123,10 +133,10 @@ pnpm dlx eas-cli@latest credentials
 
 ## Extension Release
 
-The WXT extension is built from `apps/extension`. It is not deployed by Vercel.
+The WXT extension is built from `Extension`. It is not deployed by Vercel.
 
 ```sh
-cd apps/extension
+cd Extension
 pnpm build
 pnpm zip
 ```

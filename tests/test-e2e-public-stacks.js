@@ -73,11 +73,13 @@ function assertGitignoreContains(projectRoot, relativePath, expectedLines) {
 }
 
 function assertNoNestedGit(projectRoot) {
-  for (const appName of ['web', 'frontend', 'api', 'extension']) {
+  assert.equal(existsSync(path.join(projectRoot, 'apps')), false, 'generated project should not create an apps/ directory');
+
+  for (const appName of ['Frontend', 'Backend', 'Extension']) {
     assert.equal(
-      existsSync(path.join(projectRoot, 'apps', appName, '.git')),
+      existsSync(path.join(projectRoot, appName, '.git')),
       false,
-      `apps/${appName} should not contain a nested .git directory`,
+      `${appName} should not contain a nested .git directory`,
     );
   }
 }
@@ -111,17 +113,17 @@ const scenarios = [
     frontend: 'expo_react_native_reusables',
     gitignores: [
       ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/frontend/.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['Frontend/.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['Backend/.gitignore', ['.env', '.env.*', '!.env.example']],
     ],
     checks: [
-      ['pnpm', ['--filter', './apps/frontend', 'exec', 'expo', 'install', '--check']],
-      ['pnpm', ['--filter', './apps/frontend', 'build:web']],
-      ['pnpm', ['--filter', './apps/api', 'build']],
-      ['pnpm', ['--filter', './apps/api', 'test']],
-      ['pnpm', ['--filter', './apps/extension', 'typecheck']],
-      ['pnpm', ['--filter', './apps/extension', 'build']],
-      ['pnpm', ['--filter', './apps/extension', 'zip']],
+      ['pnpm', ['--filter', './Frontend', 'exec', 'expo', 'install', '--check']],
+      ['pnpm', ['--filter', './Frontend', 'build:web']],
+      ['pnpm', ['--filter', './Backend', 'build']],
+      ['pnpm', ['--filter', './Backend', 'test']],
+      ['pnpm', ['--filter', './Extension', 'typecheck']],
+      ['pnpm', ['--filter', './Extension', 'build']],
+      ['pnpm', ['--filter', './Extension', 'zip']],
       ['pnpm', ['build']],
     ],
   },

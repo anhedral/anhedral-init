@@ -24,7 +24,7 @@ assert.equal(manifest.packageManager, 'pnpm@10.15.1');
 assert.equal(manifest.backend.dependencies.fastify, '5.6.2');
 assert.equal(manifest.backend.dependencies['@anhedral/db'], 'workspace:*');
 assert.equal(manifest.frontendAddons['@anhedral/api-client'], 'workspace:*');
-assert.equal(manifest.frontendAddons['@clerk/clerk-expo'], '2.19.31');
+assert.equal(manifest.frontendAddons['@clerk/expo'], '3.2.11');
 
 assert.deepEqual(getSkillCommands(), [
   'pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui',

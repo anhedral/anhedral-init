@@ -7,15 +7,13 @@ import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldExtension(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
-  const appsRoot = path.join(root, 'apps');
-  const dir = path.join(appsRoot, 'extension');
+  const dir = path.join(root, 'Extension');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
   anhedralPrint.section('Chrome extension (WXT)');
 
   anhedralPrint.step('Scaffolding WXT extension');
-  writeFile(path.join(appsRoot, '.gitkeep'), '');
-  exec(`pnpm dlx ${toolPackageRef('wxt', toolchain.wxt)} init extension -t react --pm pnpm`, appsRoot);
+  exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init Extension -t react --pm pnpm`, root);
   writePackageJson(dir, projectName);
   anhedralPrint.done('WXT extension scaffolded');
 
@@ -107,6 +105,11 @@ export default defineConfig({
     };
   },
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({
+    build: {
+      chunkSizeWarningLimit: 3000,
+    },
+  }),
 });
 `);
 }

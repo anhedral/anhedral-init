@@ -1,0 +1,1 @@
+import '@anhedral/db/migrate';

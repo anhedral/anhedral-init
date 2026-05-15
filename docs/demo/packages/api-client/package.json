@@ -1,0 +1,20 @@
+{
+  "name": "@anhedral/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm typecheck",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@anhedral/config": "workspace:*",
+    "@anhedral/types": "workspace:*"
+  }
+}

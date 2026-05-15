@@ -105,8 +105,6 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     vitest: '4.0.16',
     // renovate: datasource=npm depName=@vitest/coverage-v8
     '@vitest/coverage-v8': '4.0.16',
-    // renovate: datasource=npm depName=@vercel/node
-    '@vercel/node': '5.5.13',
     // renovate: datasource=npm depName=eslint
     eslint: '9.39.2',
     // renovate: datasource=npm depName=@eslint/js
@@ -160,8 +158,8 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
 
 export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   '@anhedral/api-client': 'workspace:*',
-  // renovate: datasource=npm depName=@clerk/clerk-expo
-  '@clerk/clerk-expo': '2.19.31',
+  // renovate: datasource=npm depName=@clerk/expo
+  '@clerk/expo': '3.2.11',
   // renovate: datasource=npm depName=react-native-purchases
   'react-native-purchases': '10.1.1',
   // renovate: datasource=npm depName=react-native-purchases-ui
