@@ -85,15 +85,15 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@fastify/multipart
     '@fastify/multipart': '9.3.0',
     // renovate: datasource=npm depName=@clerk/fastify
-    '@clerk/fastify': '2.11.4',
+    '@clerk/fastify': '3.1.26',
     '@neondatabase/serverless': SHARED_DB_DEPENDENCIES.dependencies!['@neondatabase/serverless'],
     'drizzle-orm': SHARED_DB_DEPENDENCIES.dependencies!['drizzle-orm'],
     // renovate: datasource=npm depName=@aws-sdk/client-s3
-    '@aws-sdk/client-s3': '3.950.0',
+    '@aws-sdk/client-s3': '3.1047.0',
     // renovate: datasource=npm depName=@aws-sdk/lib-storage
-    '@aws-sdk/lib-storage': '3.950.0',
+    '@aws-sdk/lib-storage': '3.1047.0',
     // renovate: datasource=npm depName=@aws-sdk/s3-request-presigner
-    '@aws-sdk/s3-request-presigner': '3.950.0',
+    '@aws-sdk/s3-request-presigner': '3.1047.0',
     dotenv: SHARED_DB_DEPENDENCIES.dependencies!.dotenv,
   },
   devDependencies: {
@@ -124,7 +124,7 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@anhedral/api-client': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/chrome-extension
-    '@clerk/chrome-extension': '2.11.4',
+    '@clerk/chrome-extension': '3.1.25',
     // renovate: datasource=npm depName=react
     react: '19.2.3',
     // renovate: datasource=npm depName=react-dom
@@ -161,9 +161,9 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
 export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   '@anhedral/api-client': 'workspace:*',
   // renovate: datasource=npm depName=react-native-purchases
-  'react-native-purchases': '9.9.2',
+  'react-native-purchases': '10.1.1',
   // renovate: datasource=npm depName=react-native-purchases-ui
-  'react-native-purchases-ui': '9.9.2',
+  'react-native-purchases-ui': '10.1.1',
   // renovate: datasource=npm depName=@revenuecat/purchases-js
   '@revenuecat/purchases-js': '1.11.1',
 };
