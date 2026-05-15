@@ -6,7 +6,7 @@ import { BACKEND_DEPENDENCIES } from '../dependencies.js';
 import type { ProjectOptions } from '../scaffold.js';
 
 export async function scaffoldBackend(root: string, { projectName, displayName, frontendUrl, skipInstall }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'apps/api');
+  const dir = path.join(root, 'Backend');
 
   anhedralPrint.section('Backend (Fastify)');
   anhedralPrint.step('Writing backend source files');
@@ -28,7 +28,6 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   writeRepositories(dir);
   writeRoutes(dir, displayName);
   writeAppAndIndex(dir, displayName);
-  writeVercelEntry(dir);
   writeVercelConfig(dir);
   writeTestFiles(dir);
   anhedralPrint.done('Backend source files written');
@@ -2238,56 +2237,11 @@ main().catch((err) => {
 `);
 }
 
-function writeVercelEntry(dir: string): void {
-  writeFile(path.join(dir, 'api/index.ts'), `import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { FastifyInstance } from 'fastify';
-import { buildApp } from '../src/app.js';
-
-let appReadyPromise: Promise<FastifyInstance> | undefined;
-
-async function getApp(): Promise<FastifyInstance> {
-  if (!appReadyPromise) {
-    appReadyPromise = (async () => {
-      const app = await buildApp();
-      await app.ready();
-      return app;
-    })().catch((err) => {
-      appReadyPromise = undefined;
-      throw err;
-    });
-  }
-  return appReadyPromise;
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const app = await getApp();
-  if (req.url === '/api' || req.url === '/backend') {
-    req.url = '/';
-  } else if (req.url?.startsWith('/api/')) {
-    req.url = req.url.slice('/api'.length);
-  } else if (req.url?.startsWith('/backend/')) {
-    req.url = req.url.slice('/backend'.length);
-  }
-  app.server.emit('request', req, res);
-}
-`);
-}
-
 function writeVercelConfig(dir: string): void {
   writeFile(path.join(dir, 'vercel.json'), JSON.stringify({
-    version: 2,
-    builds: [
-      {
-        src: 'api/index.ts',
-        use: '@vercel/node',
-      },
-    ],
-    routes: [
-      {
-        src: '/(.*)',
-        dest: 'api/index.ts',
-      },
-    ],
+    $schema: 'https://openapi.vercel.sh/vercel.json',
+    buildCommand: 'pnpm build',
+    devCommand: 'vercel dev',
   }, null, 2) + '\n');
 }
 

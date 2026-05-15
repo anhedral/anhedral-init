@@ -225,16 +225,17 @@ ${generatedPaths}
 \`\`\`bash
 pnpm install
 cp .env.example .env
-# apps/frontend/.env is generated for local Expo development
-cp apps/extension/.env.example apps/extension/.env
+# Frontend/.env is generated for local Expo development
+cp Extension/.env.example Extension/.env
 pnpm db:generate
 pnpm db:migrate
-pnpm dev:api
+pnpm verify
+pnpm dev:backend
 pnpm dev:frontend
 pnpm dev:extension
 \`\`\`
 
-For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
+For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`Backend/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
 
 ## Provider Setup
 
@@ -242,8 +243,8 @@ For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`
 - Clerk: create an application, configure allowed origins, and set \`CLERK_PUBLISHABLE_KEY\`, \`CLERK_SECRET_KEY\`, plus the Expo and extension publishable keys.
 - RevenueCat + Stripe: create an entitlement named \`pro\`, configure Stripe as a RevenueCat web billing source, configure app keys, then set \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and the \`EXPO_PUBLIC_RC_*\` values.
 - Cloudflare R2: create a bucket and API token, then set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\`.
-- Vercel: import this same Git repository twice. Use \`apps/frontend\` as the root directory for the Expo web project, and \`apps/api\` as the root directory for the Fastify API project. Enable access to source files outside each root directory so workspace packages under \`packages/*\` are available during builds.
-- EAS: use \`apps/frontend\` as the Expo project root for iOS and Android builds. Vercel deploys the web export from the same source.
+- Vercel: import this same Git repository twice. Use \`Frontend\` as the root directory for the Expo web project, and \`Backend\` as the root directory for the Fastify API project. Enable access to source files outside each root directory so workspace packages under \`packages/*\` are available during builds. The Backend project uses Vercel Fastify entrypoint detection from \`Backend/src/index.ts\`.
+- EAS: use \`Frontend\` as the Expo project root for iOS and Android builds. Vercel deploys the web export from the same source.
 
 ## Setup Notes
 
@@ -251,19 +252,185 @@ For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`
 2. Review \`install-skills.sh\` and run the listed skill commands manually so you can choose scope and agent targets.
 3. Add the real provider configuration for Clerk, RevenueCat, Stripe web billing, Neon, and R2 where the scaffolded helper files indicate.
 4. Use \`stack.json\` when debugging generated projects; it records the verified dependency manifest used by this init run.
-5. Run database generation and migrations from the shared DB package:
+5. Review \`PRODUCTION.md\` before connecting live provider projects.
+6. Run database generation and migrations from the shared DB package:
 
 \`\`\`bash
 pnpm db:generate
 pnpm db:migrate
 \`\`\`
 
-6. Build or run the extension separately. It is not deployed by Vercel:
+Run deployment readiness checks before pushing:
+
+\`\`\`bash
+pnpm verify
+pnpm verify:frontend
+pnpm verify:backend
+pnpm verify:extension
+\`\`\`
+
+7. Build or run the extension separately. It is not deployed by Vercel:
 
 \`\`\`bash
 pnpm dev:extension
 pnpm extension:zip
 \`\`\`
+`);
+}
+
+function writeProductionGuide(root: string, options: InitOptions): void {
+  writeFile(path.join(root, 'PRODUCTION.md'), `# ${options.displayName} Production Guide
+
+## Project Structure
+
+The generated app is one pnpm monorepo:
+
+\`\`\`txt
+.
+├─ Frontend/        Expo + React Native Reusables app
+├─ Backend/         Fastify API
+├─ Extension/       WXT Chrome extension
+├─ packages/
+│  ├─ api-client/   shared typed API client
+│  ├─ config/       shared config constants/helpers
+│  ├─ db/           Drizzle schema, Neon client, migrations
+│  └─ types/        shared TypeScript types
+├─ PRODUCTION.md    development and deployment guide
+├─ turbo.json       workspace build graph
+└─ package.json     root scripts
+\`\`\`
+
+## Frontend
+
+\`Frontend\` is the single Expo source for:
+
+- Web on Vercel
+- iOS through EAS
+- Android through EAS
+
+Important files:
+
+- \`Frontend/package.json\`: Expo scripts
+- \`Frontend/vercel.json\`: Vercel web export config
+- \`Frontend/eas.json\`: native build profiles
+- \`Frontend/app\`: Expo Router screens
+
+Build output goes to \`Frontend/dist\`.
+
+## Backend
+
+\`Backend\` is the Fastify API.
+
+Important files:
+
+- \`Backend/src/index.ts\`: Vercel Fastify entrypoint
+- \`Backend/src/app.ts\`: Fastify app construction
+- \`Backend/vercel.json\`: minimal Vercel config
+- \`Backend/src/routes\`: health/auth/subscription routes
+
+## Extension
+
+\`Extension\` is the WXT Chrome extension using the Side Panel API.
+
+Important files:
+
+- \`Extension/wxt.config.ts\`: manifest, side panel, permissions
+- \`Extension/src/entrypoints/sidepanel\`: side panel UI
+- \`Extension/src/entrypoints/background.ts\`: side panel behavior
+
+ZIP output goes to \`Extension/.output\`.
+
+## Develop
+
+From the repository root:
+
+\`\`\`sh
+pnpm install
+pnpm dev
+\`\`\`
+
+Or run one surface at a time:
+
+\`\`\`sh
+pnpm dev:frontend
+pnpm dev:backend
+pnpm dev:extension
+\`\`\`
+
+Use these before deploy:
+
+\`\`\`sh
+pnpm verify
+pnpm verify:frontend
+pnpm verify:backend
+pnpm verify:extension
+\`\`\`
+
+Database workflow:
+
+\`\`\`sh
+pnpm db:generate
+pnpm db:migrate
+\`\`\`
+
+Local demo mode is enabled through generated \`.env\` files. Real provider behavior needs Clerk, RevenueCat/Stripe, Neon, and R2 credentials.
+
+## Environment Variables
+
+- Root/local: \`DATABASE_URL\` for shared Drizzle commands.
+- Frontend/Vercel Frontend: only \`EXPO_PUBLIC_*\` values.
+- Backend/Vercel Backend: server secrets such as \`DATABASE_URL\`, \`CLERK_SECRET_KEY\`, \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and R2 credentials.
+- Extension: \`VITE_API_URL\`, \`VITE_CLERK_PUBLISHABLE_KEY\`, and optionally \`VITE_CRX_PUBLIC_KEY\`.
+- EAS: add native app public keys with \`eas secret:create\` or the EAS dashboard.
+
+## Deploy
+
+Vercel deployment is two Vercel projects from the same Git repo:
+
+1. Frontend Vercel project
+   - Root Directory: \`Frontend\`
+   - Build command: \`pnpm build:web\`
+   - Output directory: \`dist\`
+
+2. Backend Vercel project
+   - Root Directory: \`Backend\`
+   - Build command: \`pnpm build\`
+   - Fastify entrypoint: \`src/index.ts\`
+
+Enable Vercel access to source files outside each project root so \`packages/*\` workspace packages resolve.
+
+Native app deployment:
+
+\`\`\`sh
+cd Frontend
+pnpm dlx eas-cli@latest login
+pnpm dlx eas-cli@latest init
+pnpm dlx eas-cli@latest build --platform all --profile production
+pnpm dlx eas-cli@latest submit --platform all --latest --profile production
+\`\`\`
+
+Chrome extension deployment:
+
+\`\`\`sh
+pnpm extension:zip
+\`\`\`
+
+Upload \`Extension/.output/*-chrome.zip\` to the Chrome Web Store Developer Dashboard.
+
+## Provider Checklist
+
+- Clerk: configure allowed origins for the Expo web Vercel domain, native redirect/deep-link settings for the Expo scheme in \`Frontend/app.json\`, and the Chrome extension origin after publishing or after assigning a stable extension key.
+- RevenueCat + Stripe: create a \`pro\` entitlement, configure iOS/Android/Web app API keys separately, connect Stripe as the web billing source, set the RevenueCat webhook URL to \`https://<backend-domain>/webhooks/revenuecat\`, and keep \`RC_WEBHOOK_SECRET\` only in Backend.
+- Neon + Drizzle: create the Neon database, set \`DATABASE_URL\` locally and in the Backend Vercel project, then run \`pnpm db:generate\` and \`pnpm db:migrate\` before production traffic.
+- Cloudflare R2: create an R2 bucket and least-privilege API token, then set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` in Backend only.
+
+## Relevant Docs
+
+- [Vercel monorepos](https://vercel.com/docs/monorepos)
+- [Expo web publishing](https://docs.expo.dev/guides/publishing-websites/)
+- [Expo EAS](https://docs.expo.dev/eas/)
+- [WXT publishing](https://wxt.dev/guide/essentials/publishing.html)
+- [Chrome Web Store publishing](https://developer.chrome.com/docs/webstore/publish)
 `);
 }
 
@@ -849,9 +1016,9 @@ ${paymentsEnv}`);
 }
 
 function writeRootVercelFiles(root: string): void {
-  writeFile(path.join(root, '.vercelignore'), `apps/extension/.output
-apps/extension/.wxt
-apps/extension/dist
+  writeFile(path.join(root, '.vercelignore'), `Extension/.output
+Extension/.wxt
+Extension/dist
 `);
 }
 
@@ -894,22 +1061,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check Expo dependency alignment
-        run: pnpm --filter ./apps/frontend exec expo install --check
+        run: pnpm --filter ./Frontend exec expo install --check
 
       - name: Build Expo web
-        run: pnpm --filter ./apps/frontend build:web
+        run: pnpm --filter ./Frontend build:web
 
       - name: Test API
-        run: pnpm --filter ./apps/api test
+        run: pnpm --filter ./Backend test
 
       - name: Build API
-        run: pnpm --filter ./apps/api build
+        run: pnpm --filter ./Backend build
 
       - name: Build extension
-        run: pnpm --filter ./apps/extension build
+        run: pnpm --filter ./Extension build
 
       - name: Zip extension
-        run: pnpm --filter ./apps/extension zip
+        run: pnpm --filter ./Extension zip
 
       - name: Build workspace
         run: pnpm build
@@ -918,35 +1085,39 @@ jobs:
 
 function writeFullstackRootFiles(root: string, options: InitOptions): void {
   const appFilters = [
-    './apps/frontend',
-    './apps/api',
-    './apps/extension',
+    './Frontend',
+    './Backend',
+    './Extension',
   ];
   const parallelFilters = appFilters.map((entry) => `--filter=${entry}`).join(' ');
 
   const scripts: Record<string, string> = {
     dev: `turbo dev --parallel ${parallelFilters}`,
-    'dev:api': 'pnpm --filter ./apps/api dev',
+    'dev:backend': 'pnpm --filter ./Backend dev',
     build: 'turbo build',
     typecheck: 'turbo typecheck',
+    verify: 'pnpm verify:frontend && pnpm verify:backend && pnpm verify:extension',
+    'verify:frontend': 'pnpm --filter ./Frontend exec expo install --check && pnpm --filter ./Frontend build:web',
+    'verify:backend': 'pnpm --filter ./Backend test && pnpm --filter ./Backend build',
+    'verify:extension': 'pnpm --filter ./Extension typecheck && pnpm --filter ./Extension zip',
     'db:generate': 'pnpm --filter @anhedral/db db:generate',
     'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
   };
 
-  scripts['dev:frontend'] = 'pnpm --filter ./apps/frontend dev';
-  scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
-  scripts['extension:zip'] = 'pnpm --filter ./apps/extension zip';
+  scripts['dev:frontend'] = 'pnpm --filter ./Frontend dev';
+  scripts['dev:extension'] = 'pnpm --filter ./Extension dev';
+  scripts['extension:zip'] = 'pnpm --filter ./Extension zip';
 
-  writeRootPackageJson(root, options.projectName, scripts, ['apps/*', 'packages/*'], {
+  writeRootPackageJson(root, options.projectName, scripts, ['Frontend', 'Backend', 'Extension', 'packages/*'], {
     devDependencies: ROOT_DEPENDENCIES.devDependencies,
   });
-  writePnpmWorkspace(root, ['apps/*', 'packages/*']);
+  writePnpmWorkspace(root, ['Frontend', 'Backend', 'Extension', 'packages/*']);
   writeFile(path.join(root, 'turbo.json'), JSON.stringify({
     $schema: 'https://turborepo.dev/schema.json',
     tasks: {
       build: {
         dependsOn: ['^build'],
-        outputs: ['dist/**', '.output/**'],
+        outputs: [],
       },
       typecheck: {
         dependsOn: ['^build'],
@@ -960,7 +1131,9 @@ function writeFullstackRootFiles(root: string, options: InitOptions): void {
   appendGitignore(root, [
     'node_modules',
     '.turbo',
-    'apps/*/node_modules',
+    'Frontend/node_modules',
+    'Backend/node_modules',
+    'Extension/node_modules',
     'packages/*/node_modules',
     ...SHARED_ENV_GITIGNORE_LINES,
     ...SHARED_TYPESCRIPT_GITIGNORE_LINES,
@@ -1008,9 +1181,10 @@ async function scaffoldFullstack(root: string, options: InitOptions): Promise<st
 
   return [
     '.github/workflows/ci.yml',
-    'apps/frontend',
-    'apps/api',
-    'apps/extension',
+    'PRODUCTION.md',
+    'Frontend',
+    'Backend',
+    'Extension',
     'packages/db',
     'packages/types',
     'packages/config',
@@ -1038,6 +1212,7 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
 
     const stack = normalizeStack(options, generatedPaths);
     writeRootDocs(root, options, stack);
+    writeProductionGuide(root, options);
     writeStackFile(root, stack);
     anhedralPrint.done('Project metadata written');
 
@@ -1050,9 +1225,10 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
     anhedralPrint.info('Next commands:');
     console.log('  pnpm install');
     console.log('  cp .env.example .env');
-    console.log('  cp apps/extension/.env.example apps/extension/.env');
+    console.log('  cp Extension/.env.example Extension/.env');
     console.log('  pnpm db:generate && pnpm db:migrate');
-    console.log('  pnpm dev:api');
+    console.log('  pnpm verify');
+    console.log('  pnpm dev:backend');
     console.log('  pnpm dev:frontend');
     console.log('  pnpm dev:extension');
     console.log('');

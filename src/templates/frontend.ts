@@ -8,7 +8,7 @@ import { FRONTEND_ADDON_DEPENDENCIES, withVersions } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldFrontend(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'apps/frontend');
+  const dir = path.join(root, 'Frontend');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
   anhedralPrint.section('Frontend (Expo)');
@@ -30,6 +30,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
   anhedralPrint.step('Installing frontend dependencies');
   patchFrontendPackageJson(dir);
   patchExpoAppConfig(dir);
+  patchFrontendTsConfig(dir);
   if (!skipInstall) {
     exec('pnpm install --no-frozen-lockfile', dir);
     exec('pnpm exec expo install --fix --pnpm', dir);
@@ -46,6 +47,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
   writeEnvExample(dir);
   writeEnvFile(dir);
   writeVercelConfig(dir);
+  writeEasConfig(dir);
   writeAnhedralLogo(dir);
   writeSubscriptionProvider(dir);
   writeUseSubscription(dir);
@@ -53,7 +55,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
   anhedralPrint.step('Installing Expo native packages');
   if (skipInstall) {
     anhedralPrint.info('Skipping Expo native package install (--skip-install)');
-    anhedralPrint.info('Run after init: pnpm --filter ./apps/frontend exec expo install --pnpm expo-image-picker');
+    anhedralPrint.info('Run after init: pnpm --filter ./Frontend exec expo install --pnpm expo-image-picker');
   } else {
     exec('pnpm exec expo install --pnpm expo-image-picker', dir);
     exec('pnpm exec expo install --fix --pnpm', dir);
@@ -67,7 +69,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
     '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
   });
   if (skipInstall) {
-    anhedralPrint.info(`Skipping RevenueCat SDK install (--skip-install). Run after init: pnpm --filter ./apps/frontend add ${revenueCatDependencies.join(' ')}`);
+    anhedralPrint.info(`Skipping RevenueCat SDK install (--skip-install). Run after init: pnpm --filter ./Frontend add ${revenueCatDependencies.join(' ')}`);
   } else {
     exec(`pnpm add ${revenueCatDependencies.join(' ')}`, dir);
   }
@@ -84,7 +86,7 @@ function patchFrontendPackageJson(dir: string): void {
   packageJson.dependencies = {
     ...(packageJson.dependencies ?? {}),
     '@anhedral/api-client': FRONTEND_ADDON_DEPENDENCIES['@anhedral/api-client'],
-    '@clerk/clerk-expo': FRONTEND_ADDON_DEPENDENCIES['@clerk/clerk-expo'],
+    '@clerk/expo': FRONTEND_ADDON_DEPENDENCIES['@clerk/expo'],
     'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
     'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
     '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
@@ -98,6 +100,23 @@ function patchFrontendPackageJson(dir: string): void {
   };
 
   writeFile(filePath, JSON.stringify(packageJson, null, 2) + '\n');
+}
+
+function patchFrontendTsConfig(dir: string): void {
+  const filePath = path.join(dir, 'tsconfig.json');
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const tsConfig = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+    extends?: string;
+  };
+
+  if (tsConfig.extends === 'expo/tsconfig.base') {
+    tsConfig.extends = 'expo/tsconfig.base.json';
+  }
+
+  writeFile(filePath, JSON.stringify(tsConfig, null, 2) + '\n');
 }
 
 function patchExpoAppConfig(dir: string): void {
@@ -118,6 +137,10 @@ function patchExpoAppConfig(dir: string): void {
     bundler: 'metro',
     output: 'static',
   };
+  appJson.expo.plugins = Array.from(new Set([
+    ...((Array.isArray(appJson.expo.plugins) ? appJson.expo.plugins : []) as string[]),
+    '@clerk/expo',
+  ]));
 
   writeFile(filePath, JSON.stringify(appJson, null, 2) + '\n');
 }
@@ -198,7 +221,7 @@ export function getPlatformRevenueCatApiKey(): string {
 }
 
 function writeApiHook(dir: string): void {
-  writeFile(path.join(dir, 'hooks/useAPI.ts'), `import { useAuth } from '@clerk/clerk-expo';
+  writeFile(path.join(dir, 'hooks/useAPI.ts'), `import { useAuth } from '@clerk/expo';
 import { useMemo } from 'react';
 import { APIClient } from '@/api/client';
 import { apiBaseUrl } from '@/lib/config';
@@ -221,14 +244,41 @@ function writeVercelConfig(dir: string): void {
     rewrites: [
       {
         source: '/:path*',
-        destination: '/index.html',
+        destination: '/',
       },
     ],
   }, null, 2) + '\n');
 }
 
+function writeEasConfig(dir: string): void {
+  writeFile(path.join(dir, 'eas.json'), JSON.stringify({
+    cli: {
+      version: '>= 16.24.0',
+      appVersionSource: 'remote',
+    },
+    build: {
+      development: {
+        developmentClient: true,
+        distribution: 'internal',
+        android: {
+          buildType: 'apk',
+        },
+      },
+      preview: {
+        distribution: 'internal',
+      },
+      production: {
+        autoIncrement: true,
+      },
+    },
+    submit: {
+      production: {},
+    },
+  }, null, 2) + '\n');
+}
+
 function writeAccountHook(dir: string): void {
-  writeFile(path.join(dir, 'hooks/useAccount.ts'), `import { useAuth } from '@clerk/clerk-expo';
+  writeFile(path.join(dir, 'hooks/useAccount.ts'), `import { useAuth } from '@clerk/expo';
 import * as React from 'react';
 import { useAPI } from '@/hooks/useAPI';
 
@@ -328,7 +378,7 @@ import Purchases, { type CustomerInfo, type PurchasesOfferings } from 'react-nat
 import { Purchases as PurchasesWeb } from '@revenuecat/purchases-js';
 import { AppState, Platform } from 'react-native';
 import { subscriptionConfig, getPlatformRevenueCatApiKey } from '@/lib/config';
-import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/expo';
 import { useAPI } from '@/hooks/useAPI';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
@@ -732,9 +782,10 @@ function writeAppShellFiles(dir: string, displayName: string): void {
   writeFile(path.join(dir, 'app/_layout.tsx'), `import '@/global.css';
 
 import { SubscriptionProvider } from '@/contexts/SubscriptionProvider';
+import { clerkPublishableKey } from '@/lib/config';
 import { NAV_THEME } from '@/lib/theme';
-import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
-import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import { ClerkProvider, useAuth } from '@clerk/expo';
+import { tokenCache } from '@clerk/expo/token-cache';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
@@ -749,7 +800,7 @@ export default function RootLayout() {
   const { colorScheme } = useColorScheme();
 
   return (
-    <ClerkProvider tokenCache={tokenCache}>
+    <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
       <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
         <SubscriptionProvider>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
@@ -799,7 +850,7 @@ function Routes() {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '@clerk/expo';
 import { Link } from 'expo-router';
 import { CloudIcon, CreditCardIcon, ShieldCheckIcon, DatabaseIcon } from 'lucide-react-native';
 import { ScrollView, View } from 'react-native';
@@ -1143,7 +1194,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
-import { useSignIn } from '@clerk/clerk-expo';
+import { useSignIn } from '@clerk/expo/legacy';
 import { Link } from 'expo-router';
 import * as React from 'react';
 import { type TextInput, View } from 'react-native';
@@ -1258,7 +1309,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
-import { useSignUp } from '@clerk/clerk-expo';
+import { useSignUp } from '@clerk/expo/legacy';
 import { Link, router } from 'expo-router';
 import * as React from 'react';
 import { TextInput, View } from 'react-native';
@@ -1363,7 +1414,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Text } from '@/components/ui/text';
 import { useAccount } from '@/hooks/useAccount';
 import { useSubscription } from '@/hooks/useSubscription';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '@clerk/expo';
 import type { TriggerRef } from '@rn-primitives/popover';
 import { CameraIcon, CreditCardIcon, CoinsIcon, LoaderCircleIcon, LogOutIcon } from 'lucide-react-native';
 import * as React from 'react';

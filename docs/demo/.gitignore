@@ -1,0 +1,10 @@
+node_modules
+.turbo
+Frontend/node_modules
+Backend/node_modules
+Extension/node_modules
+packages/*/node_modules
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
