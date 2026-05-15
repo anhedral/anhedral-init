@@ -1,10 +1,11 @@
 import path from 'node:path';
-import { writeFile, exec } from '../util.js';
+import { writeFile, execCommand } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import { getBackendInstallCommands } from '../commands.js';
+import { BACKEND_DEPENDENCIES } from '../dependencies.js';
 import type { ProjectOptions } from '../scaffold.js';
 
-export async function scaffoldBackend(root: string, { projectName, displayName, frontendUrl }: ProjectOptions): Promise<void> {
+export async function scaffoldBackend(root: string, { projectName, displayName, frontendUrl, skipInstall }: ProjectOptions): Promise<void> {
   const dir = path.join(root, 'apps/api');
 
   anhedralPrint.section('Backend (Fastify)');
@@ -28,17 +29,19 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   writeRoutes(dir, displayName);
   writeAppAndIndex(dir, displayName);
   writeVercelEntry(dir);
+  writeVercelConfig(dir);
   writeTestFiles(dir);
   anhedralPrint.done('Backend source files written');
 
-  if (process.env.ANHEDRAL_SKIP_INSTALL === '1') {
-    anhedralPrint.info('Skipping backend dependency install (ANHEDRAL_SKIP_INSTALL=1)');
+  if (skipInstall) {
+    anhedralPrint.info('Skipping backend dependency install (--skip-install)');
+    anhedralPrint.info('Run after init: pnpm install');
     return;
   }
 
   anhedralPrint.step('Installing backend dependencies');
   for (const command of getBackendInstallCommands()) {
-    exec(command.cmd, dir);
+    execCommand(command.command, command.args, dir);
   }
   anhedralPrint.done('Backend dependencies installed');
 }
@@ -67,9 +70,8 @@ function writePackageJson(dir: string, projectName: string): void {
     },
     keywords: [],
     license: 'MIT',
-    dependencies: {
-      '@anhedral/db': 'workspace:*',
-    },
+    dependencies: BACKEND_DEPENDENCIES.dependencies,
+    devDependencies: BACKEND_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
 }
 
@@ -1186,8 +1188,8 @@ const configPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       R2_ACCESS_KEY_ID: { type: 'string', nullable: true },
       R2_SECRET_ACCESS_KEY: { type: 'string', nullable: true },
       R2_BUCKET: { type: 'string', nullable: true },
-      RC_SECRET_API_KEY: { type: 'string', default: '' },
-      RC_WEBHOOK_SECRET: { type: 'string', default: '' },
+      RC_SECRET_API_KEY: { type: 'string', nullable: true, default: '' },
+      RC_WEBHOOK_SECRET: { type: 'string', nullable: true, default: '' },
       RC_ENTITLEMENT_ID: { type: 'string', default: 'pro' },
       RC_OFFERING_ID: { type: 'string', default: 'default' },
     },
@@ -1198,6 +1200,23 @@ const configPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     dotenv: !process.env.VERCEL,
     confKey: 'env',
   } as unknown as Record<string, unknown>);
+
+  if (fastify.env.NODE_ENV === 'production') {
+    if (fastify.env.ANHEDRAL_DEMO === 'true') {
+      throw new Error('ANHEDRAL_DEMO must be false in production');
+    }
+
+    const required = [
+      'CLERK_PUBLISHABLE_KEY',
+      'CLERK_SECRET_KEY',
+      'RC_SECRET_API_KEY',
+      'RC_WEBHOOK_SECRET',
+    ] as const;
+    const missing = required.filter((key) => !fastify.env[key]);
+    if (missing.length > 0) {
+      throw new Error(\`Missing production environment variables: \${missing.join(', ')}\`);
+    }
+  }
 };
 
 export default fp(configPlugin, { name: 'env-config', fastify: '5.x' });
@@ -2252,6 +2271,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   app.server.emit('request', req, res);
 }
 `);
+}
+
+function writeVercelConfig(dir: string): void {
+  writeFile(path.join(dir, 'vercel.json'), JSON.stringify({
+    version: 2,
+    builds: [
+      {
+        src: 'api/index.ts',
+        use: '@vercel/node',
+      },
+    ],
+    routes: [
+      {
+        src: '/(.*)',
+        dest: 'api/index.ts',
+      },
+    ],
+  }, null, 2) + '\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

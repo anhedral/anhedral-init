@@ -59,6 +59,11 @@ jobs:
       - name: Verify package contents
         run: npm pack --dry-run --ignore-scripts
 
+      - name: Verify npm auth
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish package
         run: npm publish --provenance=false --ignore-scripts
         env:

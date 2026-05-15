@@ -1,3 +1,5 @@
+import { TOOLCHAIN_DEPENDENCIES, VERIFIED_AT } from './dependencies.js';
+
 export const TOOLCHAIN_CHANNELS = ['latest', 'stable'] as const;
 
 export type ToolchainChannel = (typeof TOOLCHAIN_CHANNELS)[number];
@@ -17,13 +19,10 @@ const TOOLCHAIN_SPECS: Record<ToolchainChannel, ToolchainSpec> = {
     wxt: 'latest',
   },
   stable: {
-    verifiedAt: '2026-03-22',
-    // renovate: datasource=npm depName=shadcn
-    shadcn: '4.1.0',
-    // renovate: datasource=npm depName=@react-native-reusables/cli
-    reactNativeReusables: '0.5.0',
-    // renovate: datasource=npm depName=wxt
-    wxt: '0.20.20',
+    verifiedAt: VERIFIED_AT,
+    shadcn: TOOLCHAIN_DEPENDENCIES.shadcn,
+    reactNativeReusables: TOOLCHAIN_DEPENDENCIES.reactNativeReusables,
+    wxt: TOOLCHAIN_DEPENDENCIES.wxt,
   },
 };
 

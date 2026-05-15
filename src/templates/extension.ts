@@ -3,9 +3,10 @@ import path from 'node:path';
 import { writeFile, exec } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
+import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
-export async function scaffoldExtension(root: string, { projectName, displayName }: ProjectOptions): Promise<void> {
+export async function scaffoldExtension(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
   const appsRoot = path.join(root, 'apps');
   const dir = path.join(appsRoot, 'extension');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
@@ -19,9 +20,13 @@ export async function scaffoldExtension(root: string, { projectName, displayName
   anhedralPrint.done('WXT extension scaffolded');
 
   anhedralPrint.step('Installing Clerk + React + Tailwind dependencies');
-  exec(`pnpm add -D @types/chrome @types/react @types/react-dom @wxt-dev/module-react autoprefixer postcss tailwindcss@3.4.19 typescript@5.9.3 ${toolPackageRef('wxt', toolchain.wxt)}`, dir);
-  exec('pnpm add @clerk/chrome-extension react react-dom clsx tailwind-merge class-variance-authority lucide-react@0.468.0', dir);
-  anhedralPrint.done('Extension dependencies installed');
+  if (skipInstall) {
+    anhedralPrint.info('Skipping extension dependency install (--skip-install)');
+    anhedralPrint.info('Run after init: pnpm install');
+  } else {
+    exec('pnpm install --no-frozen-lockfile', dir);
+  }
+  anhedralPrint.done(skipInstall ? 'Extension dependency manifests written' : 'Extension dependencies installed');
 
   cleanWxtStarterFiles(dir);
   writeWxtConfig(dir, displayName);
@@ -33,6 +38,7 @@ export async function scaffoldExtension(root: string, { projectName, displayName
   writeShadcnConfig(dir);
   writeReadme(dir, displayName);
   writeCnUtil(dir);
+  writeButtonComponent(dir);
   writeAuthContext(dir);
   writeApiClient(dir);
   writeBackground(dir);
@@ -42,10 +48,7 @@ export async function scaffoldExtension(root: string, { projectName, displayName
   writeSidepanelApp(dir);
   writeStyles(dir);
 
-  anhedralPrint.step('Adding shadcn button component');
-  exec(`pnpm dlx ${toolPackageRef('shadcn', toolchain.shadcn)} add button`, dir);
-  writeStyles(dir);
-  anhedralPrint.done('shadcn button installed');
+  anhedralPrint.done('Extension source files written');
 }
 
 function cleanWxtStarterFiles(dir: string): void {
@@ -74,6 +77,8 @@ function writePackageJson(dir: string, projectName: string): void {
       'zip:firefox': 'wxt zip -b firefox',
       typecheck: 'tsc --noEmit',
     },
+    dependencies: EXTENSION_DEPENDENCIES.dependencies,
+    devDependencies: EXTENSION_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
 }
 
@@ -90,10 +95,14 @@ export default defineConfig({
       description: '${displayName} Chrome Extension',
       version: '0.1.0',
       ...(crxPublicKey ? { key: crxPublicKey } : {}),
-      permissions: ['activeTab', 'cookies', 'storage'],
+      minimum_chrome_version: '114',
+      permissions: ['activeTab', 'cookies', 'storage', 'sidePanel'],
       host_permissions: [],
       action: {
         default_title: 'Open ${displayName}',
+      },
+      side_panel: {
+        default_path: 'sidepanel.html',
       },
     };
   },
@@ -119,7 +128,6 @@ function writeTsConfig(dir: string): void {
       jsx: 'react-jsx',
       lib: ['DOM', 'DOM.Iterable', 'ESNext'],
       types: ['wxt/browser', '@wxt-dev/module-react', 'chrome'],
-      baseUrl: '.',
       paths: { '@/*': ['./src/*'] },
     },
     include: ['**/*.ts', '**/*.tsx', '.wxt/wxt.d.ts'],
@@ -207,6 +215,42 @@ export function cn(...inputs: ClassValue[]) {
 `);
 }
 
+function writeButtonComponent(dir: string): void {
+  writeFile(path.join(dir, 'src/components/ui/button.tsx'), `import * as React from 'react';
+import { cn } from '@/lib/utils';
+
+type ButtonVariant = 'default' | 'outline';
+
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+};
+
+const variantClasses: Record<ButtonVariant, string> = {
+  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+};
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', type = 'button', ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={cn(
+          'inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
+          variantClasses[variant],
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
+
+Button.displayName = 'Button';
+`);
+}
+
 function writeTailwindConfig(dir: string): void {
   writeFile(path.join(dir, 'tailwind.config.cjs'), `/** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -279,7 +323,7 @@ Set \`VITE_CLERK_PUBLISHABLE_KEY\` and \`VITE_API_URL\` in \`.env\` before using
 
 Run \`pnpm build\`, then load \`.output/chrome-mv3\` as an unpacked extension from \`chrome://extensions\`.
 
-The browser action opens the side panel. The background script initializes Clerk, the side panel handles sign-in/subscription state, and the content script is ready for page-to-extension messages.
+The extension uses Chrome's Side Panel API. The browser action opens \`sidepanel.html\`, \`wxt.config.ts\` declares the \`sidePanel\` permission and Chrome 114+ minimum version, the background script initializes Clerk, and the content script is ready for page-to-extension messages.
 `);
 }
 
@@ -425,58 +469,25 @@ export { WEBSITE_URL };
 }
 
 function writeApiClient(dir: string): void {
-  writeFile(path.join(dir, 'src/lib/api.ts'), `const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-
-export type SubscriptionEntitlements = {
-  pro: boolean;
-  inTrial: boolean;
-  trialEndsAt?: string;
-  expiresAt?: string;
-  periodStart?: string;
-  periodEnd?: string;
-  method?: 'trialing' | 'redeemed' | 'paid' | null;
-  managementUrl?: string;
-  cancelAtPeriodEnd?: boolean;
-};
+  writeFile(path.join(dir, 'src/lib/api.ts'), `import { ApiClient } from '@anhedral/api-client';
 
 export class APIClient {
   constructor(private getToken: () => Promise<string | null>) {}
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = await this.getToken();
-    if (!token) throw new Error('Not authenticated');
-
-    const headers: Record<string, string> = {
-      Authorization: \`Bearer \${token}\`,
-      'Content-Type': 'application/json',
-      'X-Client-Type': 'chrome-extension',
-      'X-Platform': 'chrome',
-      ...(options.headers as Record<string, string>),
-    };
-
-    const response = await fetch(\`\${API_BASE_URL}\${endpoint}\`, { ...options, headers });
-
-    if (!response.ok) {
-      let error: { message?: string } = {};
-      try { error = await response.json(); } catch {}
-      throw new Error(error.message || \`Request failed (\${response.status})\`);
-    }
-
-    if (response.status === 204) return {} as T;
-    return response.json();
+  private client() {
+    return new ApiClient({
+      baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:8787',
+      getToken: this.getToken,
+      platform: 'extension',
+    });
   }
 
-  async getMe() {
-    return this.request<{
-      user: { id: string; email: string; subscriptionTier: string; subscriptionStatus: string };
-    }>('/auth/me');
+  getMe() {
+    return this.client().getMe();
   }
 
-  async getSubscriptionEntitlements(options?: { refresh?: boolean }): Promise<SubscriptionEntitlements> {
-    const path = options?.refresh
-      ? '/subscriptions/entitlements/me?refresh=true'
-      : '/subscriptions/entitlements/me';
-    return this.request<SubscriptionEntitlements>(path);
+  getSubscriptionEntitlements(options?: { refresh?: boolean }) {
+    return this.client().getSubscriptionEntitlements(options);
   }
 }
 `);
@@ -485,15 +496,20 @@ export class APIClient {
 function writeBackground(dir: string): void {
   writeFile(path.join(dir, 'src/entrypoints/background.ts'), `import { createClerkClient } from '@clerk/chrome-extension/background';
 
+type ChromeWithSidePanel = typeof chrome & {
+  sidePanel: {
+    setPanelBehavior: (behavior: { openPanelOnActionClick: boolean }) => Promise<void>;
+  };
+};
+
 export default defineBackground(() => {
   // Initialize Clerk in the background script for cookie-based auth
   void createClerkClient({
     publishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '',
   }).catch(() => {});
 
-  // Open the side panel when the extension icon is clicked
-  // The sidePanel permission is auto-added by WXT when the sidepanel entrypoint exists
-  chrome.sidePanel
+  // Open the side panel when the extension icon is clicked.
+  (chrome as ChromeWithSidePanel).sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch(() => {});
 });

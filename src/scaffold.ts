@@ -1,25 +1,26 @@
-import { readFileSync, readdirSync, rmSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { env } from 'node:process';
 import { anhedralPrint } from './print.js';
-import { appendGitignore, exec, execWithInput, writeFile } from './util.js';
+import { appendGitignore, writeFile } from './util.js';
+import { getSkillCommands } from './commands.js';
 import {
-  getDefaultWebDependencyCommands,
-  getDefaultWebInitCommand,
-  getSkillCommands,
-  type ScaffoldCommand,
-} from './commands.js';
+  API_CLIENT_DEPENDENCIES,
+  PACKAGE_MANAGER,
+  ROOT_DEPENDENCIES,
+  SHARED_DB_DEPENDENCIES,
+  SHARED_PACKAGE_DEPENDENCIES,
+  dependencyManifest,
+} from './dependencies.js';
 import { resolveToolchain, type ToolchainChannel, type ToolchainSpec } from './toolchain.js';
 import { scaffoldBackend } from './templates/backend.js';
-import { writeDefaultWebEnvExample, writeDefaultWebFiles } from './templates/default-web.js';
 import { scaffoldExtension } from './templates/extension.js';
 import { scaffoldFrontend } from './templates/frontend.js';
 
-export type FrontendMode = 'expo' | 'next';
-export type AuthMode = 'clerk' | 'betterauth';
-export type PaymentsMode = 'none' | 'stripe' | 'revenuecat';
+export type FrontendMode = 'expo';
+export type AuthMode = 'clerk';
+export type PaymentsMode = 'revenuecat_stripe';
 
-const PNPM_PACKAGE_MANAGER = 'pnpm@10.15.1';
 const SHARED_ENV_GITIGNORE_LINES = ['.env', '.env.*', '!.env.example'] as const;
 const SHARED_TYPESCRIPT_GITIGNORE_LINES = ['*.tsbuildinfo'] as const;
 const ASCII_LOGO = [
@@ -56,8 +57,6 @@ async function printAsciiLogo(): Promise<void> {
 }
 
 export interface InitOptions {
-  frontend: FrontendMode;
-  extension: boolean;
   projectName: string;
   displayName: string;
   auth: AuthMode;
@@ -65,8 +64,8 @@ export interface InitOptions {
   db: 'neon';
   orm: 'drizzle';
   storage: 'r2';
-  api: 'fastify' | null;
-  monorepo: boolean;
+  api: 'fastify';
+  skipInstall: boolean;
   toolchainChannel: ToolchainChannel;
 }
 
@@ -75,6 +74,7 @@ export interface ProjectOptions {
   displayName: string;
   githubOrg: string | null;
   frontendUrl?: string;
+  skipInstall?: boolean;
 }
 
 type NormalizedStack = {
@@ -82,54 +82,53 @@ type NormalizedStack = {
   mode: 'fullstack';
   project_name: string;
   display_name: string;
-  frontend: 'nextjs_shadcn' | 'expo_react_native_reusables';
-  extension: 'wxt_chrome_extension' | null;
+  frontend: 'expo_react_native_reusables';
+  extension: 'wxt_chrome_extension';
   backend: 'fastify';
   auth: AuthMode;
   payments: PaymentsMode;
   storage: 'cloudflare_r2_via_aws_s3_sdk';
   database: 'neon_plus_drizzle';
   skills: string[];
-  outputs: {
-    monorepo: boolean;
-    package_manager: 'pnpm';
-    toolchain_channel: ToolchainChannel;
-    toolchain: Partial<ToolchainSpec>;
-    generated_paths: string[];
+    outputs: {
+      monorepo: boolean;
+      package_manager: 'pnpm';
+      dependency_manifest: ReturnType<typeof dependencyManifest>;
+      toolchain_channel: ToolchainChannel;
+      toolchain: Partial<ToolchainSpec>;
+      generated_paths: string[];
   };
 };
 
 function getUsedToolchain(options: InitOptions, toolchain: ToolchainSpec): Partial<ToolchainSpec> {
   return {
     verifiedAt: toolchain.verifiedAt,
-    ...(options.frontend === 'next' || options.extension ? { shadcn: toolchain.shadcn } : {}),
-    ...(options.frontend === 'expo' ? { reactNativeReusables: toolchain.reactNativeReusables } : {}),
-    ...(options.extension ? { wxt: toolchain.wxt } : {}),
+    shadcn: toolchain.shadcn,
+    reactNativeReusables: toolchain.reactNativeReusables,
+    wxt: toolchain.wxt,
   };
 }
 
 function normalizeStack(options: InitOptions, generatedPaths: string[]): NormalizedStack {
   const toolchain = resolveToolchain(options.toolchainChannel);
-  const frontend = options.frontend === 'next'
-    ? 'nextjs_shadcn'
-    : 'expo_react_native_reusables';
 
   return {
     schema_version: '2.0.0',
     mode: 'fullstack',
     project_name: options.projectName,
     display_name: options.displayName,
-    frontend,
-    extension: options.extension ? 'wxt_chrome_extension' : null,
+    frontend: 'expo_react_native_reusables',
+    extension: 'wxt_chrome_extension',
     backend: 'fastify',
     auth: options.auth,
     payments: options.payments,
     storage: 'cloudflare_r2_via_aws_s3_sdk',
     database: 'neon_plus_drizzle',
-    skills: getSkillCommands(options),
+    skills: getSkillCommands(),
     outputs: {
-      monorepo: options.monorepo,
+      monorepo: true,
       package_manager: 'pnpm',
+      dependency_manifest: dependencyManifest(),
       toolchain_channel: options.toolchainChannel,
       toolchain: getUsedToolchain(options, toolchain),
       generated_paths: generatedPaths,
@@ -137,33 +136,8 @@ function normalizeStack(options: InitOptions, generatedPaths: string[]): Normali
   };
 }
 
-function readJsonFile(filePath: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
-}
-
 function writeJsonFile(filePath: string, payload: Record<string, unknown>): void {
   writeFile(filePath, JSON.stringify(payload, null, 2) + '\n');
-}
-
-function runScaffoldCommands(cwd: string, commands: ScaffoldCommand[]): void {
-  let skippedCount = 0;
-  for (const command of commands) {
-    if (env.ANHEDRAL_SKIP_INSTALL === '1' && command.skippable) {
-      skippedCount += 1;
-      continue;
-    }
-
-    if (command.stdinInput == null) {
-      exec(command.cmd, cwd);
-      continue;
-    }
-
-    execWithInput(command.cmd, cwd, command.stdinInput);
-  }
-
-  if (skippedCount > 0) {
-    anhedralPrint.info(`Skipped ${skippedCount} install step${skippedCount === 1 ? '' : 's'} (ANHEDRAL_SKIP_INSTALL=1)`);
-  }
 }
 
 function ensureScaffoldRoot(root: string): void {
@@ -185,7 +159,7 @@ function writeRootPackageJson(
     name: projectName,
     private: true,
     version: '0.1.0',
-    packageManager: PNPM_PACKAGE_MANAGER,
+    packageManager: PACKAGE_MANAGER,
     scripts,
     ...extraFields,
   };
@@ -200,34 +174,6 @@ function writeRootPackageJson(
 function writePnpmWorkspace(root: string, packages: string[]): void {
   const serializedPackages = packages.map((entry) => `  - '${entry}'`).join('\n');
   writeFile(path.join(root, 'pnpm-workspace.yaml'), `packages:\n${serializedPackages}\n`);
-}
-
-function patchPackageJson(root: string, updates: {
-  scripts?: Record<string, string>;
-  packageManager?: string;
-}): void {
-  const filePath = path.join(root, 'package.json');
-  const packageJson = readJsonFile(filePath);
-  const scripts = (packageJson.scripts ?? {}) as Record<string, string>;
-
-  if (updates.scripts) {
-    Object.assign(scripts, updates.scripts);
-  }
-
-  packageJson.scripts = scripts;
-  if (updates.packageManager) {
-    packageJson.packageManager = updates.packageManager;
-  }
-
-  writeJsonFile(filePath, packageJson);
-}
-
-function replaceInFile(filePath: string, replacements: [search: string, replacement: string][]): void {
-  let contents = readFileSync(filePath, 'utf-8');
-  for (const [search, replacement] of replacements) {
-    contents = contents.split(search).join(replacement);
-  }
-  writeFile(filePath, contents);
 }
 
 function writeSkillsGuide(root: string, commands: string[]): void {
@@ -250,23 +196,6 @@ function writeRootDocs(root: string, options: InitOptions, stack: NormalizedStac
     ? `${options.toolchainChannel} (verified ${stack.outputs.toolchain.verifiedAt})`
     : `${options.toolchainChannel} (floating latest)`;
   const generatedPaths = stack.outputs.generated_paths.map((entry) => `- \`${entry}\``).join('\n') || '- `.`';
-  const frontendLabel = options.frontend === 'next' ? 'Next.js' : 'Expo';
-  const extensionLine = options.extension ? '- Extension: WXT Chrome extension\n' : '';
-  const extensionSetup = options.extension
-    ? '\n5. Build or run the extension separately. It is not deployed by Vercel:\n\n```bash\npnpm dev:extension\npnpm extension:zip\n```\n'
-    : '';
-  const frontendDevCommand = options.frontend === 'next' ? 'pnpm dev:web' : 'pnpm dev:mobile';
-  const frontendEnvCommand = options.frontend === 'next'
-    ? 'cp apps/web/.env.example apps/web/.env.local'
-    : '# apps/mobile/.env is generated for local Expo development';
-  const extensionEnvCommand = options.extension ? '\ncp apps/extension/.env.example apps/extension/.env' : '';
-  const extensionDevCommand = options.extension ? '\npnpm dev:extension' : '';
-  const paymentSetup = options.payments === 'stripe'
-    ? `- Stripe: create a Checkout price, then set \`STRIPE_SECRET_KEY\`, \`STRIPE_WEBHOOK_SECRET\`, and \`STRIPE_PRICE_STARTER\`.`
-    : `- RevenueCat: create an entitlement named \`pro\`, configure app keys, then set \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and the \`EXPO_PUBLIC_RC_*\` values.`;
-  const deploySetup = options.frontend === 'next'
-    ? '- Vercel: deploy this repo from the root. The root `vercel.json` builds `apps/web` and `apps/api`; Fastify is routed under `/backend/*`.'
-    : '- Vercel: deploy this repo from the root when you want the Fastify API hosted. Expo is built and shipped outside Vercel.';
 
   writeFile(path.join(root, 'README.md'), `# ${options.displayName}
 
@@ -275,15 +204,17 @@ Generated by anhedral.
 ## Stack
 
 - Mode: fullstack
-- Frontend: ${frontendLabel}
+- Frontend: Expo + React Native Reusables
 - Backend: Fastify
-${extensionLine}- Shared packages: \`packages/*\`
+- Extension: WXT Chrome extension
+- Shared packages: \`packages/*\`
 - Auth: ${options.auth}
 - Payments: ${options.payments}
 - Database: ${options.db} + ${options.orm}
 - Storage: ${options.storage}
 - API: ${options.api ?? 'framework-native'}
 - Toolchain: ${toolchainLine}
+- Dependency manifest: recorded in \`stack.json\`
 
 ## Generated paths
 
@@ -294,11 +225,13 @@ ${generatedPaths}
 \`\`\`bash
 pnpm install
 cp .env.example .env
-${frontendEnvCommand}${extensionEnvCommand}
+# apps/frontend/.env is generated for local Expo development
+cp apps/extension/.env.example apps/extension/.env
 pnpm db:generate
 pnpm db:migrate
 pnpm dev:api
-${frontendDevCommand}${extensionDevCommand}
+pnpm dev:frontend
+pnpm dev:extension
 \`\`\`
 
 For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
@@ -306,23 +239,31 @@ For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`
 ## Provider Setup
 
 - Neon: create a Postgres database and set \`DATABASE_URL\` in the root and API env files.
-- Clerk: create an application, configure allowed origins, and set \`CLERK_PUBLISHABLE_KEY\`, \`CLERK_SECRET_KEY\`, plus the frontend publishable key for your selected client.
-${paymentSetup}
+- Clerk: create an application, configure allowed origins, and set \`CLERK_PUBLISHABLE_KEY\`, \`CLERK_SECRET_KEY\`, plus the Expo and extension publishable keys.
+- RevenueCat + Stripe: create an entitlement named \`pro\`, configure Stripe as a RevenueCat web billing source, configure app keys, then set \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and the \`EXPO_PUBLIC_RC_*\` values.
 - Cloudflare R2: create a bucket and API token, then set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\`.
-${deploySetup}
+- Vercel: import this same Git repository twice. Use \`apps/frontend\` as the root directory for the Expo web project, and \`apps/api\` as the root directory for the Fastify API project. Enable access to source files outside each root directory so workspace packages under \`packages/*\` are available during builds.
+- EAS: use \`apps/frontend\` as the Expo project root for iOS and Android builds. Vercel deploys the web export from the same source.
 
 ## Setup Notes
 
 1. Copy \`.env.example\` into the runtime env files your apps need and fill in provider values.
 2. Review \`install-skills.sh\` and run the listed skill commands manually so you can choose scope and agent targets.
-3. Add the real provider configuration for Clerk, Stripe, RevenueCat, Neon, and R2 where the scaffolded helper files indicate.
-4. Run database generation and migrations from the shared DB package:
+3. Add the real provider configuration for Clerk, RevenueCat, Stripe web billing, Neon, and R2 where the scaffolded helper files indicate.
+4. Use \`stack.json\` when debugging generated projects; it records the verified dependency manifest used by this init run.
+5. Run database generation and migrations from the shared DB package:
 
 \`\`\`bash
 pnpm db:generate
 pnpm db:migrate
 \`\`\`
-${extensionSetup}
+
+6. Build or run the extension separately. It is not deployed by Vercel:
+
+\`\`\`bash
+pnpm dev:extension
+pnpm extension:zip
+\`\`\`
 `);
 }
 
@@ -349,17 +290,8 @@ function writeSharedPackages(root: string): void {
       'db:generate': 'drizzle-kit generate',
       'db:migrate': 'tsx --env-file=../../.env src/migrate.ts',
     },
-    dependencies: {
-      '@neondatabase/serverless': '^1.0.0',
-      'drizzle-orm': '^0.44.0',
-      dotenv: '^17.2.3',
-    },
-    devDependencies: {
-      'drizzle-kit': '^0.31.0',
-      tsx: '^4.20.5',
-      typescript: '^5.9.3',
-      '@types/node': '25.5.0',
-    },
+    dependencies: SHARED_DB_DEPENDENCIES.dependencies,
+    devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
 
   writeFile(path.join(dbRoot, 'tsconfig.json'), JSON.stringify({
@@ -470,8 +402,7 @@ export const users = pgTable('users', {
   displayName: text('display_name'),
   lastLoginAt: timestamp('last_login_at'),
   profileImageUrl: text('profile_image_url'),
-  stripeCustomerId: text('stripe_customer_id').unique(),
-  subscriptionTier: text('subscription_tier').notNull().default('starter'),
+  subscriptionTier: text('subscription_tier').notNull().default('free'),
   subscriptionStatus: text('subscription_status').notNull().default('active'),
   avatarObjectKey: text('avatar_object_key'),
   avatarMimeType: text('avatar_mime_type'),
@@ -622,17 +553,6 @@ export async function syncUserProfile(input: SyncUserInput) {
   return findUserByClerkId(input.clerkUserId);
 }
 
-export async function updateStripeCustomerForUser(clerkUserId: string, stripeCustomerId: string) {
-  await db
-    .update(users)
-    .set({
-      stripeCustomerId,
-      subscriptionStatus: 'checkout_started',
-      updatedAt: new Date(),
-    })
-    .where(eq(users.clerkUserId, clerkUserId));
-}
-
 export async function updateAvatarForUser(
   clerkUserId: string,
   input: { objectKey: string; contentType: string | null },
@@ -701,7 +621,7 @@ console.log('Migrations completed in', Date.now() - start, 'ms');
 
   const simplePackages = [
     ['types', { exports: { '.': './src/index.ts' } }, `export type ApiEnvelope<T> = { data: T } | { error: string; message: string };
-export type ClientPlatform = 'web' | 'mobile' | 'extension';
+export type ClientPlatform = 'frontend' | 'extension';
 export type SubscriptionEntitlements = {
   pro: boolean;
   inTrial: boolean;
@@ -719,7 +639,7 @@ export type AuthMeResponse = {
     email: string;
     firstName?: string | null;
     lastName?: string | null;
-    displayName?: string | null;
+    displayName: string;
     imageUrl?: string | null;
     avatarUrl?: string | null;
     creditsBalance: number;
@@ -728,19 +648,26 @@ export type AuthMeResponse = {
   };
 };
 export type PricingResponse = {
-  plans: Array<{
-    id: string;
-    name: string;
+  tiers: Array<{
+    tier: 'free' | 'pro';
+    displayName: string;
     description: string;
-    price: string;
-    features: string[];
+    priceMonthly: number | null;
+    priceYearly: number | null;
+    currency: string;
+    limits: {
+      dailyLimit: number | null;
+    };
+    paymentInfo?: {
+      revenueCatEntitlementId: string;
+      revenueCatOfferingId: string;
+    };
   }>;
 };
 `],
     ['config', { exports: { '.': './src/index.ts' } }, `export const DEFAULT_API_PATH_PREFIX = '/api';
 export const DEFAULT_LOCAL_API_URL = 'http://localhost:8787';
-export const DEFAULT_WEB_URL = 'http://localhost:3000';
-export const DEFAULT_MOBILE_URL = 'http://localhost:8081';
+export const DEFAULT_FRONTEND_URL = 'http://localhost:8081';
 export const DEFAULT_EXTENSION_URL = 'chrome-extension://';
 
 export function joinApiUrl(baseUrl: string, path: string) {
@@ -751,12 +678,20 @@ export function joinApiUrl(baseUrl: string, path: string) {
 `],
     ['api-client', {
       exports: { '.': './src/index.ts' },
-      dependencies: {
-        '@anhedral/config': 'workspace:*',
-        '@anhedral/types': 'workspace:*',
-      },
+      dependencies: API_CLIENT_DEPENDENCIES.dependencies,
     }, `import { joinApiUrl } from '@anhedral/config';
 import type { AuthMeResponse, ClientPlatform, PricingResponse, SubscriptionEntitlements } from '@anhedral/types';
+
+export class APIRequestError extends Error {
+  constructor(
+    public statusCode: number,
+    message: string,
+    public errorCode?: string,
+  ) {
+    super(message);
+    this.name = 'APIRequestError';
+  }
+}
 
 export type ApiClientOptions = {
   baseUrl: string;
@@ -780,9 +715,16 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(\`API request failed: \${response.status}\`);
+      let error: { error?: string; message?: string } = {};
+      try { error = await response.json(); } catch {}
+      throw new APIRequestError(
+        response.status,
+        error.message || \`API request failed: \${response.status}\`,
+        error.error,
+      );
     }
 
+    if (response.status === 204) return {} as T;
     return response.json() as Promise<T>;
   }
 
@@ -792,6 +734,10 @@ export class ApiClient {
 
   getPricing() {
     return this.request<PricingResponse>('/subscriptions/pricing');
+  }
+
+  getSubscriptionPricing() {
+    return this.getPricing();
   }
 
   getSubscriptionEntitlements(options?: { refresh?: boolean }) {
@@ -804,6 +750,25 @@ export class ApiClient {
     return this.request<{ ok: boolean; expiresAt: string }>('/subscriptions/redeem', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    });
+  }
+
+  signOut() {
+    return this.request<{ success: boolean }>('/auth/signout', {
+      method: 'POST',
+    });
+  }
+
+  uploadAvatar(input: { base64: string; mimeType: string; fileName?: string }) {
+    return this.request<{ ok: boolean; avatarUrl: string }>('/auth/avatar', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  deleteAccount() {
+    return this.request<void>('/auth/account', {
+      method: 'DELETE',
     });
   }
 }
@@ -821,9 +786,7 @@ export class ApiClient {
         build: 'pnpm typecheck',
         typecheck: 'tsc --noEmit',
       },
-      devDependencies: {
-        typescript: '^5.9.3',
-      },
+      devDependencies: SHARED_PACKAGE_DEPENDENCIES.devDependencies,
       ...packageFields,
     }, null, 2) + '\n');
     writeFile(path.join(packageRoot, 'tsconfig.json'), JSON.stringify({
@@ -841,55 +804,32 @@ export class ApiClient {
   }
 }
 
-function writeRootEnvExample(root: string, options: InitOptions): void {
-  const frontendUrl = options.frontend === 'next' ? 'http://localhost:3000' : 'http://localhost:8081';
-  const nextEnv = options.frontend === 'next'
-    ? `NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://localhost:8787
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
-`
-    : '';
-  const expoEnv = options.frontend === 'expo'
-    ? `EXPO_PUBLIC_API_URL=http://localhost:8787
+function writeRootEnvExample(root: string): void {
+  const frontendUrl = 'http://localhost:8081';
+  const expoEnv = `EXPO_PUBLIC_API_URL=http://localhost:8787
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
 EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro
 EXPO_PUBLIC_RC_API_KEY_IOS=
 EXPO_PUBLIC_RC_API_KEY_ANDROID=
 EXPO_PUBLIC_RC_WEB_API_KEY=
-`
-    : '';
-  const extensionEnv = options.extension
-    ? `VITE_API_URL=http://localhost:8787
+`;
+  const extensionEnv = `VITE_API_URL=http://localhost:8787
 VITE_WEBSITE_URL=${frontendUrl}
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_***
 VITE_CRX_PUBLIC_KEY=
 VITE_RC_BILLING_URL=
-`
-    : '';
-  const revenueCatEnv = options.payments === 'revenuecat'
-    ? `# RevenueCat
+`;
+  const paymentsEnv = `# RevenueCat
 RC_SECRET_API_KEY=
 RC_WEBHOOK_SECRET=
 RC_ENTITLEMENT_ID=pro
 RC_OFFERING_ID=default
-`
-    : '';
-  const stripeEnv = options.payments === 'stripe'
-    ? `# Stripe
-STRIPE_SECRET_KEY=sk_test_***
-STRIPE_WEBHOOK_SECRET=whsec_***
-STRIPE_PRICE_STARTER=price_***
-`
-    : '';
+`;
 
   writeFile(path.join(root, '.env.example'), `# Apps
 FRONTEND_URL=${frontendUrl}
 ANHEDRAL_DEMO=false
-${nextEnv}${expoEnv}${extensionEnv}
+${expoEnv}${extensionEnv}
 
 # Server
 PORT=8787
@@ -905,139 +845,129 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET=
 
-${revenueCatEnv}${stripeEnv}`);
+${paymentsEnv}`);
 }
 
-function writeRootVercelJson(root: string, options: InitOptions): void {
-  const builds = options.frontend === 'next'
-    ? [
-        { src: 'apps/web/package.json', use: '@vercel/next' },
-        { src: 'apps/api/api/index.ts', use: '@vercel/node' },
-      ]
-    : [
-        { src: 'apps/api/api/index.ts', use: '@vercel/node' },
-      ];
-  const routes = options.frontend === 'next'
-    ? [
-        { src: '/backend/(.*)', dest: 'apps/api/api/index.ts' },
-        { src: '/(.*)', dest: 'apps/web/$1' },
-      ]
-    : [
-        { src: '/api/(.*)', dest: 'apps/api/api/index.ts' },
-        { src: '/(.*)', dest: 'apps/api/api/index.ts' },
-      ];
-
-  writeFile(path.join(root, 'vercel.json'), JSON.stringify({ version: 2, builds, routes }, null, 2) + '\n');
+function writeRootVercelFiles(root: string): void {
   writeFile(path.join(root, '.vercelignore'), `apps/extension/.output
 apps/extension/.wxt
 apps/extension/dist
-apps/mobile/.expo
 `);
 }
 
-function patchGeneratedPackageName(root: string, name: string): void {
-  const filePath = path.join(root, 'package.json');
-  const packageJson = readJsonFile(filePath);
-  packageJson.name = name;
-  writeJsonFile(filePath, packageJson);
-}
+function writeGeneratedCiWorkflow(root: string): void {
+  writeFile(path.join(root, '.github/workflows/ci.yml'), `name: CI
 
-function scaffoldNextFrontend(root: string, options: InitOptions, directoryName: string): void {
-  const toolchain = resolveToolchain(options.toolchainChannel);
-  const appsRoot = path.join(root, 'apps');
-  const appRoot = path.join(appsRoot, directoryName);
+on:
+  pull_request:
+  push:
+    branches:
+      - main
 
-  anhedralPrint.section('Web (Next.js + shadcn/ui)');
-  anhedralPrint.step('Scaffolding Next.js app');
-  writeFile(path.join(appsRoot, '.gitkeep'), '');
-  runScaffoldCommands(appsRoot, [getDefaultWebInitCommand(toolchain, directoryName)]);
-  anhedralPrint.done('Next.js app scaffolded');
+permissions:
+  contents: read
 
-  const packageJsonPath = path.join(appRoot, 'package.json');
-  const packageJson = readJsonFile(packageJsonPath);
-  packageJson.dependencies = {
-    ...((packageJson.dependencies ?? {}) as Record<string, string>),
-    '@anhedral/db': 'workspace:*',
-  };
-  writeJsonFile(packageJsonPath, packageJson);
+concurrency:
+  group: ci-\${{ github.workflow }}-\${{ github.ref }}
+  cancel-in-progress: true
 
-  anhedralPrint.step('Installing web dependencies');
-  runScaffoldCommands(appRoot, getDefaultWebDependencyCommands());
-  anhedralPrint.done('Web dependencies installed');
-  rmSync(path.join(appRoot, '.git'), { recursive: true, force: true });
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  appendGitignore(appRoot, [
-    ...SHARED_ENV_GITIGNORE_LINES,
-    '.next',
-    'node_modules',
-    'lib/db/migrations',
-    ...SHARED_TYPESCRIPT_GITIGNORE_LINES,
-  ]);
-  patchPackageJson(appRoot, {
-    packageManager: PNPM_PACKAGE_MANAGER,
-    scripts: {
-      typecheck: 'tsc --noEmit',
-      'db:generate': 'pnpm --filter @anhedral/db db:generate',
-      'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
-    },
-  });
-  patchGeneratedPackageName(appRoot, `${options.projectName}-${directoryName}`);
-  writeDefaultWebEnvExample(appRoot);
-  writeDefaultWebFiles(appRoot, options.displayName);
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
 
-  for (const relativePath of [
-    'lib/app/dashboard.ts',
-    'app/api/account/avatar/route.ts',
-    'app/api/stripe/checkout/route.ts',
-    'app/api/stripe/portal/route.ts',
-  ]) {
-    replaceInFile(path.join(appRoot, relativePath), [
-      ["@/lib/db/queries", '@anhedral/db/queries'],
-    ]);
-  }
-  rmSync(path.join(appRoot, 'lib/db'), { recursive: true, force: true });
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Expo dependency alignment
+        run: pnpm --filter ./apps/frontend exec expo install --check
+
+      - name: Build Expo web
+        run: pnpm --filter ./apps/frontend build:web
+
+      - name: Test API
+        run: pnpm --filter ./apps/api test
+
+      - name: Build API
+        run: pnpm --filter ./apps/api build
+
+      - name: Build extension
+        run: pnpm --filter ./apps/extension build
+
+      - name: Zip extension
+        run: pnpm --filter ./apps/extension zip
+
+      - name: Build workspace
+        run: pnpm build
+`);
 }
 
 function writeFullstackRootFiles(root: string, options: InitOptions): void {
   const appFilters = [
-    options.frontend === 'next' ? './apps/web' : './apps/mobile',
+    './apps/frontend',
     './apps/api',
-    ...(options.extension ? ['./apps/extension'] : []),
+    './apps/extension',
   ];
-  const parallelFilters = appFilters.map((entry) => `--filter ${entry}`).join(' ');
-  const buildFilters = ['./packages/db', ...appFilters].map((entry) => `--filter ${entry}`).join(' ');
+  const parallelFilters = appFilters.map((entry) => `--filter=${entry}`).join(' ');
 
   const scripts: Record<string, string> = {
-    dev: `pnpm -r --parallel ${parallelFilters} run dev`,
+    dev: `turbo dev --parallel ${parallelFilters}`,
     'dev:api': 'pnpm --filter ./apps/api dev',
-    build: `pnpm -r ${buildFilters} build`,
-    typecheck: 'pnpm -r typecheck',
+    build: 'turbo build',
+    typecheck: 'turbo typecheck',
     'db:generate': 'pnpm --filter @anhedral/db db:generate',
     'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
   };
 
-  if (options.frontend === 'next') {
-    scripts['dev:web'] = 'pnpm --filter ./apps/web dev';
-  } else {
-    scripts['dev:mobile'] = 'pnpm --filter ./apps/mobile dev';
-  }
+  scripts['dev:frontend'] = 'pnpm --filter ./apps/frontend dev';
+  scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
+  scripts['extension:zip'] = 'pnpm --filter ./apps/extension zip';
 
-  if (options.extension) {
-    scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
-    scripts['extension:zip'] = 'pnpm --filter ./apps/extension zip';
-  }
-
-  writeRootPackageJson(root, options.projectName, scripts, ['apps/*', 'packages/*']);
+  writeRootPackageJson(root, options.projectName, scripts, ['apps/*', 'packages/*'], {
+    devDependencies: ROOT_DEPENDENCIES.devDependencies,
+  });
   writePnpmWorkspace(root, ['apps/*', 'packages/*']);
+  writeFile(path.join(root, 'turbo.json'), JSON.stringify({
+    $schema: 'https://turborepo.dev/schema.json',
+    tasks: {
+      build: {
+        dependsOn: ['^build'],
+        outputs: ['dist/**', '.output/**'],
+      },
+      typecheck: {
+        dependsOn: ['^build'],
+      },
+      dev: {
+        cache: false,
+        persistent: true,
+      },
+    },
+  }, null, 2) + '\n');
   appendGitignore(root, [
     'node_modules',
+    '.turbo',
     'apps/*/node_modules',
     'packages/*/node_modules',
     ...SHARED_ENV_GITIGNORE_LINES,
     ...SHARED_TYPESCRIPT_GITIGNORE_LINES,
   ]);
-  writeRootEnvExample(root, options);
-  writeRootVercelJson(root, options);
+  writeRootEnvExample(root);
+  writeRootVercelFiles(root);
+  writeGeneratedCiWorkflow(root);
 }
 
 async function scaffoldFullstack(root: string, options: InitOptions): Promise<string[]> {
@@ -1051,38 +981,36 @@ async function scaffoldFullstack(root: string, options: InitOptions): Promise<st
   writeSharedPackages(root);
   anhedralPrint.done('Shared packages written');
 
-  const frontendUrl = options.frontend === 'next' ? 'http://localhost:3000' : 'http://localhost:8081';
+  const frontendUrl = 'http://localhost:8081';
   await scaffoldBackend(root, {
     projectName: options.projectName,
     displayName: options.displayName,
     githubOrg: null,
     frontendUrl,
+    skipInstall: options.skipInstall,
   });
 
-  if (options.frontend === 'next') {
-    scaffoldNextFrontend(root, options, 'web');
-  } else {
-    await scaffoldFrontend(root, {
-      projectName: options.projectName,
-      displayName: options.displayName,
-      githubOrg: null,
-      frontendUrl,
-    });
-  }
+  await scaffoldFrontend(root, {
+    projectName: options.projectName,
+    displayName: options.displayName,
+    githubOrg: null,
+    frontendUrl,
+    skipInstall: options.skipInstall,
+  });
 
-  if (options.extension) {
-    await scaffoldExtension(root, {
-      projectName: options.projectName,
-      displayName: options.displayName,
-      githubOrg: null,
-      frontendUrl,
-    });
-  }
+  await scaffoldExtension(root, {
+    projectName: options.projectName,
+    displayName: options.displayName,
+    githubOrg: null,
+    frontendUrl,
+    skipInstall: options.skipInstall,
+  });
 
   return [
-    options.frontend === 'next' ? 'apps/web' : 'apps/mobile',
+    '.github/workflows/ci.yml',
+    'apps/frontend',
     'apps/api',
-    ...(options.extension ? ['apps/extension'] : []),
+    'apps/extension',
     'packages/db',
     'packages/types',
     'packages/config',
@@ -1105,7 +1033,7 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
 
     anhedralPrint.section('Project metadata');
     anhedralPrint.step('Writing skills guide, README, and stack.json');
-    const skillCommands = getSkillCommands(options);
+    const skillCommands = getSkillCommands();
     writeSkillsGuide(root, skillCommands);
 
     const stack = normalizeStack(options, generatedPaths);
@@ -1122,18 +1050,11 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
     anhedralPrint.info('Next commands:');
     console.log('  pnpm install');
     console.log('  cp .env.example .env');
-    if (options.frontend === 'next') {
-      console.log('  cp apps/web/.env.example apps/web/.env.local');
-    }
-    if (options.extension) {
-      console.log('  cp apps/extension/.env.example apps/extension/.env');
-    }
+    console.log('  cp apps/extension/.env.example apps/extension/.env');
     console.log('  pnpm db:generate && pnpm db:migrate');
     console.log('  pnpm dev:api');
-    console.log(options.frontend === 'next' ? '  pnpm dev:web' : '  pnpm dev:mobile');
-    if (options.extension) {
-      console.log('  pnpm dev:extension');
-    }
+    console.log('  pnpm dev:frontend');
+    console.log('  pnpm dev:extension');
     console.log('');
   } finally {
     if (previousToolchain == null) {
