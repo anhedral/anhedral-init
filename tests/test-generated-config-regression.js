@@ -20,8 +20,9 @@ assert.match(frontendSource, /destination: '\/'/);
 assert.match(frontendSource, /'@clerk\/expo': FRONTEND_ADDON_DEPENDENCIES\['@clerk\/expo'\]/);
 assert.doesNotMatch(frontendSource, /clerk-expo/);
 assert.match(frontendSource, /writeEasConfig/);
-assert.match(frontendSource, /redeemPromoCode\(code: string\)/);
-assert.match(frontendSource, /return this\.redeemCode\(code\)/);
+assert.doesNotMatch(frontendSource, /redeemPromoCode\(code: string\)/);
+assert.doesNotMatch(frontendSource, /return this\.redeemCode\(code\)/);
+assert.match(frontendSource, /delete packageJson\.dependencies\['expo-image-picker'\]/);
 assert.doesNotMatch(frontendSource, /output: 'single'/);
 
 assert.match(backendSource, /buildCommand: 'pnpm build'/);

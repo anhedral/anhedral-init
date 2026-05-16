@@ -9,10 +9,6 @@ export type AccountSummary = {
   lastName?: string | null;
   displayName: string;
   imageUrl?: string | null;
-  avatarUrl?: string | null;
-  creditsBalance: number;
-  subscriptionTier: string;
-  subscriptionStatus: string;
 };
 
 export function useAccount() {
@@ -48,21 +44,10 @@ export function useAccount() {
     void refresh();
   }, [refresh]);
 
-  const uploadAvatar = React.useCallback(async (input: {
-    base64: string;
-    mimeType: string;
-    fileName?: string;
-  }) => {
-    const response = await api.uploadAvatar(input);
-    setAccount((prev) => prev ? { ...prev, avatarUrl: response.avatarUrl } : prev);
-    return response;
-  }, [api]);
-
   return {
     account,
     loading,
     error,
     refresh,
-    uploadAvatar,
   };
 }

@@ -541,7 +541,7 @@ Upload \`Extension/.output/*-chrome.zip\` to the Chrome Web Store Developer Dash
 - Confirm Clerk works on local web, Vercel web, iOS, Android, and the Chrome extension.
 - Confirm RevenueCat returns the \`pro\` entitlement after Stripe web purchase and native store purchase.
 - Confirm \`pnpm db:migrate\` has run against the production Neon database.
-- Confirm R2 upload and signed avatar URL retrieval work from the deployed Backend domain.
+- Confirm R2 upload and signed URL retrieval work from the deployed Backend domain if you expose storage routes.
 - Confirm both Vercel projects can resolve \`packages/*\` workspace packages.
 - Confirm the Chrome extension ZIP is tested locally with \`chrome://extensions\` before Chrome Web Store upload.
 
@@ -668,7 +668,7 @@ export const SUBSCRIPTION_EVENT_TYPES = [
   'trial_started', 'trial_converted', 'trial_expired',
   'initial_purchase', 'renewal', 'product_change',
   'cancellation_scheduled', 'cancellation_unscheduled', 'subscription_expired', 'subscription_canceled',
-  'promo_redeemed', 'billing_issue', 'billing_recovered',
+  'billing_issue', 'billing_recovered',
 ] as const;
 export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 
@@ -676,23 +676,17 @@ export type SubscriptionMetadata = {
   revenueCatProductId?: string;
   lastWebhookUpdate?: string;
   cancelReason?: string;
-  redeemCode?: string;
-  redeemCodeRedeemedAt?: string;
 };
 
 export type SubscriptionEventMetadata = {
   revenueCatEventType?: string;
   revenueCatProductId?: string;
-  promoCode?: string;
   billingPeriod?: string;
   price?: { amount: number; currency: string };
   store?: string;
   transactionId?: string;
   reason?: string;
 };
-
-export const PROMO_CODE_DURATIONS = [1, 6, 12] as const;
-export type PromoCodeDuration = (typeof PROMO_CODE_DURATIONS)[number];
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -703,9 +697,6 @@ export const users = pgTable('users', {
   profileImageUrl: text('profile_image_url'),
   subscriptionTier: text('subscription_tier').notNull().default('free'),
   subscriptionStatus: text('subscription_status').notNull().default('active'),
-  avatarObjectKey: text('avatar_object_key'),
-  avatarMimeType: text('avatar_mime_type'),
-  creditsBalance: integer('credits_balance').notNull().default(250),
   createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
   updatedAt: timestamp('updated_at').$defaultFn(() => new Date()).notNull(),
 }, (t) => [
@@ -778,27 +769,6 @@ export const trialClaims = pgTable('trial_claims', {
   claimedAt: timestamp('claimed_at').$defaultFn(() => new Date()).notNull(),
 }, (t) => [index('trial_claims_email_idx').on(t.email)]);
 
-export const promoCodes = pgTable('promo_codes', {
-  id: text('id').primaryKey(),
-  code: text('code').notNull().unique(),
-  months: integer('months').$type<PromoCodeDuration>().notNull(),
-  maxRedemptions: integer('max_redemptions').notNull().default(1),
-  redeemedCount: integer('redeemed_count').notNull().default(0),
-  expiresAt: timestamp('expires_at'),
-  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
-}, (t) => [index('promo_codes_code_idx').on(t.code)]);
-
-export const promoRedemptions = pgTable('promo_redemptions', {
-  id: text('id').primaryKey(),
-  promoCodeId: text('promo_code_id').notNull().references(() => promoCodes.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  redeemedAt: timestamp('redeemed_at').$defaultFn(() => new Date()).notNull(),
-  entitlementExpiresAt: timestamp('entitlement_expires_at').notNull(),
-}, (t) => [
-  index('promo_redemptions_user_idx').on(t.userId),
-  index('promo_redemptions_code_idx').on(t.promoCodeId),
-]);
-
 export type Users = InferSelectModel<typeof users>;
 export type NewUsers = InferInsertModel<typeof users>;
 export type Uploads = InferSelectModel<typeof uploads>;
@@ -809,10 +779,6 @@ export type SubscriptionEvents = InferSelectModel<typeof subscriptionEvents>;
 export type NewSubscriptionEvents = InferInsertModel<typeof subscriptionEvents>;
 export type TrialClaims = InferSelectModel<typeof trialClaims>;
 export type NewTrialClaims = InferInsertModel<typeof trialClaims>;
-export type PromoCodes = InferSelectModel<typeof promoCodes>;
-export type NewPromoCodes = InferInsertModel<typeof promoCodes>;
-export type PromoRedemptions = InferSelectModel<typeof promoRedemptions>;
-export type NewPromoRedemptions = InferInsertModel<typeof promoRedemptions>;
 `);
 
   writeFile(path.join(dbRoot, 'src/queries/users.ts'), `import { eq } from 'drizzle-orm';
@@ -850,20 +816,6 @@ export async function syncUserProfile(input: SyncUserInput) {
     });
 
   return findUserByClerkId(input.clerkUserId);
-}
-
-export async function updateAvatarForUser(
-  clerkUserId: string,
-  input: { objectKey: string; contentType: string | null },
-) {
-  await db
-    .update(users)
-    .set({
-      avatarObjectKey: input.objectKey,
-      avatarMimeType: input.contentType,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.clerkUserId, clerkUserId));
 }
 
 export async function createUploadRecord(
@@ -940,10 +892,6 @@ export type AuthMeResponse = {
     lastName?: string | null;
     displayName: string;
     imageUrl?: string | null;
-    avatarUrl?: string | null;
-    creditsBalance: number;
-    subscriptionTier: string;
-    subscriptionStatus: string;
   };
 };
 export type PricingResponse = {
@@ -1045,23 +993,9 @@ export class ApiClient {
     );
   }
 
-  redeemCode(code: string) {
-    return this.request<{ ok: boolean; expiresAt: string }>('/subscriptions/redeem', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    });
-  }
-
   signOut() {
     return this.request<{ success: boolean }>('/auth/signout', {
       method: 'POST',
-    });
-  }
-
-  uploadAvatar(input: { base64: string; mimeType: string; fileName?: string }) {
-    return this.request<{ ok: boolean; avatarUrl: string }>('/auth/avatar', {
-      method: 'POST',
-      body: JSON.stringify(input),
     });
   }
 

@@ -215,7 +215,7 @@ Upload `Extension/.output/*-chrome.zip` to the Chrome Web Store Developer Dashbo
 - Confirm Clerk works on local web, Vercel web, iOS, Android, and the Chrome extension.
 - Confirm RevenueCat returns the `pro` entitlement after Stripe web purchase and native store purchase.
 - Confirm `pnpm db:migrate` has run against the production Neon database.
-- Confirm R2 upload and signed avatar URL retrieval work from the deployed Backend domain.
+- Confirm R2 upload and signed URL retrieval work from the deployed Backend domain if you expose storage routes.
 - Confirm both Vercel projects can resolve `packages/*` workspace packages.
 - Confirm the Chrome extension ZIP is tested locally with `chrome://extensions` before Chrome Web Store upload.
 
