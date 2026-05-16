@@ -3,6 +3,7 @@ import clerkAuthPlugin from '../plugins/clerkAuth.js';
 import health from './health.js';
 import auth from './auth.js';
 import subscriptions from './subscriptions.js';
+import storage from './storage.js';
 import cors from '@fastify/cors';
 
 const routes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -30,6 +31,12 @@ const routes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     await app.register(cors, { origin: restrictedCorsOrigin, maxAge: 86_400, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Authorization', 'Content-Type', 'X-Platform', 'X-RevenueCat-Signature'] });
     await app.register(subscriptions);
   }, { prefix: '/subscriptions' });
+
+  await fastify.register(async (app) => {
+    await app.register(cors, { origin: restrictedCorsOrigin, maxAge: 86_400, methods: ['GET', 'POST', 'DELETE', 'OPTIONS'], allowedHeaders: ['Authorization', 'Content-Type', 'X-Platform'] });
+    await app.register(clerkAuthPlugin);
+    await app.register(storage);
+  }, { prefix: '/storage' });
 };
 
 export default routes;

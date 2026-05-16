@@ -62,6 +62,7 @@ function writePackageJson(dir: string, projectName: string): void {
       'db:generate': 'drizzle-kit generate',
       'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
       'db:studio': 'drizzle-kit studio',
+      'db:check': 'drizzle-kit check',
       'db:push': 'drizzle-kit push',
       lint: 'eslint . --ext .js,.ts',
       test: 'vitest run',
@@ -802,12 +803,11 @@ export function verifyRevenueCatWebhookAuthorization(authHeader: string | undefi
 }
 `);
 
-  writeFile(path.join(dir, 'src/lib/r2.ts'), `import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+  writeFile(path.join(dir, 'src/lib/r2.ts'), `import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-type UploadAvatarInput = {
+type UploadObjectInput = {
   objectKey: string;
-  body: Buffer;
   contentType: string;
 };
 
@@ -847,29 +847,40 @@ export function isR2Configured() {
   return hasR2Config();
 }
 
-export async function uploadAvatarToR2(input: UploadAvatarInput) {
+export async function createSignedUploadUrl(input: UploadObjectInput, expiresIn = 60 * 10) {
   const client = getR2Client();
   const bucket = getBucket();
 
-  await client.send(new PutObjectCommand({
+  const uploadUrl = await getSignedUrl(client, new PutObjectCommand({
     Bucket: bucket,
     Key: input.objectKey,
-    Body: input.body,
     ContentType: input.contentType,
-  }));
+  }), { expiresIn });
 
   return {
     bucket,
     objectKey: input.objectKey,
+    uploadUrl,
+    expiresIn,
   };
 }
 
-export async function createSignedAvatarUrl(objectKey: string) {
+export async function createSignedDownloadUrl(objectKey: string, expiresIn = 60 * 10) {
   const client = getR2Client();
-  return getSignedUrl(client, new GetObjectCommand({
+  const downloadUrl = await getSignedUrl(client, new GetObjectCommand({
     Bucket: getBucket(),
     Key: objectKey,
-  }), { expiresIn: 60 * 10 });
+  }), { expiresIn });
+
+  return { objectKey, downloadUrl, expiresIn };
+}
+
+export async function deleteObjectFromR2(objectKey: string) {
+  const client = getR2Client();
+  await client.send(new DeleteObjectCommand({
+    Bucket: getBucket(),
+    Key: objectKey,
+  }));
 }
 `);
 
@@ -1400,12 +1411,13 @@ export class CorsConfig {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function writeRepositories(dir: string): void {
-  writeFile(path.join(dir, 'src/repositories/UserRepository.ts'), `import { eq } from 'drizzle-orm';
+  writeFile(path.join(dir, 'src/repositories/UserRepository.ts'), `import crypto from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../db/index.js';
 import { users } from '../db/schema.js';
 import type { NewUsers, SubscriptionStatus, SubscriptionTier } from '../db/schema.js';
 import { LRUCache } from '../lib/lruCache.js';
-import { subscriptions } from '../db/schema.js';
+import { subscriptions, uploads } from '../db/schema.js';
 
 export type UserAuthData = {
   id: string;
@@ -1485,6 +1497,19 @@ export class UserRepository {
   async updateLastLogin(userId: string): Promise<void> {
     await this.db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
     authPluginCache.invalidate(\`auth:\${userId}\`);
+  }
+
+  async createUploadRecord(
+    userId: string,
+    input: { objectKey: string; bucket: string; contentType: string | null },
+  ): Promise<void> {
+    await this.db.insert(uploads).values({
+      id: crypto.randomUUID(),
+      userId,
+      objectKey: input.objectKey,
+      bucket: input.bucket,
+      contentType: input.contentType,
+    });
   }
 
   async deleteById(userId: string): Promise<void> {
@@ -1875,11 +1900,100 @@ const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 export default subscriptionRoutes;
 `);
 
+  writeFile(path.join(dir, 'src/routes/storage.ts'), `import crypto from 'node:crypto';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { CreateUploadRequestSchema } from '@anhedral/contracts';
+import { AuthError, ServerError, ValidationError } from '../errors/index.js';
+import { createAuthHook } from '../lib/routeHelpers.js';
+import { createSignedDownloadUrl, createSignedUploadUrl, deleteObjectFromR2, isR2Configured } from '../lib/r2.js';
+
+const SIGNED_URL_EXPIRES_IN = 60 * 10;
+
+function sanitizeFileName(fileName: string | undefined) {
+  const fallback = 'upload';
+  const cleaned = (fileName ?? fallback)
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+  return cleaned || fallback;
+}
+
+function objectKeyForUser(userId: string, fileName: string | undefined) {
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return \`\${safeUserId}--\${crypto.randomUUID()}--\${sanitizeFileName(fileName)}\`;
+}
+
+function assertUserOwnsObject(userId: string, objectKey: string) {
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  if (!objectKey.startsWith(\`\${safeUserId}--\`)) {
+    throw AuthError.forbidden();
+  }
+}
+
+const storageRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  fastify.post('/uploads', {
+    preHandler: createAuthHook(fastify),
+  }, async (req, reply) => {
+    if (!req.user?.id) throw AuthError.unauthorized();
+    if (!isR2Configured()) throw ServerError.missingConfiguration('R2');
+
+    const parsed = CreateUploadRequestSchema.safeParse(req.body);
+    if (!parsed.success) throw ValidationError.invalidFormat('body', 'CreateUploadRequest');
+    const input = parsed.data;
+    const objectKey = objectKeyForUser(req.user.id, input.fileName);
+    const signed = await createSignedUploadUrl({
+      objectKey,
+      contentType: input.contentType,
+    }, SIGNED_URL_EXPIRES_IN);
+
+    await fastify.repos.users.createUploadRecord(req.user.id, {
+      objectKey,
+      bucket: signed.bucket,
+      contentType: input.contentType,
+    });
+
+    return reply.send({
+      objectKey,
+      uploadUrl: signed.uploadUrl,
+      expiresIn: signed.expiresIn,
+      headers: { 'Content-Type': input.contentType },
+    });
+  });
+
+  fastify.get<{ Params: { key: string } }>('/files/:key', {
+    preHandler: createAuthHook(fastify),
+  }, async (req, reply) => {
+    if (!req.user?.id) throw AuthError.unauthorized();
+    if (!isR2Configured()) throw ServerError.missingConfiguration('R2');
+
+    const objectKey = decodeURIComponent(req.params.key);
+    assertUserOwnsObject(req.user.id, objectKey);
+    return reply.send(await createSignedDownloadUrl(objectKey, SIGNED_URL_EXPIRES_IN));
+  });
+
+  fastify.delete<{ Params: { key: string } }>('/files/:key', {
+    preHandler: createAuthHook(fastify),
+  }, async (req, reply) => {
+    if (!req.user?.id) throw AuthError.unauthorized();
+    if (!isR2Configured()) throw ServerError.missingConfiguration('R2');
+
+    const objectKey = decodeURIComponent(req.params.key);
+    assertUserOwnsObject(req.user.id, objectKey);
+    await deleteObjectFromR2(objectKey);
+    return reply.code(204).send();
+  });
+};
+
+export default storageRoutes;
+`);
+
   writeFile(path.join(dir, 'src/routes/index.ts'), `import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import clerkAuthPlugin from '../plugins/clerkAuth.js';
 import health from './health.js';
 import auth from './auth.js';
 import subscriptions from './subscriptions.js';
+import storage from './storage.js';
 import cors from '@fastify/cors';
 
 const routes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -1907,6 +2021,12 @@ const routes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     await app.register(cors, { origin: restrictedCorsOrigin, maxAge: 86_400, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Authorization', 'Content-Type', 'X-Platform', 'X-RevenueCat-Signature'] });
     await app.register(subscriptions);
   }, { prefix: '/subscriptions' });
+
+  await fastify.register(async (app) => {
+    await app.register(cors, { origin: restrictedCorsOrigin, maxAge: 86_400, methods: ['GET', 'POST', 'DELETE', 'OPTIONS'], allowedHeaders: ['Authorization', 'Content-Type', 'X-Platform'] });
+    await app.register(clerkAuthPlugin);
+    await app.register(storage);
+  }, { prefix: '/storage' });
 };
 
 export default routes;

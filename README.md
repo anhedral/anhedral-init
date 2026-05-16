@@ -39,6 +39,7 @@ pnpm install
 ├─ packages/
 │  ├─ api-client/   shared typed API client
 │  ├─ config/       shared config helpers
+│  ├─ contracts/    shared Zod request/response contracts
 │  ├─ db/           Drizzle schema, Neon client, migrations
 │  └─ types/        shared TypeScript types
 ├─ PRODUCTION.md    deployment checklist
@@ -68,6 +69,30 @@ Anhedral supports one carefully maintained stack:
 - pnpm workspaces + Turborepo
 
 The goal is stability. The generated project avoids framework sprawl, duplicate schemas, and separate frontend/backend/extension repositories.
+
+## Why This Stack
+
+Anhedral is built around one idea: a startup should be able to launch every major client from one repository without committing to infrastructure that becomes expensive, fragmented, or hard to change later.
+
+The stack is intentionally narrow:
+
+| Choice | Why Anhedral uses it |
+| --- | --- |
+| Expo | One React Native codebase targets web browsers, iOS, and Android. Compared with separate web and native apps, Expo keeps product iteration faster and avoids rebuilding shared screens, auth flows, and client logic three times. |
+| React Native Reusables | It brings shadcn-style primitives to React Native and Expo without locking the app into a heavy design system. Compared with bespoke component scaffolds, it gives teams accessible primitives they can replace or extend as the product becomes specific. |
+| Fastify | Fastify is small, fast, TypeScript-friendly, and works well as a central API layer on Vercel. Compared with pushing logic into many frontend routes, serverless functions, or client SDK calls, a Fastify backend centralizes auth, billing, storage, database access, webhooks, and internal APIs in one place. |
+| TypeScript | The whole stack shares types, contracts, and API clients. Compared with untyped template code, this catches frontend/backend drift before deploy and makes the generated app safer to evolve. |
+| Zod contracts | Request and response schemas live in shared packages. Compared with duplicating interfaces across clients, Zod lets the backend validate inputs while the frontend parses responses from the same source of truth. |
+| Neon + Drizzle | Neon gives serverless Postgres that can start free and scale with usage; Drizzle keeps schema and queries close to TypeScript. Compared with proprietary document databases or opaque ORMs, this keeps the data layer portable, SQL-native, and easy to inspect. |
+| Cloudflare R2/CDN | R2 provides S3-compatible object storage without S3-style egress fees. Compared with storing files in the database or coupling uploads to one app client, signed storage routes give every client the same upload/download primitive. |
+| Clerk | Clerk handles modern auth across web, native, and extension clients. Compared with hand-rolled auth, it removes a high-risk surface area while still letting the backend own authorization decisions. |
+| RevenueCat + Stripe | RevenueCat coordinates native subscriptions and Stripe web billing behind one entitlement model. Compared with separate payment implementations per platform, the backend can ask one question: what is this user allowed to access? |
+| WXT | WXT gives the Chrome extension a modern TypeScript/Vite workflow and supports the Side Panel API. Compared with hand-maintained manifest scaffolds, it reduces extension build and packaging mistakes. |
+| Vercel | Vercel deploys the Expo web app and Fastify API from the same Git repository with separate project roots. Compared with manually wiring CI/CD early, teams get preview deployments and production deploys from normal commits. |
+
+Every part of the stack can be started on free tiers and scales automatically as traffic grows. That matters because the first production architecture should not force a team to choose between moving quickly and being able to handle success.
+
+The bigger advantage is architectural: Anhedral creates all target clients plus one backend that can serve internal and external requests. Product logic, auth decisions, subscription entitlements, storage access, database writes, and webhooks have a central home. That helps startups avoid the common failure mode where every client invents its own rules, and the team later cannot respond quickly when the product needs to shift.
 
 ## Local Development
 

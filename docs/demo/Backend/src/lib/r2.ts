@@ -1,9 +1,8 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-type UploadAvatarInput = {
+type UploadObjectInput = {
   objectKey: string;
-  body: Buffer;
   contentType: string;
 };
 
@@ -43,27 +42,38 @@ export function isR2Configured() {
   return hasR2Config();
 }
 
-export async function uploadAvatarToR2(input: UploadAvatarInput) {
+export async function createSignedUploadUrl(input: UploadObjectInput, expiresIn = 60 * 10) {
   const client = getR2Client();
   const bucket = getBucket();
 
-  await client.send(new PutObjectCommand({
+  const uploadUrl = await getSignedUrl(client, new PutObjectCommand({
     Bucket: bucket,
     Key: input.objectKey,
-    Body: input.body,
     ContentType: input.contentType,
-  }));
+  }), { expiresIn });
 
   return {
     bucket,
     objectKey: input.objectKey,
+    uploadUrl,
+    expiresIn,
   };
 }
 
-export async function createSignedAvatarUrl(objectKey: string) {
+export async function createSignedDownloadUrl(objectKey: string, expiresIn = 60 * 10) {
   const client = getR2Client();
-  return getSignedUrl(client, new GetObjectCommand({
+  const downloadUrl = await getSignedUrl(client, new GetObjectCommand({
     Bucket: getBucket(),
     Key: objectKey,
-  }), { expiresIn: 60 * 10 });
+  }), { expiresIn });
+
+  return { objectKey, downloadUrl, expiresIn };
+}
+
+export async function deleteObjectFromR2(objectKey: string) {
+  const client = getR2Client();
+  await client.send(new DeleteObjectCommand({
+    Bucket: getBucket(),
+    Key: objectKey,
+  }));
 }

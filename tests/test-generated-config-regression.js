@@ -14,6 +14,8 @@ const dependenciesSource = readFileSync(path.join(repoRoot, 'src', 'dependencies
 
 assert.match(scaffoldSource, /subscriptionTier: text\('subscription_tier'\)\.notNull\(\)\.default\('free'\)/);
 assert.doesNotMatch(scaffoldSource, /default\('starter'\)/);
+assert.match(scaffoldSource, /@anhedral\/contracts/);
+assert.match(scaffoldSource, /CreateUploadRequestSchema/);
 
 assert.match(frontendSource, /output: 'static'/);
 assert.match(frontendSource, /destination: '\/'/);
@@ -29,6 +31,8 @@ assert.match(backendSource, /buildCommand: 'pnpm build'/);
 assert.match(backendSource, /devCommand: 'vercel dev'/);
 assert.doesNotMatch(backendSource, /use: '@vercel\/node'/);
 assert.match(backendSource, /ANHEDRAL_DEMO must be false in production/);
+assert.match(backendSource, /src\/routes\/storage\.ts/);
+assert.match(backendSource, /createSignedUploadUrl/);
 
 assert.match(scaffoldSource, /Build Expo web/);
 assert.match(scaffoldSource, /pnpm --filter \.\/Extension zip/);
