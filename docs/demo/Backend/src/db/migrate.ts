@@ -1,1 +1,1 @@
-import '@anhedral/db/migrate';
+import '@shared/db/migrate';

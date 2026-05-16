@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { CreateUploadRequestSchema } from '@anhedral/contracts';
+import { CreateUploadRequestSchema } from '@shared/contracts';
 import { AuthError, ServerError, ValidationError } from '../errors/index.js';
 import { createAuthHook } from '../lib/routeHelpers.js';
 import { createSignedDownloadUrl, createSignedUploadUrl, deleteObjectFromR2, isR2Configured } from '../lib/r2.js';

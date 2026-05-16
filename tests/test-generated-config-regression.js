@@ -14,7 +14,7 @@ const dependenciesSource = readFileSync(path.join(repoRoot, 'src', 'dependencies
 
 assert.match(scaffoldSource, /subscriptionTier: text\('subscription_tier'\)\.notNull\(\)\.default\('free'\)/);
 assert.doesNotMatch(scaffoldSource, /default\('starter'\)/);
-assert.match(scaffoldSource, /@anhedral\/contracts/);
+assert.match(scaffoldSource, /@shared\/contracts/);
 assert.match(scaffoldSource, /CreateUploadRequestSchema/);
 
 assert.match(frontendSource, /output: 'static'/);

@@ -1,4 +1,4 @@
-import { ApiClient, APIRequestError } from '@anhedral/api-client';
+import { ApiClient, APIRequestError } from '@shared/api-client';
 
 export class APIClient extends ApiClient {
   constructor(baseUrl: string, getToken: () => Promise<string | null>) {

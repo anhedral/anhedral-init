@@ -1,1 +1,1 @@
-export * from '@anhedral/db/schema';
+export * from '@shared/db/schema';

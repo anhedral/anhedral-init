@@ -472,7 +472,7 @@ export { WEBSITE_URL };
 }
 
 function writeApiClient(dir: string): void {
-  writeFile(path.join(dir, 'src/lib/api.ts'), `import { ApiClient } from '@anhedral/api-client';
+  writeFile(path.join(dir, 'src/lib/api.ts'), `import { ApiClient } from '@shared/api-client';
 
 export class APIClient {
   constructor(private getToken: () => Promise<string | null>) {}
