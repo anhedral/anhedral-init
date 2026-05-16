@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Opinionated init CLI for Expo, Fastify, WXT, shared packages, Neon, Drizzle, Clerk, RevenueCat, Stripe, R2, and Vercel.",
   "type": "module",
   "bin": {
