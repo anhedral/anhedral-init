@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anhedral/api-client": "workspace:*",
+    "@shared/api-client": "workspace:*",
     "@clerk/chrome-extension": "3.1.25",
     "react": "19.2.3",
     "react-dom": "19.2.3",

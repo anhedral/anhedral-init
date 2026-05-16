@@ -1,5 +1,5 @@
 import type { ZodType } from 'zod';
-import { joinApiUrl } from '@anhedral/config';
+import { joinApiUrl } from '@shared/config';
 import {
   AuthMeResponseSchema,
   CreateUploadResponseSchema,
@@ -15,7 +15,7 @@ import {
   type SignOutResponse,
   type StorageFileResponse,
   type SubscriptionEntitlements,
-} from '@anhedral/contracts';
+} from '@shared/contracts';
 
 export class APIRequestError extends Error {
   constructor(

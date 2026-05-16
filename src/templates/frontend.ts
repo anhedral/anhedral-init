@@ -76,7 +76,7 @@ function patchFrontendPackageJson(dir: string): void {
 
   packageJson.dependencies = {
     ...(packageJson.dependencies ?? {}),
-    '@anhedral/api-client': FRONTEND_ADDON_DEPENDENCIES['@anhedral/api-client'],
+    '@shared/api-client': FRONTEND_ADDON_DEPENDENCIES['@shared/api-client'],
     '@clerk/expo': FRONTEND_ADDON_DEPENDENCIES['@clerk/expo'],
     'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
     'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
@@ -146,7 +146,7 @@ function patchExpoAppConfig(dir: string): void {
 }
 
 function writeApiClient(dir: string): void {
-  writeFile(path.join(dir, 'api/client.ts'), `import { ApiClient, APIRequestError } from '@anhedral/api-client';
+  writeFile(path.join(dir, 'api/client.ts'), `import { ApiClient, APIRequestError } from '@shared/api-client';
 
 export class APIClient extends ApiClient {
   constructor(baseUrl: string, getToken: () => Promise<string | null>) {

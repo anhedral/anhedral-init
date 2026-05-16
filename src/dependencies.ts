@@ -63,9 +63,9 @@ export const CONTRACTS_DEPENDENCIES: DependencyGroup = {
 
 export const API_CLIENT_DEPENDENCIES: DependencyGroup = {
   dependencies: {
-    '@anhedral/config': 'workspace:*',
-    '@anhedral/contracts': 'workspace:*',
-    '@anhedral/types': 'workspace:*',
+    '@shared/config': 'workspace:*',
+    '@shared/contracts': 'workspace:*',
+    '@shared/types': 'workspace:*',
     zod: CONTRACTS_DEPENDENCIES.dependencies!.zod,
   },
   ...SHARED_PACKAGE_DEPENDENCIES,
@@ -73,8 +73,8 @@ export const API_CLIENT_DEPENDENCIES: DependencyGroup = {
 
 export const BACKEND_DEPENDENCIES: DependencyGroup = {
   dependencies: {
-    '@anhedral/contracts': 'workspace:*',
-    '@anhedral/db': 'workspace:*',
+    '@shared/contracts': 'workspace:*',
+    '@shared/db': 'workspace:*',
     // renovate: datasource=npm depName=fastify
     fastify: '5.6.2',
     // renovate: datasource=npm depName=fastify-plugin
@@ -132,7 +132,7 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
 
 export const EXTENSION_DEPENDENCIES: DependencyGroup = {
   dependencies: {
-    '@anhedral/api-client': 'workspace:*',
+    '@shared/api-client': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/chrome-extension
     '@clerk/chrome-extension': '3.1.25',
     // renovate: datasource=npm depName=react
@@ -169,7 +169,7 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
 };
 
 export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
-  '@anhedral/api-client': 'workspace:*',
+  '@shared/api-client': 'workspace:*',
   // renovate: datasource=npm depName=@clerk/expo
   '@clerk/expo': '3.2.11',
   // renovate: datasource=npm depName=react-native-purchases

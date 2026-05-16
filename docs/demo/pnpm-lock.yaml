@@ -14,12 +14,6 @@ importers:
 
   Backend:
     dependencies:
-      '@anhedral/contracts':
-        specifier: workspace:*
-        version: link:../packages/contracts
-      '@anhedral/db':
-        specifier: workspace:*
-        version: link:../packages/db
       '@aws-sdk/client-s3':
         specifier: 3.1047.0
         version: 3.1047.0
@@ -59,6 +53,12 @@ importers:
       '@neondatabase/serverless':
         specifier: 1.0.2
         version: 1.0.2
+      '@shared/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
+      '@shared/db':
+        specifier: workspace:*
+        version: link:../packages/db
       dotenv:
         specifier: 17.2.3
         version: 17.2.3
@@ -111,12 +111,12 @@ importers:
 
   Extension:
     dependencies:
-      '@anhedral/api-client':
-        specifier: workspace:*
-        version: link:../packages/api-client
       '@clerk/chrome-extension':
         specifier: 3.1.25
         version: 3.1.25(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(@types/react@19.2.7)(bs58@6.0.0)(bufferutil@4.1.0)(react-dom@19.2.3(react@19.2.3))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.7)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.3))(utf-8-validate@6.0.6)(zod@4.2.1)
+      '@shared/api-client':
+        specifier: workspace:*
+        version: link:../packages/api-client
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -166,9 +166,6 @@ importers:
 
   Frontend:
     dependencies:
-      '@anhedral/api-client':
-        specifier: workspace:*
-        version: link:../packages/api-client
       '@clerk/expo':
         specifier: 3.2.11
         version: 3.2.11(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3))(@types/react@19.2.14)(bs58@6.0.0)(bufferutil@4.1.0)(expo-auth-session@55.0.16(expo@55.0.24)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0))(react@19.2.0))(expo-constants@55.0.16)(expo-crypto@55.0.15(expo@55.0.24))(expo-secure-store@55.0.14(expo@55.0.24))(expo-web-browser@55.0.16(expo@55.0.24)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)))(expo@55.0.24)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.0))(zod@4.2.1)
@@ -193,6 +190,9 @@ importers:
       '@rn-primitives/slot':
         specifier: ^1.4.0
         version: 1.4.0(react-native-web@0.21.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0))(react@19.2.0)
+      '@shared/api-client':
+        specifier: workspace:*
+        version: link:../packages/api-client
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -296,13 +296,13 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@anhedral/config':
+      '@shared/config':
         specifier: workspace:*
         version: link:../config
-      '@anhedral/contracts':
+      '@shared/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@anhedral/types':
+      '@shared/types':
         specifier: workspace:*
         version: link:../types
       zod:
@@ -356,7 +356,7 @@ importers:
 
   packages/types:
     dependencies:
-      '@anhedral/contracts':
+      '@shared/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
@@ -9665,7 +9665,7 @@ snapshots:
       metro-babel-transformer: 0.83.7
       metro-cache: 0.83.7
       metro-cache-key: 0.83.7
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       metro-file-map: 0.83.7
       metro-minify-terser: 0.83.7
@@ -10449,7 +10449,7 @@ snapshots:
       debug: 4.4.3
       invariant: 2.2.4
       metro: 0.83.7(bufferutil@4.1.0)
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       semver: 7.8.0
     transitivePeerDependencies:
@@ -13959,21 +13959,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.83.7(bufferutil@4.1.0):
-    dependencies:
-      connect: 3.7.0
-      flow-enums-runtime: 0.0.6
-      jest-validate: 29.7.0
-      metro: 0.83.7(bufferutil@4.1.0)
-      metro-cache: 0.83.7
-      metro-core: 0.83.7
-      metro-runtime: 0.83.7
-      yaml: 2.9.0
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   metro-config@0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       connect: 3.7.0
@@ -14124,7 +14109,7 @@ snapshots:
       metro-babel-transformer: 0.83.7
       metro-cache: 0.83.7
       metro-cache-key: 0.83.7
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       metro-file-map: 0.83.7
       metro-resolver: 0.83.7

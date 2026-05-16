@@ -60,7 +60,7 @@ function writePackageJson(dir: string, projectName: string): void {
       build: 'pnpm typecheck',
       typecheck: 'tsc --noEmit',
       'db:generate': 'drizzle-kit generate',
-      'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
+      'db:migrate': 'pnpm --filter @shared/db db:migrate',
       'db:studio': 'drizzle-kit studio',
       'db:check': 'drizzle-kit check',
       'db:push': 'drizzle-kit push',
@@ -295,14 +295,14 @@ export {};
 // ═══════════════════════════════════════════════════════════════════════════
 
 function writeDbFiles(dir: string): void {
-  writeFile(path.join(dir, 'src/db/index.ts'), `export { db } from '@anhedral/db';
-export type { Database } from '@anhedral/db';
+  writeFile(path.join(dir, 'src/db/index.ts'), `export { db } from '@shared/db';
+export type { Database } from '@shared/db';
 `);
 
-  writeFile(path.join(dir, 'src/db/schema.ts'), `export * from '@anhedral/db/schema';
+  writeFile(path.join(dir, 'src/db/schema.ts'), `export * from '@shared/db/schema';
 `);
 
-  writeFile(path.join(dir, 'src/db/migrate.ts'), `import '@anhedral/db/migrate';
+  writeFile(path.join(dir, 'src/db/migrate.ts'), `import '@shared/db/migrate';
 `);
 }
 
@@ -1902,7 +1902,7 @@ export default subscriptionRoutes;
 
   writeFile(path.join(dir, 'src/routes/storage.ts'), `import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { CreateUploadRequestSchema } from '@anhedral/contracts';
+import { CreateUploadRequestSchema } from '@shared/contracts';
 import { AuthError, ServerError, ValidationError } from '../errors/index.js';
 import { createAuthHook } from '../lib/routeHelpers.js';
 import { createSignedDownloadUrl, createSignedUploadUrl, deleteObjectFromR2, isR2Configured } from '../lib/r2.js';

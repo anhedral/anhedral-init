@@ -1,5 +1,5 @@
 {
-  "name": "@anhedral/api-client",
+  "name": "@shared/api-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,9 +14,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@anhedral/config": "workspace:*",
-    "@anhedral/contracts": "workspace:*",
-    "@anhedral/types": "workspace:*",
+    "@shared/config": "workspace:*",
+    "@shared/contracts": "workspace:*",
+    "@shared/types": "workspace:*",
     "zod": "4.2.1"
   }
 }

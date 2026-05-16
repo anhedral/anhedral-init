@@ -578,7 +578,7 @@ function writeStackFile(root: string, stack: NormalizedStack): void {
 function writeSharedPackages(root: string): void {
   const dbRoot = path.join(root, 'packages/db');
   writeFile(path.join(dbRoot, 'package.json'), JSON.stringify({
-    name: '@anhedral/db',
+    name: '@shared/db',
     version: '0.1.0',
     private: true,
     type: 'module',
@@ -964,7 +964,7 @@ export type StorageFileResponse = z.infer<typeof StorageFileResponseSchema>;
 `],
     ['types', {
       exports: { '.': './src/index.ts' },
-      dependencies: { '@anhedral/contracts': 'workspace:*' },
+      dependencies: { '@shared/contracts': 'workspace:*' },
     }, `export type ApiEnvelope<T> = { data: T } | { error: string; message: string };
 export type {
   AuthMeResponse,
@@ -975,7 +975,7 @@ export type {
   SignOutResponse,
   StorageFileResponse,
   SubscriptionEntitlements,
-} from '@anhedral/contracts';
+} from '@shared/contracts';
 `],
     ['config', { exports: { '.': './src/index.ts' } }, `export const DEFAULT_API_PATH_PREFIX = '/api';
 export const DEFAULT_LOCAL_API_URL = 'http://localhost:8787';
@@ -992,7 +992,7 @@ export function joinApiUrl(baseUrl: string, path: string) {
       exports: { '.': './src/index.ts' },
       dependencies: API_CLIENT_DEPENDENCIES.dependencies,
     }, `import type { ZodType } from 'zod';
-import { joinApiUrl } from '@anhedral/config';
+import { joinApiUrl } from '@shared/config';
 import {
   AuthMeResponseSchema,
   CreateUploadResponseSchema,
@@ -1008,7 +1008,7 @@ import {
   type SignOutResponse,
   type StorageFileResponse,
   type SubscriptionEntitlements,
-} from '@anhedral/contracts';
+} from '@shared/contracts';
 
 export class APIRequestError extends Error {
   constructor(
@@ -1118,7 +1118,7 @@ export class ApiClient {
   for (const [name, packageFields, source] of simplePackages) {
     const packageRoot = path.join(root, `packages/${name}`);
     writeFile(path.join(packageRoot, 'package.json'), JSON.stringify({
-      name: `@anhedral/${name}`,
+      name: `@shared/${name}`,
       version: '0.1.0',
       private: true,
       type: 'module',
@@ -1273,10 +1273,10 @@ function writeFullstackRootFiles(root: string, options: InitOptions): void {
     'verify:frontend': 'pnpm --filter ./Frontend exec expo install --check && pnpm --filter ./Frontend build:web',
     'verify:backend': 'pnpm --filter ./Backend test && pnpm --filter ./Backend build',
     'verify:extension': 'pnpm --filter ./Extension typecheck && pnpm --filter ./Extension zip',
-    'db:generate': 'pnpm --filter @anhedral/db db:generate',
-    'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
-    'db:studio': 'pnpm --filter @anhedral/db db:studio',
-    'db:check': 'pnpm --filter @anhedral/db db:check',
+    'db:generate': 'pnpm --filter @shared/db db:generate',
+    'db:migrate': 'pnpm --filter @shared/db db:migrate',
+    'db:studio': 'pnpm --filter @shared/db db:studio',
+    'db:check': 'pnpm --filter @shared/db db:check',
   };
 
   scripts['dev:frontend'] = 'pnpm --filter ./Frontend dev';
@@ -1325,7 +1325,7 @@ async function scaffoldFullstack(root: string, options: InitOptions): Promise<st
   anhedralPrint.done('Root config written');
 
   anhedralPrint.section('Shared packages');
-  anhedralPrint.step('Writing @anhedral/db, types, config, api-client');
+  anhedralPrint.step('Writing @shared/db, types, config, api-client');
   writeSharedPackages(root);
   anhedralPrint.done('Shared packages written');
 

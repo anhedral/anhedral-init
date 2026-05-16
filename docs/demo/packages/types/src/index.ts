@@ -8,4 +8,4 @@ export type {
   SignOutResponse,
   StorageFileResponse,
   SubscriptionEntitlements,
-} from '@anhedral/contracts';
+} from '@shared/contracts';

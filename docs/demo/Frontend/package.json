@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anhedral/api-client": "workspace:*",
+    "@shared/api-client": "workspace:*",
     "@clerk/expo": "3.2.11",
     "@react-navigation/native": "^7.0.0",
     "@revenuecat/purchases-js": "1.11.1",
