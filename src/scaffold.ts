@@ -6,6 +6,7 @@ import { appendGitignore, writeFile } from './util.js';
 import { getSkillCommands } from './commands.js';
 import {
   API_CLIENT_DEPENDENCIES,
+  CONTRACTS_DEPENDENCIES,
   PACKAGE_MANAGER,
   ROOT_DEPENDENCIES,
   SHARED_DB_DEPENDENCIES,
@@ -338,6 +339,7 @@ The generated app is one pnpm monorepo:
 ├─ packages/
 │  ├─ api-client/   shared typed API client
 │  ├─ config/       shared config constants/helpers
+│  ├─ contracts/    shared Zod request/response contracts
 │  ├─ db/           Drizzle schema, Neon client, migrations
 │  └─ types/        shared TypeScript types
 ├─ PRODUCTION.md    development and deployment guide
@@ -371,7 +373,7 @@ Important files:
 - \`Backend/src/index.ts\`: Vercel Fastify entrypoint
 - \`Backend/src/app.ts\`: Fastify app construction
 - \`Backend/vercel.json\`: minimal Vercel config
-- \`Backend/src/routes\`: health/auth/subscription routes
+- \`Backend/src/routes\`: health/auth/subscription/storage routes
 
 ## Extension
 
@@ -416,6 +418,8 @@ Database workflow:
 \`\`\`sh
 pnpm db:generate
 pnpm db:migrate
+pnpm db:studio
+pnpm db:check
 \`\`\`
 
 Local demo mode is enabled through generated \`.env\` files. Real provider behavior needs Clerk, RevenueCat/Stripe, Neon, and R2 credentials.
@@ -498,7 +502,8 @@ Steps:
 1. Create an R2 bucket.
 2. Create a least-privilege API token for that bucket.
 3. Set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` only in Backend envs.
-4. Configure a public bucket URL or custom domain if uploaded assets need public CDN delivery.
+4. Use \`POST /storage/uploads\` to create signed upload URLs, then \`GET /storage/files/:key\` or \`DELETE /storage/files/:key\` for user-owned objects.
+5. Configure a public bucket URL or custom domain if uploaded assets need public CDN delivery.
 
 ## Deploy
 
@@ -541,7 +546,7 @@ Upload \`Extension/.output/*-chrome.zip\` to the Chrome Web Store Developer Dash
 - Confirm Clerk works on local web, Vercel web, iOS, Android, and the Chrome extension.
 - Confirm RevenueCat returns the \`pro\` entitlement after Stripe web purchase and native store purchase.
 - Confirm \`pnpm db:migrate\` has run against the production Neon database.
-- Confirm R2 upload and signed URL retrieval work from the deployed Backend domain if you expose storage routes.
+- Confirm R2 upload, signed URL retrieval, and deletion work from the deployed Backend domain.
 - Confirm both Vercel projects can resolve \`packages/*\` workspace packages.
 - Confirm the Chrome extension ZIP is tested locally with \`chrome://extensions\` before Chrome Web Store upload.
 
@@ -588,6 +593,8 @@ function writeSharedPackages(root: string): void {
       typecheck: 'tsc --noEmit',
       'db:generate': 'drizzle-kit generate',
       'db:migrate': 'tsx --env-file=../../.env src/migrate.ts',
+      'db:studio': 'drizzle-kit studio',
+      'db:check': 'drizzle-kit check',
     },
     dependencies: SHARED_DB_DEPENDENCIES.dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
@@ -871,46 +878,104 @@ console.log('Migrations completed in', Date.now() - start, 'ms');
   writeFile(path.join(dbRoot, 'migrations/.gitkeep'), '');
 
   const simplePackages = [
-    ['types', { exports: { '.': './src/index.ts' } }, `export type ApiEnvelope<T> = { data: T } | { error: string; message: string };
-export type ClientPlatform = 'frontend' | 'extension';
-export type SubscriptionEntitlements = {
-  pro: boolean;
-  inTrial: boolean;
-  trialEndsAt?: string;
-  expiresAt?: string;
-  periodStart?: string;
-  periodEnd?: string;
-  method?: 'trialing' | 'redeemed' | 'paid' | null;
-  managementUrl?: string;
-  cancelAtPeriodEnd?: boolean;
-};
-export type AuthMeResponse = {
-  user: {
-    id: string;
-    email: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    displayName: string;
-    imageUrl?: string | null;
-  };
-};
-export type PricingResponse = {
-  tiers: Array<{
-    tier: 'free' | 'pro';
-    displayName: string;
-    description: string;
-    priceMonthly: number | null;
-    priceYearly: number | null;
-    currency: string;
-    limits: {
-      dailyLimit: number | null;
-    };
-    paymentInfo?: {
-      revenueCatEntitlementId: string;
-      revenueCatOfferingId: string;
-    };
-  }>;
-};
+    ['contracts', {
+      exports: { '.': './src/index.ts' },
+      dependencies: CONTRACTS_DEPENDENCIES.dependencies,
+    }, `import { z } from 'zod';
+
+export const ClientPlatformSchema = z.enum(['frontend', 'extension']);
+export type ClientPlatform = z.infer<typeof ClientPlatformSchema>;
+
+export const ApiErrorSchema = z.object({
+  error: z.string(),
+  message: z.string(),
+});
+export type ApiError = z.infer<typeof ApiErrorSchema>;
+
+export const AuthMeResponseSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    email: z.string().email(),
+    firstName: z.string().nullable().optional(),
+    lastName: z.string().nullable().optional(),
+    displayName: z.string(),
+    imageUrl: z.string().url().nullable().optional(),
+  }),
+});
+export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;
+
+export const PricingResponseSchema = z.object({
+  tiers: z.array(z.object({
+    tier: z.enum(['free', 'pro']),
+    displayName: z.string(),
+    description: z.string(),
+    priceMonthly: z.number().nullable(),
+    priceYearly: z.number().nullable(),
+    currency: z.string(),
+    limits: z.object({
+      dailyLimit: z.number().nullable(),
+    }),
+    paymentInfo: z.object({
+      revenueCatEntitlementId: z.string(),
+      revenueCatOfferingId: z.string(),
+    }).optional(),
+  })),
+});
+export type PricingResponse = z.infer<typeof PricingResponseSchema>;
+
+export const SubscriptionEntitlementsSchema = z.object({
+  pro: z.boolean(),
+  inTrial: z.boolean(),
+  trialEndsAt: z.string().optional(),
+  expiresAt: z.string().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+  method: z.enum(['trialing', 'redeemed', 'paid']).nullable().optional(),
+  managementUrl: z.string().url().optional(),
+  cancelAtPeriodEnd: z.boolean().optional(),
+});
+export type SubscriptionEntitlements = z.infer<typeof SubscriptionEntitlementsSchema>;
+
+export const SignOutResponseSchema = z.object({
+  success: z.boolean(),
+});
+export type SignOutResponse = z.infer<typeof SignOutResponseSchema>;
+
+export const CreateUploadRequestSchema = z.object({
+  fileName: z.string().min(1).max(200).optional(),
+  contentType: z.string().min(1).max(200),
+});
+export type CreateUploadRequest = z.infer<typeof CreateUploadRequestSchema>;
+
+export const CreateUploadResponseSchema = z.object({
+  objectKey: z.string(),
+  uploadUrl: z.string().url(),
+  expiresIn: z.number(),
+  headers: z.record(z.string(), z.string()),
+});
+export type CreateUploadResponse = z.infer<typeof CreateUploadResponseSchema>;
+
+export const StorageFileResponseSchema = z.object({
+  objectKey: z.string(),
+  downloadUrl: z.string().url(),
+  expiresIn: z.number(),
+});
+export type StorageFileResponse = z.infer<typeof StorageFileResponseSchema>;
+`],
+    ['types', {
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@anhedral/contracts': 'workspace:*' },
+    }, `export type ApiEnvelope<T> = { data: T } | { error: string; message: string };
+export type {
+  AuthMeResponse,
+  ClientPlatform,
+  CreateUploadRequest,
+  CreateUploadResponse,
+  PricingResponse,
+  SignOutResponse,
+  StorageFileResponse,
+  SubscriptionEntitlements,
+} from '@anhedral/contracts';
 `],
     ['config', { exports: { '.': './src/index.ts' } }, `export const DEFAULT_API_PATH_PREFIX = '/api';
 export const DEFAULT_LOCAL_API_URL = 'http://localhost:8787';
@@ -926,8 +991,24 @@ export function joinApiUrl(baseUrl: string, path: string) {
     ['api-client', {
       exports: { '.': './src/index.ts' },
       dependencies: API_CLIENT_DEPENDENCIES.dependencies,
-    }, `import { joinApiUrl } from '@anhedral/config';
-import type { AuthMeResponse, ClientPlatform, PricingResponse, SubscriptionEntitlements } from '@anhedral/types';
+    }, `import type { ZodType } from 'zod';
+import { joinApiUrl } from '@anhedral/config';
+import {
+  AuthMeResponseSchema,
+  CreateUploadResponseSchema,
+  PricingResponseSchema,
+  SignOutResponseSchema,
+  StorageFileResponseSchema,
+  SubscriptionEntitlementsSchema,
+  type AuthMeResponse,
+  type ClientPlatform,
+  type CreateUploadRequest,
+  type CreateUploadResponse,
+  type PricingResponse,
+  type SignOutResponse,
+  type StorageFileResponse,
+  type SubscriptionEntitlements,
+} from '@anhedral/contracts';
 
 export class APIRequestError extends Error {
   constructor(
@@ -949,10 +1030,12 @@ export type ApiClientOptions = {
 export class ApiClient {
   constructor(private readonly options: ApiClientOptions) {}
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, schema?: ZodType<T>): Promise<T> {
     const token = await this.options.getToken?.();
     const headers = new Headers(init.headers);
-    headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
+    if (init.body != null) {
+      headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
+    }
     headers.set('X-Platform', this.options.platform);
     if (token) headers.set('Authorization', \`Bearer \${token}\`);
 
@@ -972,15 +1055,16 @@ export class ApiClient {
     }
 
     if (response.status === 204) return {} as T;
-    return response.json() as Promise<T>;
+    const data = await response.json();
+    return schema ? schema.parse(data) : data as T;
   }
 
   getMe() {
-    return this.request<AuthMeResponse>('/auth/me');
+    return this.request<AuthMeResponse>('/auth/me', {}, AuthMeResponseSchema);
   }
 
   getPricing() {
-    return this.request<PricingResponse>('/subscriptions/pricing');
+    return this.request<PricingResponse>('/subscriptions/pricing', {}, PricingResponseSchema);
   }
 
   getSubscriptionPricing() {
@@ -990,17 +1074,40 @@ export class ApiClient {
   getSubscriptionEntitlements(options?: { refresh?: boolean }) {
     return this.request<SubscriptionEntitlements>(
       options?.refresh ? '/subscriptions/entitlements/me?refresh=true' : '/subscriptions/entitlements/me',
+      {},
+      SubscriptionEntitlementsSchema,
     );
   }
 
   signOut() {
-    return this.request<{ success: boolean }>('/auth/signout', {
+    return this.request<SignOutResponse>('/auth/signout', {
       method: 'POST',
-    });
+    }, SignOutResponseSchema);
   }
 
   deleteAccount() {
     return this.request<void>('/auth/account', {
+      method: 'DELETE',
+    });
+  }
+
+  createUpload(input: CreateUploadRequest) {
+    return this.request<CreateUploadResponse>('/storage/uploads', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, CreateUploadResponseSchema);
+  }
+
+  getStorageFile(objectKey: string) {
+    return this.request<StorageFileResponse>(
+      \`/storage/files/\${encodeURIComponent(objectKey)}\`,
+      {},
+      StorageFileResponseSchema,
+    );
+  }
+
+  deleteStorageFile(objectKey: string) {
+    return this.request<void>(\`/storage/files/\${encodeURIComponent(objectKey)}\`, {
       method: 'DELETE',
     });
   }
@@ -1168,6 +1275,8 @@ function writeFullstackRootFiles(root: string, options: InitOptions): void {
     'verify:extension': 'pnpm --filter ./Extension typecheck && pnpm --filter ./Extension zip',
     'db:generate': 'pnpm --filter @anhedral/db db:generate',
     'db:migrate': 'pnpm --filter @anhedral/db db:migrate',
+    'db:studio': 'pnpm --filter @anhedral/db db:studio',
+    'db:check': 'pnpm --filter @anhedral/db db:check',
   };
 
   scripts['dev:frontend'] = 'pnpm --filter ./Frontend dev';

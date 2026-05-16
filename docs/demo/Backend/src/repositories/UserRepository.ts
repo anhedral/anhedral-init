@@ -1,9 +1,10 @@
+import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/index.js';
 import { users } from '../db/schema.js';
 import type { NewUsers, SubscriptionStatus, SubscriptionTier } from '../db/schema.js';
 import { LRUCache } from '../lib/lruCache.js';
-import { subscriptions } from '../db/schema.js';
+import { subscriptions, uploads } from '../db/schema.js';
 
 export type UserAuthData = {
   id: string;
@@ -83,6 +84,19 @@ export class UserRepository {
   async updateLastLogin(userId: string): Promise<void> {
     await this.db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
     authPluginCache.invalidate(`auth:${userId}`);
+  }
+
+  async createUploadRecord(
+    userId: string,
+    input: { objectKey: string; bucket: string; contentType: string | null },
+  ): Promise<void> {
+    await this.db.insert(uploads).values({
+      id: crypto.randomUUID(),
+      userId,
+      objectKey: input.objectKey,
+      bucket: input.bucket,
+      contentType: input.contentType,
+    });
   }
 
   async deleteById(userId: string): Promise<void> {

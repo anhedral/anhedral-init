@@ -12,6 +12,7 @@ function collectDependencyPins() {
   const manifest = dependencyManifest();
   const groups = [
     { name: 'root', group: manifest.root },
+    { name: 'contracts', group: manifest.contracts },
     { name: 'sharedDb', group: manifest.sharedDb },
     { name: 'sharedPackages', group: manifest.sharedPackages },
     { name: 'backend', group: manifest.backend },

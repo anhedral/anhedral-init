@@ -53,16 +53,27 @@ export const SHARED_PACKAGE_DEPENDENCIES: DependencyGroup = {
   },
 };
 
+export const CONTRACTS_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    // renovate: datasource=npm depName=zod
+    zod: '4.2.1',
+  },
+  ...SHARED_PACKAGE_DEPENDENCIES,
+};
+
 export const API_CLIENT_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@anhedral/config': 'workspace:*',
+    '@anhedral/contracts': 'workspace:*',
     '@anhedral/types': 'workspace:*',
+    zod: CONTRACTS_DEPENDENCIES.dependencies!.zod,
   },
   ...SHARED_PACKAGE_DEPENDENCIES,
 };
 
 export const BACKEND_DEPENDENCIES: DependencyGroup = {
   dependencies: {
+    '@anhedral/contracts': 'workspace:*',
     '@anhedral/db': 'workspace:*',
     // renovate: datasource=npm depName=fastify
     fastify: '5.6.2',
@@ -95,6 +106,7 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@aws-sdk/s3-request-presigner
     '@aws-sdk/s3-request-presigner': '3.1047.0',
     dotenv: SHARED_DB_DEPENDENCIES.dependencies!.dotenv,
+    zod: CONTRACTS_DEPENDENCIES.dependencies!.zod,
   },
   devDependencies: {
     typescript: SHARED_DB_DEPENDENCIES.devDependencies!.typescript,
@@ -181,6 +193,7 @@ export function dependencyManifest() {
     packageManager: PACKAGE_MANAGER,
     toolchain: TOOLCHAIN_DEPENDENCIES,
     root: ROOT_DEPENDENCIES,
+    contracts: CONTRACTS_DEPENDENCIES,
     sharedDb: SHARED_DB_DEPENDENCIES,
     sharedPackages: SHARED_PACKAGE_DEPENDENCIES,
     backend: BACKEND_DEPENDENCIES,

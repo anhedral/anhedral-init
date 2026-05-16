@@ -14,6 +14,8 @@
     "verify:extension": "pnpm --filter ./Extension typecheck && pnpm --filter ./Extension zip",
     "db:generate": "pnpm --filter @anhedral/db db:generate",
     "db:migrate": "pnpm --filter @anhedral/db db:migrate",
+    "db:studio": "pnpm --filter @anhedral/db db:studio",
+    "db:check": "pnpm --filter @anhedral/db db:check",
     "dev:frontend": "pnpm --filter ./Frontend dev",
     "dev:extension": "pnpm --filter ./Extension dev",
     "extension:zip": "pnpm --filter ./Extension zip"

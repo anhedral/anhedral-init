@@ -13,7 +13,9 @@
     "build": "pnpm typecheck",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file=../../.env src/migrate.ts"
+    "db:migrate": "tsx --env-file=../../.env src/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:check": "drizzle-kit check"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",

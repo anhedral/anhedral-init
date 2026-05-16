@@ -12,6 +12,7 @@ The generated app is one pnpm monorepo:
 ├─ packages/
 │  ├─ api-client/   shared typed API client
 │  ├─ config/       shared config constants/helpers
+│  ├─ contracts/    shared Zod request/response contracts
 │  ├─ db/           Drizzle schema, Neon client, migrations
 │  └─ types/        shared TypeScript types
 ├─ PRODUCTION.md    development and deployment guide
@@ -45,7 +46,7 @@ Important files:
 - `Backend/src/index.ts`: Vercel Fastify entrypoint
 - `Backend/src/app.ts`: Fastify app construction
 - `Backend/vercel.json`: minimal Vercel config
-- `Backend/src/routes`: health/auth/subscription routes
+- `Backend/src/routes`: health/auth/subscription/storage routes
 
 ## Extension
 
@@ -90,6 +91,8 @@ Database workflow:
 ```sh
 pnpm db:generate
 pnpm db:migrate
+pnpm db:studio
+pnpm db:check
 ```
 
 Local demo mode is enabled through generated `.env` files. Real provider behavior needs Clerk, RevenueCat/Stripe, Neon, and R2 credentials.
@@ -172,7 +175,8 @@ Steps:
 1. Create an R2 bucket.
 2. Create a least-privilege API token for that bucket.
 3. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET` only in Backend envs.
-4. Configure a public bucket URL or custom domain if uploaded assets need public CDN delivery.
+4. Use `POST /storage/uploads` to create signed upload URLs, then `GET /storage/files/:key` or `DELETE /storage/files/:key` for user-owned objects.
+5. Configure a public bucket URL or custom domain if uploaded assets need public CDN delivery.
 
 ## Deploy
 
@@ -215,7 +219,7 @@ Upload `Extension/.output/*-chrome.zip` to the Chrome Web Store Developer Dashbo
 - Confirm Clerk works on local web, Vercel web, iOS, Android, and the Chrome extension.
 - Confirm RevenueCat returns the `pro` entitlement after Stripe web purchase and native store purchase.
 - Confirm `pnpm db:migrate` has run against the production Neon database.
-- Confirm R2 upload and signed URL retrieval work from the deployed Backend domain if you expose storage routes.
+- Confirm R2 upload, signed URL retrieval, and deletion work from the deployed Backend domain.
 - Confirm both Vercel projects can resolve `packages/*` workspace packages.
 - Confirm the Chrome extension ZIP is tested locally with `chrome://extensions` before Chrome Web Store upload.
 

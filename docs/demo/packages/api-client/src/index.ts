@@ -1,5 +1,21 @@
+import type { ZodType } from 'zod';
 import { joinApiUrl } from '@anhedral/config';
-import type { AuthMeResponse, ClientPlatform, PricingResponse, SubscriptionEntitlements } from '@anhedral/types';
+import {
+  AuthMeResponseSchema,
+  CreateUploadResponseSchema,
+  PricingResponseSchema,
+  SignOutResponseSchema,
+  StorageFileResponseSchema,
+  SubscriptionEntitlementsSchema,
+  type AuthMeResponse,
+  type ClientPlatform,
+  type CreateUploadRequest,
+  type CreateUploadResponse,
+  type PricingResponse,
+  type SignOutResponse,
+  type StorageFileResponse,
+  type SubscriptionEntitlements,
+} from '@anhedral/contracts';
 
 export class APIRequestError extends Error {
   constructor(
@@ -21,10 +37,12 @@ export type ApiClientOptions = {
 export class ApiClient {
   constructor(private readonly options: ApiClientOptions) {}
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, schema?: ZodType<T>): Promise<T> {
     const token = await this.options.getToken?.();
     const headers = new Headers(init.headers);
-    headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
+    if (init.body != null) {
+      headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
+    }
     headers.set('X-Platform', this.options.platform);
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
@@ -44,15 +62,16 @@ export class ApiClient {
     }
 
     if (response.status === 204) return {} as T;
-    return response.json() as Promise<T>;
+    const data = await response.json();
+    return schema ? schema.parse(data) : data as T;
   }
 
   getMe() {
-    return this.request<AuthMeResponse>('/auth/me');
+    return this.request<AuthMeResponse>('/auth/me', {}, AuthMeResponseSchema);
   }
 
   getPricing() {
-    return this.request<PricingResponse>('/subscriptions/pricing');
+    return this.request<PricingResponse>('/subscriptions/pricing', {}, PricingResponseSchema);
   }
 
   getSubscriptionPricing() {
@@ -62,17 +81,40 @@ export class ApiClient {
   getSubscriptionEntitlements(options?: { refresh?: boolean }) {
     return this.request<SubscriptionEntitlements>(
       options?.refresh ? '/subscriptions/entitlements/me?refresh=true' : '/subscriptions/entitlements/me',
+      {},
+      SubscriptionEntitlementsSchema,
     );
   }
 
   signOut() {
-    return this.request<{ success: boolean }>('/auth/signout', {
+    return this.request<SignOutResponse>('/auth/signout', {
       method: 'POST',
-    });
+    }, SignOutResponseSchema);
   }
 
   deleteAccount() {
     return this.request<void>('/auth/account', {
+      method: 'DELETE',
+    });
+  }
+
+  createUpload(input: CreateUploadRequest) {
+    return this.request<CreateUploadResponse>('/storage/uploads', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, CreateUploadResponseSchema);
+  }
+
+  getStorageFile(objectKey: string) {
+    return this.request<StorageFileResponse>(
+      `/storage/files/${encodeURIComponent(objectKey)}`,
+      {},
+      StorageFileResponseSchema,
+    );
+  }
+
+  deleteStorageFile(objectKey: string) {
+    return this.request<void>(`/storage/files/${encodeURIComponent(objectKey)}`, {
       method: 'DELETE',
     });
   }
