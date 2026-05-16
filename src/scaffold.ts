@@ -235,16 +235,61 @@ pnpm dev:frontend
 pnpm dev:extension
 \`\`\`
 
-For a provider-free smoke test, keep \`ANHEDRAL_DEMO=true\` in \`Backend/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
+The generated env files intentionally contain placeholder provider values. That is enough to inspect the project structure and run backend smoke tests, but the full UI needs real provider keys before auth, billing, uploads, and extension sign-in behave like production.
+
+For a provider-free backend smoke test, keep \`ANHEDRAL_DEMO=true\` in \`Backend/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
 
 ## Provider Setup
 
-- Neon: create a Postgres database and set \`DATABASE_URL\` in the root and API env files.
-- Clerk: create an application, configure allowed origins, and set \`CLERK_PUBLISHABLE_KEY\`, \`CLERK_SECRET_KEY\`, plus the Expo and extension publishable keys.
-- RevenueCat + Stripe: create an entitlement named \`pro\`, configure Stripe as a RevenueCat web billing source, configure app keys, then set \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and the \`EXPO_PUBLIC_RC_*\` values.
-- Cloudflare R2: create a bucket and API token, then set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\`.
-- Vercel: import this same Git repository twice. Use \`Frontend\` as the root directory for the Expo web project, and \`Backend\` as the root directory for the Fastify API project. Enable access to source files outside each root directory so workspace packages under \`packages/*\` are available during builds. The Backend project uses Vercel Fastify entrypoint detection from \`Backend/src/index.ts\`.
-- EAS: use \`Frontend\` as the Expo project root for iOS and Android builds. Vercel deploys the web export from the same source.
+Use this order so each service has the domains and callback URLs it needs:
+
+1. Neon database
+   - Create a Neon project and database: https://neon.com/docs/get-started-with-neon/connect-neon
+   - Put the pooled connection string in \`DATABASE_URL\` in \`.env\`, \`Backend/.env\`, and the Backend Vercel project.
+   - Run \`pnpm db:generate\` and \`pnpm db:migrate\` after \`DATABASE_URL\` is real.
+
+2. Clerk auth
+   - Expo setup: https://docs.expo.dev/guides/using-clerk/
+   - Clerk Expo quickstart: https://clerk.com/docs/quickstarts/get-started-with-expo
+   - Set \`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY\` in \`Frontend/.env\`, Vercel Frontend, and EAS.
+   - Set \`CLERK_PUBLISHABLE_KEY\` and \`CLERK_SECRET_KEY\` in \`Backend/.env\` and Vercel Backend.
+   - Set \`VITE_CLERK_PUBLISHABLE_KEY\` in \`Extension/.env\`.
+   - Add allowed origins for \`http://localhost:8081\`, the Frontend Vercel domain, and the extension origin after Chrome assigns an extension id.
+
+3. RevenueCat + Stripe
+   - RevenueCat Web overview: https://www.revenuecat.com/docs/web/overview
+   - RevenueCat Stripe Billing integration: https://www.revenuecat.com/docs/web/integrations/stripe
+   - Stripe API keys: https://docs.stripe.com/keys
+   - Create an entitlement named \`pro\`.
+   - Create iOS, Android, and Web apps in RevenueCat and copy their public SDK keys into \`EXPO_PUBLIC_RC_API_KEY_IOS\`, \`EXPO_PUBLIC_RC_API_KEY_ANDROID\`, and \`EXPO_PUBLIC_RC_WEB_API_KEY\`.
+   - Set \`EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro\`.
+   - Set \`RC_SECRET_API_KEY\` and \`RC_WEBHOOK_SECRET\` only in Backend envs.
+   - Point the RevenueCat webhook to \`https://<backend-domain>/webhooks/revenuecat\`.
+
+4. Cloudflare R2/CDN
+   - R2 S3-compatible setup: https://developers.cloudflare.com/r2/get-started/s3/
+   - R2 API tokens: https://developers.cloudflare.com/r2/api/tokens/
+   - Create a bucket and least-privilege API token.
+   - Set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` only in Backend envs.
+   - If you use a public CDN/custom domain for uploaded files, add that URL to your own app config before exposing uploads broadly.
+
+5. Vercel web/API deploys
+   - Monorepo docs: https://vercel.com/docs/monorepos
+   - Monorepo FAQ for source outside root: https://vercel.com/docs/monorepos/monorepo-faq
+   - Import this same Git repository twice. Use \`Frontend\` as the root directory for the Expo web project and \`Backend\` as the root directory for the Fastify API project.
+   - Enable access to source files outside each project root so workspace packages under \`packages/*\` are available during builds.
+   - Frontend build command: \`pnpm build:web\`; output directory: \`dist\`.
+   - Backend build command: \`pnpm build\`; Vercel detects \`Backend/src/index.ts\` as the Fastify entrypoint.
+
+6. EAS native app builds
+   - EAS docs: https://docs.expo.dev/eas/
+   - Store submission docs: https://docs.expo.dev/deploy/submit-to-app-stores/
+   - Use \`Frontend\` as the Expo project root for iOS and Android builds. Vercel deploys the web export from the same source.
+
+7. Chrome Web Store
+   - WXT publishing: https://wxt.dev/guide/essentials/publishing.html
+   - Chrome publishing: https://developer.chrome.com/docs/webstore/publish
+   - Build with \`pnpm extension:zip\`, then upload \`Extension/.output/*-chrome.zip\` in the Chrome Web Store Developer Dashboard.
 
 ## Setup Notes
 
@@ -375,6 +420,8 @@ pnpm db:migrate
 
 Local demo mode is enabled through generated \`.env\` files. Real provider behavior needs Clerk, RevenueCat/Stripe, Neon, and R2 credentials.
 
+The generated placeholder values are intentionally non-production. They let you inspect files and run backend demo checks, but browser auth, paid subscriptions, uploads, and extension sign-in require the setup below.
+
 ## Environment Variables
 
 - Root/local: \`DATABASE_URL\` for shared Drizzle commands.
@@ -382,6 +429,76 @@ Local demo mode is enabled through generated \`.env\` files. Real provider behav
 - Backend/Vercel Backend: server secrets such as \`DATABASE_URL\`, \`CLERK_SECRET_KEY\`, \`RC_SECRET_API_KEY\`, \`RC_WEBHOOK_SECRET\`, and R2 credentials.
 - Extension: \`VITE_API_URL\`, \`VITE_CLERK_PUBLISHABLE_KEY\`, and optionally \`VITE_CRX_PUBLIC_KEY\`.
 - EAS: add native app public keys with \`eas secret:create\` or the EAS dashboard.
+
+## Provider Setup
+
+### Neon + Drizzle
+
+Docs:
+
+- https://neon.com/docs/get-started-with-neon/connect-neon
+- https://orm.drizzle.team/docs/tutorials/drizzle-with-neon
+
+Steps:
+
+1. Create a Neon project and Postgres database.
+2. Copy the pooled connection string.
+3. Set \`DATABASE_URL\` in the root \`.env\`, \`Backend/.env\`, and the Backend Vercel project.
+4. Run:
+
+\`\`\`sh
+pnpm db:generate
+pnpm db:migrate
+\`\`\`
+
+### Clerk
+
+Docs:
+
+- https://docs.expo.dev/guides/using-clerk/
+- https://clerk.com/docs/quickstarts/get-started-with-expo
+
+Steps:
+
+1. Create a Clerk application.
+2. Set \`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY\` in \`Frontend/.env\`, the Frontend Vercel project, and EAS.
+3. Set \`CLERK_PUBLISHABLE_KEY\` and \`CLERK_SECRET_KEY\` in \`Backend/.env\` and the Backend Vercel project.
+4. Set \`VITE_CLERK_PUBLISHABLE_KEY\` in \`Extension/.env\`.
+5. Add allowed origins for local Expo web, the deployed Frontend Vercel domain, and the Chrome extension origin after the extension id is stable.
+6. Configure native redirect/deep-link settings for the Expo scheme in \`Frontend/app.json\`.
+
+### RevenueCat + Stripe
+
+Docs:
+
+- https://www.revenuecat.com/docs/web/overview
+- https://www.revenuecat.com/docs/web/integrations/stripe
+- https://docs.stripe.com/keys
+
+Steps:
+
+1. Create the RevenueCat project.
+2. Create an entitlement named \`pro\`.
+3. Create iOS, Android, and Web apps in RevenueCat.
+4. Copy the public SDK keys into \`EXPO_PUBLIC_RC_API_KEY_IOS\`, \`EXPO_PUBLIC_RC_API_KEY_ANDROID\`, and \`EXPO_PUBLIC_RC_WEB_API_KEY\`.
+5. Set \`EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro\`.
+6. Connect Stripe as the RevenueCat web billing source.
+7. Set \`RC_SECRET_API_KEY\` and \`RC_WEBHOOK_SECRET\` only in Backend envs.
+8. Configure the RevenueCat webhook URL as \`https://<backend-domain>/webhooks/revenuecat\`.
+
+### Cloudflare R2/CDN
+
+Docs:
+
+- https://developers.cloudflare.com/r2/get-started/s3/
+- https://developers.cloudflare.com/r2/api/tokens/
+
+Steps:
+
+1. Create an R2 bucket.
+2. Create a least-privilege API token for that bucket.
+3. Set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` only in Backend envs.
+4. Configure a public bucket URL or custom domain if uploaded assets need public CDN delivery.
 
 ## Deploy
 
@@ -417,18 +534,33 @@ pnpm extension:zip
 
 Upload \`Extension/.output/*-chrome.zip\` to the Chrome Web Store Developer Dashboard.
 
-## Provider Checklist
+## Production Checklist
 
-- Clerk: configure allowed origins for the Expo web Vercel domain, native redirect/deep-link settings for the Expo scheme in \`Frontend/app.json\`, and the Chrome extension origin after publishing or after assigning a stable extension key.
-- RevenueCat + Stripe: create a \`pro\` entitlement, configure iOS/Android/Web app API keys separately, connect Stripe as the web billing source, set the RevenueCat webhook URL to \`https://<backend-domain>/webhooks/revenuecat\`, and keep \`RC_WEBHOOK_SECRET\` only in Backend.
-- Neon + Drizzle: create the Neon database, set \`DATABASE_URL\` locally and in the Backend Vercel project, then run \`pnpm db:generate\` and \`pnpm db:migrate\` before production traffic.
-- Cloudflare R2: create an R2 bucket and least-privilege API token, then set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` in Backend only.
+- Replace every \`*_placeholder\` value before production deploy.
+- Keep server secrets out of Frontend, Extension, and EAS public envs.
+- Confirm Clerk works on local web, Vercel web, iOS, Android, and the Chrome extension.
+- Confirm RevenueCat returns the \`pro\` entitlement after Stripe web purchase and native store purchase.
+- Confirm \`pnpm db:migrate\` has run against the production Neon database.
+- Confirm R2 upload and signed avatar URL retrieval work from the deployed Backend domain.
+- Confirm both Vercel projects can resolve \`packages/*\` workspace packages.
+- Confirm the Chrome extension ZIP is tested locally with \`chrome://extensions\` before Chrome Web Store upload.
 
 ## Relevant Docs
 
 - [Vercel monorepos](https://vercel.com/docs/monorepos)
+- [Vercel monorepo FAQ](https://vercel.com/docs/monorepos/monorepo-faq)
 - [Expo web publishing](https://docs.expo.dev/guides/publishing-websites/)
 - [Expo EAS](https://docs.expo.dev/eas/)
+- [Expo store submissions](https://docs.expo.dev/deploy/submit-to-app-stores/)
+- [Clerk with Expo](https://docs.expo.dev/guides/using-clerk/)
+- [Clerk Expo quickstart](https://clerk.com/docs/quickstarts/get-started-with-expo)
+- [Neon connection strings](https://neon.com/docs/get-started-with-neon/connect-neon)
+- [Drizzle with Neon](https://orm.drizzle.team/docs/tutorials/drizzle-with-neon)
+- [RevenueCat Web](https://www.revenuecat.com/docs/web/overview)
+- [RevenueCat Stripe Billing](https://www.revenuecat.com/docs/web/integrations/stripe)
+- [Stripe API keys](https://docs.stripe.com/keys)
+- [Cloudflare R2 S3 API](https://developers.cloudflare.com/r2/get-started/s3/)
+- [Cloudflare R2 API tokens](https://developers.cloudflare.com/r2/api/tokens/)
 - [WXT publishing](https://wxt.dev/guide/essentials/publishing.html)
 - [Chrome Web Store publishing](https://developer.chrome.com/docs/webstore/publish)
 `);

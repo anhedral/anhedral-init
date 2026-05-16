@@ -77,6 +77,18 @@ pnpm verify:backend
 pnpm verify:extension
 ```
 
+## Generated Provider Setup
+
+New projects ship with placeholder env values so the repository can be inspected before accounts are provisioned. A production UI requires real keys from each provider. The generated `README.md` and `PRODUCTION.md` now include setup links and exact env placement for:
+
+- Neon database: `DATABASE_URL`
+- Clerk auth: `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
+- RevenueCat + Stripe: `EXPO_PUBLIC_RC_*`, `RC_SECRET_API_KEY`, `RC_WEBHOOK_SECRET`
+- Cloudflare R2/CDN: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+- Vercel: two projects from the same Git repo, rooted at `Frontend` and `Backend`
+- EAS: native iOS and Android builds from `Frontend`
+- Chrome Web Store: WXT ZIP upload from `Extension/.output`
+
 ## Native App Deployment
 
 Use `Frontend` as the Expo project root for iOS and Android. Vercel only deploys the web export from this app; native builds go through EAS.
