@@ -10,11 +10,6 @@ export interface RevenueCatEntitlement {
   cancelAtPeriodEnd?: boolean;
 }
 
-export interface GrantPromoResult {
-  success: boolean;
-  expiresAt: Date;
-}
-
 const RC_CACHE_TTL_MS = process.env.NODE_ENV === 'production' ? 60_000 : 10_000;
 const rcEntitlementCache = new LRUCache<RevenueCatEntitlement>({ maxSize: 100_000, ttlMs: RC_CACHE_TTL_MS });
 const inflightCached = new Map<string, Promise<RevenueCatEntitlement>>();
@@ -22,17 +17,6 @@ const inflightForced  = new Map<string, Promise<RevenueCatEntitlement>>();
 
 export function invalidateRcEntitlementCache(appUserId: string, entitlementId: string): void {
   rcEntitlementCache.invalidate(`${entitlementId}:${appUserId}`);
-}
-
-function addMonthsClamped(date: Date, months: number): Date {
-  const m = Number.isFinite(months) ? months : 0;
-  if (m === 0) return new Date(date.getTime());
-  const yr = date.getFullYear(), mo = date.getMonth(), day = date.getDate();
-  const targetMo = mo + m;
-  const targetYr = yr + Math.floor(targetMo / 12);
-  const finalMo  = ((targetMo % 12) + 12) % 12;
-  const lastDay  = new Date(targetYr, finalMo + 1, 0).getDate();
-  return new Date(targetYr, finalMo, Math.min(day, lastDay), date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds());
 }
 
 interface RcSubscriberResponse {
@@ -128,21 +112,4 @@ export function verifyRevenueCatWebhookAuthorization(authHeader: string | undefi
   if (!authHeader) return false;
   const normalize = (v: string) => v.trim().replace(/^bearer\s+/i, '');
   return normalize(authHeader) === normalize(secret);
-}
-
-export async function grantPromotionalEntitlement(
-  appUserId: string, entitlementId: string, months: number, apiKey: string
-): Promise<GrantPromoResult> {
-  const safeMonths = Number.isFinite(months) && months > 0 ? months : 1;
-  const startsAt  = new Date();
-  const expiresAt = addMonthsClamped(startsAt, safeMonths);
-  const url = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}/entitlements/${encodeURIComponent(entitlementId)}/promotional`;
-  const res = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ duration: `${safeMonths}m`, end_time_ms: expiresAt.getTime() }),
-    timeout: 60_000,
-  });
-  if (!res.ok) throw new Error(`RevenueCat promo grant failed: ${res.status} ${await res.text()}`);
-  return { success: true, expiresAt };
 }

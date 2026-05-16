@@ -42,7 +42,7 @@ export function SignUpForm() {
         <CardHeader className="px-6 pt-8">
           <CardTitle className="text-center text-2xl sm:text-left">Create your account</CardTitle>
           <CardDescription className="text-center sm:text-left">
-            Start with a real signed-in shell instead of another empty Expo project.
+            Enter an email and password to continue.
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-6 px-6 pb-8">

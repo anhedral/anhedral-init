@@ -697,11 +697,6 @@ export interface RevenueCatEntitlement {
   cancelAtPeriodEnd?: boolean;
 }
 
-export interface GrantPromoResult {
-  success: boolean;
-  expiresAt: Date;
-}
-
 const RC_CACHE_TTL_MS = process.env.NODE_ENV === 'production' ? 60_000 : 10_000;
 const rcEntitlementCache = new LRUCache<RevenueCatEntitlement>({ maxSize: 100_000, ttlMs: RC_CACHE_TTL_MS });
 const inflightCached = new Map<string, Promise<RevenueCatEntitlement>>();
@@ -709,17 +704,6 @@ const inflightForced  = new Map<string, Promise<RevenueCatEntitlement>>();
 
 export function invalidateRcEntitlementCache(appUserId: string, entitlementId: string): void {
   rcEntitlementCache.invalidate(\`\${entitlementId}:\${appUserId}\`);
-}
-
-function addMonthsClamped(date: Date, months: number): Date {
-  const m = Number.isFinite(months) ? months : 0;
-  if (m === 0) return new Date(date.getTime());
-  const yr = date.getFullYear(), mo = date.getMonth(), day = date.getDate();
-  const targetMo = mo + m;
-  const targetYr = yr + Math.floor(targetMo / 12);
-  const finalMo  = ((targetMo % 12) + 12) % 12;
-  const lastDay  = new Date(targetYr, finalMo + 1, 0).getDate();
-  return new Date(targetYr, finalMo, Math.min(day, lastDay), date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds());
 }
 
 interface RcSubscriberResponse {
@@ -815,23 +799,6 @@ export function verifyRevenueCatWebhookAuthorization(authHeader: string | undefi
   if (!authHeader) return false;
   const normalize = (v: string) => v.trim().replace(/^bearer\\s+/i, '');
   return normalize(authHeader) === normalize(secret);
-}
-
-export async function grantPromotionalEntitlement(
-  appUserId: string, entitlementId: string, months: number, apiKey: string
-): Promise<GrantPromoResult> {
-  const safeMonths = Number.isFinite(months) && months > 0 ? months : 1;
-  const startsAt  = new Date();
-  const expiresAt = addMonthsClamped(startsAt, safeMonths);
-  const url = \`https://api.revenuecat.com/v1/subscribers/\${encodeURIComponent(appUserId)}/entitlements/\${encodeURIComponent(entitlementId)}/promotional\`;
-  const res = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: \`Bearer \${apiKey}\` },
-    body: JSON.stringify({ duration: \`\${safeMonths}m\`, end_time_ms: expiresAt.getTime() }),
-    timeout: 60_000,
-  });
-  if (!res.ok) throw new Error(\`RevenueCat promo grant failed: \${res.status} \${await res.text()}\`);
-  return { success: true, expiresAt };
 }
 `);
 
@@ -1497,27 +1464,13 @@ export class UserRepository {
     return { created: true };
   }
 
-  async updateAvatar(userId: string, input: {
-    avatarObjectKey: string;
-    avatarMimeType: string;
-  }): Promise<void> {
-    await this.db.update(users).set({
-      avatarObjectKey: input.avatarObjectKey,
-      avatarMimeType: input.avatarMimeType,
-    }).where(eq(users.id, userId));
-    authPluginCache.invalidate(\`auth:\${userId}\`);
-  }
-
-  async getDashboardProfile(userId: string) {
+  async getProfile(userId: string) {
     const rows = await this.db
       .select({
         id: users.id,
         email: users.email,
         displayName: users.displayName,
         profileImageUrl: users.profileImageUrl,
-        avatarObjectKey: users.avatarObjectKey,
-        avatarMimeType: users.avatarMimeType,
-        creditsBalance: users.creditsBalance,
         subscriptionTier: subscriptions.tier,
         subscriptionStatus: subscriptions.status,
       })
@@ -1701,77 +1654,26 @@ export class SubscriptionEventRepository {
 }
 `);
 
-  writeFile(path.join(dir, 'src/repositories/PromoCodeRepository.ts'), `import { eq, and, lt, sql } from 'drizzle-orm';
-import crypto from 'node:crypto';
-import type { Database } from '../db/index.js';
-import { promoCodes, promoRedemptions } from '../db/schema.js';
-import type { PromoCodes } from '../db/schema.js';
-
-export interface ValidateCodeResult {
-  valid: boolean;
-  error?: string;
-  promoCode?: PromoCodes;
-}
-
-export class PromoCodeRepository {
-  constructor(private db: Database) {}
-
-  async validateCode(code: string, userId: string): Promise<ValidateCodeResult> {
-    const [promoCode] = await this.db.select().from(promoCodes)
-      .where(eq(promoCodes.code, code.toUpperCase())).limit(1);
-    if (!promoCode) return { valid: false, error: 'invalid_code' };
-
-    const now = new Date();
-    if (promoCode.expiresAt && promoCode.expiresAt < now) return { valid: false, error: 'code_expired' };
-    if (promoCode.redeemedCount >= promoCode.maxRedemptions) return { valid: false, error: 'code_fully_used' };
-
-    const [existing] = await this.db.select().from(promoRedemptions)
-      .where(and(eq(promoRedemptions.promoCodeId, promoCode.id), eq(promoRedemptions.userId, userId))).limit(1);
-    if (existing) return { valid: false, error: 'already_redeemed' };
-
-    return { valid: true, promoCode };
-  }
-
-  async recordRedemption(promoCodeId: string, userId: string, entitlementExpiresAt: Date): Promise<void> {
-    await this.db.insert(promoRedemptions).values({
-      id: crypto.randomUUID(), promoCodeId, userId, entitlementExpiresAt,
-    });
-    await this.db.update(promoCodes)
-      .set({ redeemedCount: sql\`\${promoCodes.redeemedCount} + 1\` })
-      .where(eq(promoCodes.id, promoCodeId));
-  }
-
-  async findExpiredRedemptions(userId: string): Promise<typeof promoRedemptions.$inferSelect[]> {
-    return this.db.select().from(promoRedemptions)
-      .where(and(eq(promoRedemptions.userId, userId), lt(promoRedemptions.entitlementExpiresAt, new Date())));
-  }
-}
-`);
-
   writeFile(path.join(dir, 'src/repositories/index.ts'), `import type { Database } from '../db/index.js';
 import { UserRepository } from './UserRepository.js';
 import { SubscriptionRepository } from './SubscriptionRepository.js';
 import { SubscriptionEventRepository } from './SubscriptionEventRepository.js';
-import { PromoCodeRepository } from './PromoCodeRepository.js';
 
 export class Repositories {
   public readonly users: UserRepository;
   public readonly subscriptions: SubscriptionRepository;
   public readonly subscriptionEvents: SubscriptionEventRepository;
-  public readonly promoCodes: PromoCodeRepository;
 
   constructor(db: Database) {
     this.users = new UserRepository(db);
     this.subscriptions = new SubscriptionRepository(db);
     this.subscriptionEvents = new SubscriptionEventRepository(db);
-    this.promoCodes = new PromoCodeRepository(db);
   }
 }
 
 export { UserRepository } from './UserRepository.js';
 export { SubscriptionRepository } from './SubscriptionRepository.js';
 export { SubscriptionEventRepository } from './SubscriptionEventRepository.js';
-export { PromoCodeRepository } from './PromoCodeRepository.js';
 export type { UserAuthData } from './UserRepository.js';
 export type { RecordEventParams } from './SubscriptionEventRepository.js';
 `);
@@ -1810,7 +1712,6 @@ export default healthRoutes;
 import { clerkClient } from '@clerk/fastify';
 import { AuthError } from '../errors/index.js';
 import { createAuthHook } from '../lib/routeHelpers.js';
-import { createSignedAvatarUrl, isR2Configured, uploadAvatarToR2 } from '../lib/r2.js';
 
 function getDisplayName(input: {
   firstName?: string | null;
@@ -1821,28 +1722,6 @@ function getDisplayName(input: {
   return [input.firstName, input.lastName].filter(Boolean).join(' ').trim()
     || input.fallback
     || (input.email ? input.email.split('@')[0] : 'Builder');
-}
-
-async function resolveAvatarUrl(input: {
-  avatarObjectKey?: string | null;
-  fallbackUrl?: string | null;
-}) {
-  if (input.avatarObjectKey && isR2Configured()) {
-    try {
-      return await createSignedAvatarUrl(input.avatarObjectKey);
-    } catch {
-      return input.fallbackUrl ?? null;
-    }
-  }
-
-  return input.fallbackUrl ?? null;
-}
-
-function sanitizeFileName(fileName: string) {
-  return fileName
-    .toLowerCase()
-    .replace(/[^a-z0-9.-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -1860,16 +1739,12 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           lastName: 'Builder',
           displayName: '${displayName} Demo',
           imageUrl: null,
-          avatarUrl: null,
-          creditsBalance: 250,
-          subscriptionTier: 'pro',
-          subscriptionStatus: 'active',
         },
       });
     }
 
     const clerkUser = await clerkClient.users.getUser(req.user.id);
-    const userData = await fastify.repos.users.getDashboardProfile(req.user.id);
+    const userData = await fastify.repos.users.getProfile(req.user.id);
     const primaryEmail = clerkUser.emailAddresses.find(
       (e: { id: string }) => e.id === clerkUser.primaryEmailAddressId
     );
@@ -1880,10 +1755,6 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       email,
       fallback: userData?.displayName ?? null,
     });
-    const avatarUrl = await resolveAvatarUrl({
-      avatarObjectKey: userData?.avatarObjectKey ?? null,
-      fallbackUrl: userData?.profileImageUrl ?? clerkUser.imageUrl ?? null,
-    });
 
     return reply.send({
       user: {
@@ -1893,10 +1764,6 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         lastName: clerkUser.lastName,
         displayName,
         imageUrl: userData?.profileImageUrl ?? clerkUser.imageUrl,
-        avatarUrl,
-        creditsBalance: userData?.creditsBalance ?? 250,
-        subscriptionTier: userData?.subscriptionTier || 'free',
-        subscriptionStatus: userData?.subscriptionStatus || 'active',
       },
     });
   });
@@ -1906,48 +1773,6 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   }, async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.user?.id) throw AuthError.unauthorized();
     return reply.send({ success: true });
-  });
-
-  fastify.post<{ Body: { base64: string; mimeType: string; fileName?: string } }>('/avatar', {
-    preHandler: createAuthHook(fastify),
-  }, async (req, reply) => {
-    if (!req.user?.id) throw AuthError.unauthorized();
-    if (!isR2Configured()) {
-      return reply.code(500).send({ error: 'r2_not_configured', message: 'Configure Cloudflare R2 before uploading avatars.' });
-    }
-
-    const { base64, mimeType, fileName } = req.body;
-    if (!base64 || !mimeType) {
-      return reply.code(400).send({ error: 'invalid_payload', message: 'Avatar payload is incomplete.' });
-    }
-    if (!mimeType.startsWith('image/')) {
-      return reply.code(400).send({ error: 'invalid_mime_type', message: 'Only image uploads are supported.' });
-    }
-
-    const normalizedBase64 = base64.includes(',') ? (base64.split(',')[1] ?? '') : base64;
-    const buffer = Buffer.from(normalizedBase64, 'base64');
-    if (buffer.length === 0) {
-      return reply.code(400).send({ error: 'invalid_payload', message: 'Avatar payload is empty.' });
-    }
-    if (buffer.length > 5 * 1024 * 1024) {
-      return reply.code(400).send({ error: 'file_too_large', message: 'Avatar uploads are capped at 5MB.' });
-    }
-
-    const safeName = sanitizeFileName(fileName || 'avatar');
-    const objectKey = \`avatars/\${req.user.id}/\${Date.now()}-\${safeName || 'avatar'}\`;
-    await uploadAvatarToR2({
-      objectKey,
-      body: buffer,
-      contentType: mimeType,
-    });
-
-    await fastify.repos.users.updateAvatar(req.user.id, {
-      avatarObjectKey: objectKey,
-      avatarMimeType: mimeType,
-    });
-
-    const avatarUrl = await createSignedAvatarUrl(objectKey);
-    return reply.send({ ok: true, avatarUrl });
   });
 
   fastify.delete('/account', {
@@ -1967,8 +1792,8 @@ export default authRoutes;
 import clerkAuthPlugin from '../plugins/clerkAuth.js';
 import { SubscriptionService } from '../services/SubscriptionService.js';
 import { AuthError } from '../errors/index.js';
-import { verifyRevenueCatWebhook, verifyRevenueCatWebhookAuthorization, grantPromotionalEntitlement } from '../lib/revenuecat.js';
-import { createAuthHook, runBackgroundTask } from '../lib/routeHelpers.js';
+import { verifyRevenueCatWebhook, verifyRevenueCatWebhookAuthorization } from '../lib/revenuecat.js';
+import { createAuthHook } from '../lib/routeHelpers.js';
 import { CACHE_SECONDS } from '../lib/constants.js';
 
 const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -2007,50 +1832,6 @@ const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       const data = await service.getEntitlementWithTrial(userId, { refreshRevenueCat: forceRefresh }, req);
       reply.header('Cache-Control', 'private, no-store');
       return reply.send(data);
-    });
-
-    app.post<{ Body: { code: string } }>('/redeem', {
-      preHandler: createAuthHook(app),
-    }, async (req, reply) => {
-      const userId = req.user?.id;
-      if (!userId) throw AuthError.unauthorized();
-      if (app.env.ANHEDRAL_DEMO === 'true') {
-        return { ok: true, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
-      }
-      const { code } = req.body;
-      const validation = await app.repos.promoCodes.validateCode(code, userId);
-      if (!validation.valid || !validation.promoCode) {
-        const msgs: Record<string, string> = { invalid_code: 'This code is not valid.', code_expired: 'This code has expired.', code_fully_used: 'This code has already been used.', already_redeemed: 'You have already redeemed this code.' };
-        return reply.code(400).send({ error: validation.error, message: msgs[validation.error!] || 'Invalid code.' });
-      }
-      const rcKey = app.env.RC_SECRET_API_KEY;
-      if (!rcKey) return reply.code(500).send({ error: 'configuration_error', message: 'Subscription service not configured.' });
-
-      const { promoCode } = validation;
-      const entitlementId = app.env.RC_ENTITLEMENT_ID || 'pro';
-      try {
-        const currentSub = await app.repos.subscriptions.findByUserId(userId);
-        const result = await grantPromotionalEntitlement(userId, entitlementId, promoCode.months, rcKey);
-        await app.repos.promoCodes.recordRedemption(promoCode.id, userId, result.expiresAt);
-        const now = new Date();
-        await app.repos.subscriptions.upsert(userId, {
-          tier: 'pro', status: 'active', method: 'redeemed',
-          currentPeriodStart: now, currentPeriodEnd: result.expiresAt,
-          trialStart: null, trialEnd: null,
-          metadata: { redeemCode: promoCode.code, redeemCodeRedeemedAt: now.toISOString() },
-        });
-        runBackgroundTask(req, app.repos.subscriptionEvents.recordEvent({
-          userId, subscriptionId: currentSub?.id, eventType: 'promo_redeemed',
-          previousState: { tier: currentSub?.tier, status: currentSub?.status, method: currentSub?.method },
-          newState: { tier: 'pro', status: 'active', method: 'redeemed' },
-          periodStart: now, periodEnd: result.expiresAt,
-          metadata: { promoCode: promoCode.code },
-        }), 'promo_redeemed_event');
-        return { ok: true, expiresAt: result.expiresAt.toISOString() };
-      } catch (err) {
-        app.log.error({ msg: '[redeem:failed]', userId, error: (err as Error).message });
-        return reply.code(500).send({ error: 'redemption_failed', message: 'Failed to redeem code. Please try again.' });
-      }
     });
   });
 

@@ -58,7 +58,7 @@ function Routes() {
       </Stack.Protected>
 
       <Stack.Protected guard={isSignedIn}>
-        <Stack.Screen name="(app)/dashboard" options={{ headerShown: false }} />
+        <Stack.Screen name="(app)/system" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

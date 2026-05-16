@@ -35,20 +35,6 @@ export async function syncUserProfile(input: SyncUserInput) {
   return findUserByClerkId(input.clerkUserId);
 }
 
-export async function updateAvatarForUser(
-  clerkUserId: string,
-  input: { objectKey: string; contentType: string | null },
-) {
-  await db
-    .update(users)
-    .set({
-      avatarObjectKey: input.objectKey,
-      avatarMimeType: input.contentType,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.clerkUserId, clerkUserId));
-}
-
 export async function createUploadRecord(
   clerkUserId: string,
   input: { objectKey: string; bucket: string; contentType: string | null },

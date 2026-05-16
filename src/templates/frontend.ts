@@ -51,16 +51,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
   writeAnhedralLogo(dir);
   writeSubscriptionProvider(dir);
   writeUseSubscription(dir);
-
-  anhedralPrint.step('Installing Expo native packages');
-  if (skipInstall) {
-    anhedralPrint.info('Skipping Expo native package install (--skip-install)');
-    anhedralPrint.info('Run after init: pnpm --filter ./Frontend exec expo install --pnpm expo-image-picker');
-  } else {
-    exec('pnpm exec expo install --pnpm expo-image-picker', dir);
-    exec('pnpm exec expo install --fix --pnpm', dir);
-  }
-  anhedralPrint.done(skipInstall ? 'Expo native package install skipped' : 'Expo native packages installed');
+  removeUnusedFrontendFiles(dir);
 
   anhedralPrint.step('Installing RevenueCat SDKs');
   const revenueCatDependencies = withVersions({
@@ -91,6 +82,8 @@ function patchFrontendPackageJson(dir: string): void {
     'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
     '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
   };
+  delete packageJson.dependencies['@rn-primitives/avatar'];
+  delete packageJson.dependencies['expo-image-picker'];
 
   packageJson.scripts = {
     ...(packageJson.scripts ?? {}),
@@ -100,6 +93,13 @@ function patchFrontendPackageJson(dir: string): void {
   };
 
   writeFile(filePath, JSON.stringify(packageJson, null, 2) + '\n');
+}
+
+function removeUnusedFrontendFiles(dir: string): void {
+  const avatarComponent = path.join(dir, 'components/ui/avatar.tsx');
+  if (fs.existsSync(avatarComponent)) {
+    fs.rmSync(avatarComponent);
+  }
 }
 
 function patchFrontendTsConfig(dir: string): void {
@@ -151,10 +151,6 @@ function writeApiClient(dir: string): void {
 export class APIClient extends ApiClient {
   constructor(baseUrl: string, getToken: () => Promise<string | null>) {
     super({ baseUrl, getToken, platform: 'frontend' });
-  }
-
-  redeemPromoCode(code: string) {
-    return this.redeemCode(code);
   }
 }
 
@@ -289,10 +285,6 @@ export type AccountSummary = {
   lastName?: string | null;
   displayName: string;
   imageUrl?: string | null;
-  avatarUrl?: string | null;
-  creditsBalance: number;
-  subscriptionTier: string;
-  subscriptionStatus: string;
 };
 
 export function useAccount() {
@@ -328,22 +320,11 @@ export function useAccount() {
     void refresh();
   }, [refresh]);
 
-  const uploadAvatar = React.useCallback(async (input: {
-    base64: string;
-    mimeType: string;
-    fileName?: string;
-  }) => {
-    const response = await api.uploadAvatar(input);
-    setAccount((prev) => prev ? { ...prev, avatarUrl: response.avatarUrl } : prev);
-    return response;
-  }, [api]);
-
   return {
     account,
     loading,
     error,
     refresh,
-    uploadAvatar,
   };
 }
 `);
@@ -634,37 +615,14 @@ export function useSubscriptionContext() {
 }
 
 function writeUseSubscription(dir: string): void {
-  writeFile(path.join(dir, 'hooks/useSubscription.ts'), `import { useCallback, useState } from 'react';
-import { Linking, NativeModules, Platform } from 'react-native';
-import Purchases from 'react-native-purchases';
+  writeFile(path.join(dir, 'hooks/useSubscription.ts'), `import { useCallback } from 'react';
+import { Linking, Platform } from 'react-native';
 import { useSubscriptionContext } from '@/contexts/SubscriptionProvider';
 import { useAPI } from '@/hooks/useAPI';
-import { APIRequestError } from '@/api/client';
-
-export type RedeemError =
-  | 'invalid_code' | 'code_expired' | 'code_fully_used' | 'already_redeemed'
-  | 'redemption_failed' | 'offer_code_only' | 'offer_code_unavailable' | 'network_error';
-
-const REDEEM_ERROR_MESSAGES: Record<RedeemError, string> = {
-  invalid_code: 'This code is not valid.',
-  code_expired: 'This code has expired.',
-  code_fully_used: 'This code has already been used.',
-  already_redeemed: 'You have already redeemed this code.',
-  redemption_failed: 'Failed to redeem code. Please try again.',
-  offer_code_only: 'Promo codes must be redeemed through the App Store on iOS.',
-  offer_code_unavailable: 'Offer code redemption requires a development build.',
-  network_error: 'Network error. Please check your connection.',
-};
 
 export function useSubscription() {
   const ctx = useSubscriptionContext();
   const api = useAPI();
-  const hasNativePurchases = Platform.OS !== 'web' && Boolean((NativeModules as { RNPurchases?: unknown }).RNPurchases);
-
-  const [redeemState, setRedeemState] = useState({
-    loading: false, error: null as RedeemError | null, errorMessage: null as string | null,
-    success: false, expiresAt: null as string | null,
-  });
 
   const accessUntilMs = (() => {
     const until = (ctx.method === 'trialing' ? (ctx.trialEndsAt ?? ctx.periodEnd) : (ctx.expiresAt ?? ctx.periodEnd)) ?? null;
@@ -696,61 +654,6 @@ export function useSubscription() {
     await ctx.openPaywall(plan);
   }, [ctx]);
 
-  const redeem = useCallback(async (code: string): Promise<boolean> => {
-    setRedeemState(s => ({ ...s, loading: true, error: null, errorMessage: null, success: false, expiresAt: null }));
-    if (Platform.OS === 'ios') {
-      setRedeemState(s => ({ ...s, loading: false, error: 'offer_code_only', errorMessage: REDEEM_ERROR_MESSAGES.offer_code_only }));
-      return false;
-    }
-    try {
-      try { await ctx.refresh(); } catch {}
-      const result = await api.redeemPromoCode(code.trim());
-      await ctx.refresh();
-      setRedeemState(s => ({ ...s, loading: false, success: true, expiresAt: result.expiresAt }));
-      return true;
-    } catch (err) {
-      const errorCode = err instanceof APIRequestError
-        ? (err.errorCode as RedeemError) || 'redemption_failed'
-        : 'network_error';
-      setRedeemState(s => ({ ...s, loading: false, error: errorCode, errorMessage: REDEEM_ERROR_MESSAGES[errorCode] || 'Unknown error' }));
-      return false;
-    }
-  }, [api, ctx]);
-
-  const redeemOfferCode = useCallback(async (): Promise<boolean> => {
-    setRedeemState(s => ({ ...s, loading: true, error: null, errorMessage: null, success: false, expiresAt: null }));
-    if (Platform.OS !== 'ios') {
-      setRedeemState(s => ({ ...s, loading: false, error: 'offer_code_only', errorMessage: REDEEM_ERROR_MESSAGES.offer_code_only }));
-      return false;
-    }
-    if (!hasNativePurchases) {
-      setRedeemState(s => ({ ...s, loading: false, error: 'offer_code_unavailable', errorMessage: REDEEM_ERROR_MESSAGES.offer_code_unavailable }));
-      return false;
-    }
-    try {
-      await Purchases.presentCodeRedemptionSheet();
-      try { await Purchases.syncPurchases(); } catch {}
-      const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-      let refreshed: Awaited<ReturnType<typeof api.getSubscriptionEntitlements>> | null = null;
-      for (let i = 0; i < 6; i++) {
-        refreshed = await api.getSubscriptionEntitlements({ refresh: true });
-        if (refreshed?.pro) break;
-        if (i < 5) await wait(1500);
-      }
-      const redeemed = Boolean(refreshed?.pro) && (refreshed?.method === 'redeemed' || refreshed?.method === 'paid');
-      await ctx.refresh();
-      setRedeemState(s => ({ ...s, loading: false, success: redeemed }));
-      return redeemed;
-    } catch {
-      setRedeemState(s => ({ ...s, loading: false, error: 'redemption_failed', errorMessage: REDEEM_ERROR_MESSAGES.redemption_failed }));
-      return false;
-    }
-  }, [api, ctx, hasNativePurchases]);
-
-  const resetRedeem = useCallback(() => {
-    setRedeemState({ loading: false, error: null, errorMessage: null, success: false, expiresAt: null });
-  }, []);
-
   const manageSubscription = useCallback(async () => {
     let url: string | null = managementUrl ?? null;
     if (!url && Platform.OS === 'web' && ctx.entitlementActive) {
@@ -767,10 +670,7 @@ export function useSubscription() {
     trialDaysRemaining, expiresAt: ctx.expiresAt, periodStart: ctx.periodStart,
     periodEnd: ctx.periodEnd, managementUrl, cancelAtPeriodEnd: ctx.cancelAtPeriodEnd,
     pricing: ctx.pricing, offerings: ctx.offerings, lastError: ctx.lastError,
-    subscribe, redeem, redeemOfferCode, resetRedeem, refresh: ctx.refresh, manageSubscription,
-    redeemLoading: redeemState.loading, redeemError: redeemState.error,
-    redeemErrorMessage: redeemState.errorMessage, redeemSuccess: redeemState.success,
-    redeemExpiresAt: redeemState.expiresAt,
+    subscribe, refresh: ctx.refresh, manageSubscription,
   };
 }
 
@@ -839,7 +739,7 @@ function Routes() {
       </Stack.Protected>
 
       <Stack.Protected guard={isSignedIn}>
-        <Stack.Screen name="(app)/dashboard" options={{ headerShown: false }} />
+        <Stack.Screen name="(app)/system" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );
@@ -848,129 +748,70 @@ function Routes() {
 
   writeFile(path.join(dir, 'app/index.tsx'), `import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { useAuth } from '@clerk/expo';
 import { Link } from 'expo-router';
-import { CloudIcon, CreditCardIcon, ShieldCheckIcon, DatabaseIcon } from 'lucide-react-native';
 import { ScrollView, View } from 'react-native';
 
-const FEATURES = [
-  {
-    title: 'Landing page here',
-    description: 'Replace this placeholder copy with the actual acquisition story for your Expo app.',
-    icon: CloudIcon,
-  },
-  {
-    title: 'Clerk custom auth',
-    description: 'Custom sign-in and sign-up screens are already wired into the Expo starter.',
-    icon: ShieldCheckIcon,
-  },
-  {
-    title: 'RevenueCat subscriptions',
-    description: 'The signed-in shell already knows how to open a RevenueCat paywall and management flow.',
-    icon: CreditCardIcon,
-  },
-  {
-    title: 'Neon + Drizzle + R2',
-    description: 'Backend routes for profile data, credits, and avatar upload are scaffolded for you.',
-    icon: DatabaseIcon,
-  },
-];
-
-export default function LandingScreen() {
+export default function HomeScreen() {
   const { isSignedIn } = useAuth();
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="min-h-full px-4 pb-10 pt-6 sm:px-6">
-      <View className="mx-auto flex w-full max-w-5xl gap-6">
-        <View className="flex-row items-center justify-between rounded-[28px] border border-border/70 bg-card px-4 py-3">
-          <View>
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">anhedral crossplatform</Text>
-            <Text className="mt-1 text-lg font-semibold">${displayName}</Text>
-          </View>
-          <View className="flex-row items-center gap-2">
-            <ThemeToggle />
-            {isSignedIn ? (
-              <Link href="/(app)/dashboard" asChild>
-                <Button size="sm">
-                  <Text>Open dashboard</Text>
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link href="/(auth)/sign-in" asChild>
-                  <Button size="sm" variant="ghost">
-                    <Text>Sign in</Text>
-                  </Button>
-                </Link>
-                <Link href="/(auth)/sign-up" asChild>
-                  <Button size="sm">
-                    <Text>Get started</Text>
-                  </Button>
-                </Link>
-              </>
-            )}
-          </View>
+      <View className="mx-auto w-full max-w-3xl gap-4">
+        <View className="flex-row items-center justify-between border-b border-border py-3">
+          <Text className="text-lg font-semibold">${displayName}</Text>
+          <ThemeToggle />
         </View>
 
-        <Card className="rounded-[32px] border-border/70 bg-card">
-          <CardHeader className="gap-4 px-6 pt-8 sm:px-8">
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Starter shell</Text>
-            <CardTitle className="text-left text-4xl leading-tight sm:text-5xl">
-              Landing page here. Replace the story, keep the plumbing.
-            </CardTitle>
-            <CardDescription className="max-w-3xl text-base leading-7">
-              This crossplatform starter already gives you a real auth flow, a protected dashboard, RevenueCat subscription plumbing, seeded credits, and avatar upload to R2.
-            </CardDescription>
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-left text-2xl">Application foundation ready</CardTitle>
           </CardHeader>
-          <CardContent className="gap-3 px-6 pb-8 sm:px-8">
-            {isSignedIn ? (
-              <Link href="/(app)/dashboard" asChild>
-                <Button className="self-start">
-                  <Text>Continue to the app</Text>
-                </Button>
-              </Link>
-            ) : (
-              <Link href="/(auth)/sign-up" asChild>
-                <Button className="self-start">
-                  <Text>Create an account</Text>
-                </Button>
-              </Link>
-            )}
+          <CardContent className="gap-4">
+            <Text className="text-muted-foreground">
+              Configure providers, then use the protected area to verify auth, API, subscription, database, and storage wiring.
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {isSignedIn ? (
+                <Link href="/system" asChild>
+                  <Button>
+                    <Text>Open app</Text>
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/(auth)/sign-in" asChild>
+                    <Button>
+                      <Text>Sign in</Text>
+                    </Button>
+                  </Link>
+                  <Link href="/(auth)/sign-up" asChild>
+                    <Button variant="outline">
+                      <Text>Create account</Text>
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </View>
           </CardContent>
         </Card>
-
-        <View className="gap-3 sm:flex-row sm:flex-wrap">
-          {FEATURES.map(({ title, description, icon: Icon }) => (
-            <Card key={title} className="flex-1 rounded-[24px] border-border/70 bg-card sm:min-w-[240px]">
-              <CardHeader className="px-5 pt-5">
-                <View className="mb-2 size-11 items-center justify-center rounded-2xl bg-muted">
-                  <Icon size={20} color="currentColor" />
-                </View>
-                <CardTitle className="text-left text-xl">{title}</CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-5">
-                <Text className="text-sm leading-6 text-muted-foreground">{description}</Text>
-              </CardContent>
-            </Card>
-          ))}
-        </View>
       </View>
     </ScrollView>
   );
 }
 `);
 
-  writeFile(path.join(dir, 'app/(app)/dashboard.tsx'), `import { ThemeToggle } from '@/components/theme-toggle';
+  writeFile(path.join(dir, 'app/(app)/system.tsx'), `import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { useAccount } from '@/hooks/useAccount';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Stack } from 'expo-router';
-import { CoinsIcon, CreditCardIcon, HardDriveUploadIcon, SparklesIcon } from 'lucide-react-native';
+import { CheckCircleIcon, CircleAlertIcon, CreditCardIcon, DatabaseIcon } from 'lucide-react-native';
 import * as React from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 
@@ -979,20 +820,12 @@ export default function DashboardScreen() {
   const subscription = useSubscription();
 
   const subscriptionLabel = React.useMemo(() => {
-    if (subscription.isPaid) return 'RevenueCat Pro';
-    if (subscription.isTrial) return \`Trial • \${subscription.trialDaysRemaining} days left\`;
-    if (subscription.isRedeemed) return 'Promo access';
-    if (subscription.canAccess) return 'Access active';
-    return 'Free';
+    if (subscription.isPaid) return 'Paid';
+    if (subscription.isTrial) return \`Trial, \${subscription.trialDaysRemaining} days left\`;
+    if (subscription.isRedeemed) return 'Redeemed';
+    if (subscription.canAccess) return 'Active';
+    return 'Inactive';
   }, [subscription.canAccess, subscription.isPaid, subscription.isRedeemed, subscription.isTrial, subscription.trialDaysRemaining]);
-
-  const subscriptionStatus = React.useMemo(() => {
-    if (subscription.isPaid || subscription.isRedeemed) {
-      return subscription.cancelAtPeriodEnd ? 'Cancels at period end' : 'Active';
-    }
-    if (subscription.isTrial) return 'Trialing';
-    return 'Setup required';
-  }, [subscription.cancelAtPeriodEnd, subscription.isPaid, subscription.isRedeemed, subscription.isTrial]);
 
   const runSubscriptionAction = React.useCallback(async () => {
     if (subscription.managementUrl) {
@@ -1020,71 +853,59 @@ export default function DashboardScreen() {
         className="flex-1 bg-background"
         contentContainerClassName="px-4 pb-10 pt-4 sm:px-6"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}>
-        <View className="mx-auto w-full max-w-5xl gap-4">
-          <Card className="rounded-[28px] border-border/70 bg-card">
-            <CardHeader className="gap-4 px-6 pt-8 sm:px-8">
-              <View className="flex-row items-center gap-2">
-                <SparklesIcon size={18} color="currentColor" />
-                <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Signed-in shell</Text>
-              </View>
-              <CardTitle className="text-left text-4xl leading-tight">
-                {account?.displayName ? \`Make \${account.displayName} yours.\` : 'Make this app yours.'}
-              </CardTitle>
-              <CardDescription className="max-w-3xl text-base leading-7">
-                This screen is the production starter: subscription state, credits, and avatar upload are already in place so your team can move straight to product work.
-              </CardDescription>
+        <View className="mx-auto w-full max-w-3xl gap-4">
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-left text-2xl">System status</CardTitle>
             </CardHeader>
-            <CardContent className="flex-row flex-wrap gap-3 px-6 pb-8 sm:px-8">
+            <CardContent className="flex-row flex-wrap gap-2">
               <Button onPress={() => void runSubscriptionAction()}>
-                <Text>{subscription.managementUrl ? 'Manage subscription' : 'Unlock pro'}</Text>
+                <Text>{subscription.managementUrl ? 'Manage subscription' : 'Open paywall'}</Text>
               </Button>
               <Button variant="outline" onPress={() => void refresh()}>
-                <Text>Refresh profile</Text>
+                <Text>Refresh</Text>
               </Button>
             </CardContent>
           </Card>
 
-          <View className="gap-3 sm:flex-row sm:flex-wrap">
-            <Card className="flex-1 rounded-[24px] border-border/70 bg-card sm:min-w-[240px]">
-              <CardHeader className="px-5 pt-5">
-                <View className="mb-2 size-11 items-center justify-center rounded-2xl bg-muted">
-                  <CreditCardIcon size={20} color="currentColor" />
+          <View className="gap-3">
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <View className="flex-row items-center gap-2">
+                  {account ? <CheckCircleIcon size={18} color="currentColor" /> : <CircleAlertIcon size={18} color="currentColor" />}
+                  <CardTitle className="text-left text-lg">Authenticated API</CardTitle>
                 </View>
-                <CardTitle className="text-left text-xl">{subscriptionLabel}</CardTitle>
               </CardHeader>
-              <CardContent className="gap-2 px-5 pb-5">
-                <Text className="text-sm text-muted-foreground">{subscriptionStatus}</Text>
-                {subscription.expiresAt ? (
-                  <Text className="text-sm text-muted-foreground">Access until {new Date(subscription.expiresAt).toLocaleDateString()}</Text>
-                ) : null}
+              <CardContent className="gap-1">
+                <Text className="text-sm text-muted-foreground">{account ? 'Connected' : loading ? 'Loading' : 'Unavailable'}</Text>
+                {account ? <Text>{account.email}</Text> : null}
               </CardContent>
             </Card>
 
-            <Card className="flex-1 rounded-[24px] border-border/70 bg-card sm:min-w-[240px]">
-              <CardHeader className="px-5 pt-5">
-                <View className="mb-2 size-11 items-center justify-center rounded-2xl bg-muted">
-                  <CoinsIcon size={20} color="currentColor" />
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <View className="flex-row items-center gap-2">
+                  <CreditCardIcon size={18} color="currentColor" />
+                  <CardTitle className="text-left text-lg">Subscription entitlement</CardTitle>
                 </View>
-                <CardTitle className="text-left text-xl">{account?.creditsBalance ?? 250} credits</CardTitle>
               </CardHeader>
-              <CardContent className="px-5 pb-5">
-                <Text className="text-sm leading-6 text-muted-foreground">
-                  Credits are seeded in the backend user record so you can connect real usage accounting later without redesigning the shell.
-                </Text>
+              <CardContent className="gap-1">
+                <Text>{subscriptionLabel}</Text>
+                {subscription.expiresAt ? <Text className="text-sm text-muted-foreground">Expires {new Date(subscription.expiresAt).toLocaleDateString()}</Text> : null}
+                {subscription.cancelAtPeriodEnd ? <Text className="text-sm text-muted-foreground">Cancels at period end</Text> : null}
               </CardContent>
             </Card>
 
-            <Card className="flex-1 rounded-[24px] border-border/70 bg-card sm:min-w-[240px]">
-              <CardHeader className="px-5 pt-5">
-                <View className="mb-2 size-11 items-center justify-center rounded-2xl bg-muted">
-                  <HardDriveUploadIcon size={20} color="currentColor" />
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <View className="flex-row items-center gap-2">
+                  <DatabaseIcon size={18} color="currentColor" />
+                  <CardTitle className="text-left text-lg">Database record</CardTitle>
                 </View>
-                <CardTitle className="text-left text-xl">Avatar upload</CardTitle>
               </CardHeader>
-              <CardContent className="px-5 pb-5">
-                <Text className="text-sm leading-6 text-muted-foreground">
-                  The header menu uploads profile photos into R2 and swaps the avatar immediately when the upload returns.
-                </Text>
+              <CardContent className="gap-1">
+                <Text>{account?.id ?? 'Not loaded'}</Text>
+                <Text className="text-sm text-muted-foreground">Use this route as the starting point for your product data.</Text>
               </CardContent>
             </Card>
           </View>
@@ -1093,7 +914,7 @@ export default function DashboardScreen() {
             <Card className="rounded-[24px] border-amber-300/60 bg-amber-50 dark:bg-amber-500/10">
               <CardContent className="px-5 py-5">
                 <Text className="text-sm leading-6 text-amber-900 dark:text-amber-100">
-                  Backend profile data is not ready yet: {error}
+                  API error: {error}
                 </Text>
               </CardContent>
             </Card>
@@ -1118,23 +939,21 @@ export default function SignInScreen() {
       contentContainerClassName="min-h-full bg-background px-4 pb-10 pt-6 sm:px-6"
       keyboardDismissMode="interactive">
       <View className="mx-auto w-full max-w-5xl gap-6">
-        <View className="flex-row items-center justify-between rounded-[28px] border border-border/70 bg-card px-4 py-3">
+        <View className="flex-row items-center justify-between border-b border-border py-3">
           <View>
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Clerk custom auth</Text>
-            <Text className="mt-1 text-lg font-semibold">${displayName}</Text>
+            <Text className="text-lg font-semibold">${displayName}</Text>
           </View>
           <ThemeToggle />
         </View>
 
         <View className="gap-4 sm:flex-row">
-          <View className="flex-1 rounded-[28px] border border-border/70 bg-card px-6 py-8">
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Sign in</Text>
-            <Text className="mt-4 text-4xl font-semibold leading-tight">Return to the app shell without rebuilding auth from scratch.</Text>
-            <Text className="mt-4 text-base leading-7 text-muted-foreground">
-              The starter already connects Clerk, RevenueCat subscription state, credits, and R2 avatar upload. This screen is here so your team starts from a real flow instead of a blank form.
+          <View className="flex-1 border border-border bg-card px-6 py-8">
+            <Text className="text-2xl font-semibold">Sign in</Text>
+            <Text className="mt-3 text-muted-foreground">
+              Access the protected application area.
             </Text>
             <Link href="/" className="mt-6 text-sm underline underline-offset-4">
-              Back to landing
+              Back
             </Link>
           </View>
 
@@ -1160,10 +979,9 @@ export default function SignUpScreen() {
       contentContainerClassName="min-h-full bg-background px-4 pb-10 pt-6 sm:px-6"
       keyboardDismissMode="interactive">
       <View className="mx-auto w-full max-w-5xl gap-6">
-        <View className="flex-row items-center justify-between rounded-[28px] border border-border/70 bg-card px-4 py-3">
+        <View className="flex-row items-center justify-between border-b border-border py-3">
           <View>
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Starter onboarding</Text>
-            <Text className="mt-1 text-lg font-semibold">${displayName}</Text>
+            <Text className="text-lg font-semibold">${displayName}</Text>
           </View>
           <ThemeToggle />
         </View>
@@ -1173,11 +991,10 @@ export default function SignUpScreen() {
             <SignUpForm />
           </View>
 
-          <View className="flex-1 rounded-[28px] border border-border/70 bg-card px-6 py-8 sm:order-1">
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Create account</Text>
-            <Text className="mt-4 text-4xl font-semibold leading-tight">Get users into the signed-in product shell immediately.</Text>
-            <Text className="mt-4 text-base leading-7 text-muted-foreground">
-              New accounts land in a dashboard that already exposes RevenueCat subscription state, credits, and an R2 avatar flow.
+          <View className="flex-1 border border-border bg-card px-6 py-8 sm:order-1">
+            <Text className="text-2xl font-semibold">Create account</Text>
+            <Text className="mt-3 text-muted-foreground">
+              Create a user and continue into the protected application area.
             </Text>
           </View>
         </View>
@@ -1233,9 +1050,9 @@ export function SignInForm() {
     <View className="gap-6">
       <Card className="rounded-[28px] border-border/70 bg-card shadow-sm shadow-black/5">
         <CardHeader className="px-6 pt-8">
-          <CardTitle className="text-center text-2xl sm:text-left">Sign in to keep building</CardTitle>
+          <CardTitle className="text-center text-2xl sm:text-left">Sign in</CardTitle>
           <CardDescription className="text-center sm:text-left">
-            Use your existing account to return to the starter dashboard.
+            Continue with your account.
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-6 px-6 pb-8">
@@ -1346,7 +1163,7 @@ export function SignUpForm() {
         <CardHeader className="px-6 pt-8">
           <CardTitle className="text-center text-2xl sm:text-left">Create your account</CardTitle>
           <CardDescription className="text-center sm:text-left">
-            Start with a real signed-in shell instead of another empty Expo project.
+            Enter an email and password to continue.
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-6 px-6 pb-8">
@@ -1406,9 +1223,7 @@ export function SignUpForm() {
 }
 `);
 
-  writeFile(path.join(dir, 'components/user-menu.tsx'), `import * as ImagePicker from 'expo-image-picker';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+  writeFile(path.join(dir, 'components/user-menu.tsx'), `import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Text } from '@/components/ui/text';
@@ -1416,77 +1231,19 @@ import { useAccount } from '@/hooks/useAccount';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useAuth } from '@clerk/expo';
 import type { TriggerRef } from '@rn-primitives/popover';
-import { CameraIcon, CreditCardIcon, CoinsIcon, LoaderCircleIcon, LogOutIcon } from 'lucide-react-native';
+import { CreditCardIcon, LogOutIcon, UserIcon } from 'lucide-react-native';
 import * as React from 'react';
-import { Alert, Platform, View } from 'react-native';
-
-function showNotice(title: string, message: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(\`\${title}\\n\\n\${message}\`);
-    return;
-  }
-
-  Alert.alert(title, message);
-}
+import { View } from 'react-native';
 
 export function UserMenu() {
   const { signOut } = useAuth();
-  const { account, refresh, uploadAvatar } = useAccount();
+  const { account } = useAccount();
   const subscription = useSubscription();
   const popoverTriggerRef = React.useRef<TriggerRef>(null);
-  const [uploading, setUploading] = React.useState(false);
-
-  const subscriptionLabel = subscription.isPaid
-    ? 'RevenueCat Pro'
-    : subscription.isTrial
-      ? 'Trial'
-      : subscription.isRedeemed
-        ? 'Promo'
-        : 'Free';
 
   async function onSignOut() {
     popoverTriggerRef.current?.close();
     await signOut();
-  }
-
-  async function onUploadAvatar() {
-    popoverTriggerRef.current?.close();
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showNotice('Permission required', 'Allow photo library access to upload an avatar.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-      base64: true,
-    });
-
-    if (result.canceled || !result.assets[0]) return;
-
-    const asset = result.assets[0];
-    if (!asset.base64) {
-      showNotice('Upload failed', 'Could not read the selected image.');
-      return;
-    }
-
-    setUploading(true);
-    try {
-      await uploadAvatar({
-        base64: asset.base64,
-        mimeType: asset.mimeType ?? 'image/jpeg',
-        fileName: asset.fileName ?? 'avatar.jpg',
-      });
-      await refresh();
-      showNotice('Avatar updated', 'Your profile photo is now stored in R2.');
-    } catch (err) {
-      showNotice('Upload failed', err instanceof Error ? err.message : 'Avatar upload failed.');
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function onSubscriptionAction() {
@@ -1499,75 +1256,25 @@ export function UserMenu() {
     await subscription.subscribe('monthly');
   }
 
-  const avatarSource = account?.avatarUrl || account?.imageUrl;
-  const userName = account?.displayName || account?.email || 'Builder';
-  const initials = userName
-    .split(' ')
-    .map((name) => name[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
     <Popover>
       <PopoverTrigger asChild ref={popoverTriggerRef}>
-        <Button variant="ghost" size="icon" className="size-9 rounded-full">
-          <Avatar className="size-9" alt={userName}>
-            <AvatarImage source={avatarSource ? { uri: avatarSource } : undefined} />
-            <AvatarFallback>
-              <Text>{initials}</Text>
-            </AvatarFallback>
-          </Avatar>
+        <Button variant="ghost" size="sm">
+          <Icon as={UserIcon} className="size-4" />
+          <Text>Account</Text>
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" side="bottom" className="w-80 gap-0 p-0">
-        <View className="gap-4 border-b border-border p-4">
-          <View className="flex-row items-center gap-3">
-            <Avatar className="size-12" alt={userName}>
-              <AvatarImage source={avatarSource ? { uri: avatarSource } : undefined} />
-              <AvatarFallback>
-                <Text>{initials}</Text>
-              </AvatarFallback>
-            </Avatar>
-            <View className="flex-1">
-              <Text className="font-medium leading-5">{userName}</Text>
-              <Text className="text-sm text-muted-foreground">{account?.email ?? 'Loading account...'}</Text>
-            </View>
-          </View>
-
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-2xl border border-border bg-muted/40 p-3">
-              <View className="flex-row items-center gap-2">
-                <CreditCardIcon size={16} color="currentColor" />
-                <Text className="text-xs uppercase tracking-[2px] text-muted-foreground">Subscription</Text>
-              </View>
-              <Text className="mt-3 font-semibold">{subscriptionLabel}</Text>
-              <Text className="text-sm text-muted-foreground">
-                {subscription.isTrial ? \`\${subscription.trialDaysRemaining} days left\` : (account?.subscriptionStatus ?? 'active')}
-              </Text>
-            </View>
-
-            <View className="flex-1 rounded-2xl border border-border bg-muted/40 p-3">
-              <View className="flex-row items-center gap-2">
-                <CoinsIcon size={16} color="currentColor" />
-                <Text className="text-xs uppercase tracking-[2px] text-muted-foreground">Credits</Text>
-              </View>
-              <Text className="mt-3 font-semibold">{account?.creditsBalance ?? 250}</Text>
-              <Text className="text-sm text-muted-foreground">Starter balance</Text>
-            </View>
-          </View>
+      <PopoverContent align="end" side="bottom" className="w-72 gap-0 p-0">
+        <View className="gap-1 border-b border-border p-4">
+          <Text className="font-medium">{account?.displayName ?? 'Account'}</Text>
+          <Text className="text-sm text-muted-foreground">{account?.email ?? 'Loading account...'}</Text>
         </View>
 
         <View className="gap-2 p-3">
           <Button variant="outline" onPress={() => void onSubscriptionAction()}>
             <Icon as={CreditCardIcon} className="size-4" />
             <Text>{subscription.managementUrl ? 'Manage subscription' : 'Open paywall'}</Text>
-          </Button>
-
-          <Button variant="outline" onPress={() => void onUploadAvatar()} disabled={uploading}>
-            <Icon as={uploading ? LoaderCircleIcon : CameraIcon} className={uploading ? 'size-4 animate-spin' : 'size-4'} />
-            <Text>{uploading ? 'Uploading avatar...' : 'Upload avatar to R2'}</Text>
           </Button>
 
           <Button variant="outline" onPress={() => void onSignOut()}>

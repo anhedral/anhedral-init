@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastif
 import clerkAuthPlugin from '../plugins/clerkAuth.js';
 import { SubscriptionService } from '../services/SubscriptionService.js';
 import { AuthError } from '../errors/index.js';
-import { verifyRevenueCatWebhook, verifyRevenueCatWebhookAuthorization, grantPromotionalEntitlement } from '../lib/revenuecat.js';
-import { createAuthHook, runBackgroundTask } from '../lib/routeHelpers.js';
+import { verifyRevenueCatWebhook, verifyRevenueCatWebhookAuthorization } from '../lib/revenuecat.js';
+import { createAuthHook } from '../lib/routeHelpers.js';
 import { CACHE_SECONDS } from '../lib/constants.js';
 
 const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -42,50 +42,6 @@ const subscriptionRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       const data = await service.getEntitlementWithTrial(userId, { refreshRevenueCat: forceRefresh }, req);
       reply.header('Cache-Control', 'private, no-store');
       return reply.send(data);
-    });
-
-    app.post<{ Body: { code: string } }>('/redeem', {
-      preHandler: createAuthHook(app),
-    }, async (req, reply) => {
-      const userId = req.user?.id;
-      if (!userId) throw AuthError.unauthorized();
-      if (app.env.ANHEDRAL_DEMO === 'true') {
-        return { ok: true, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
-      }
-      const { code } = req.body;
-      const validation = await app.repos.promoCodes.validateCode(code, userId);
-      if (!validation.valid || !validation.promoCode) {
-        const msgs: Record<string, string> = { invalid_code: 'This code is not valid.', code_expired: 'This code has expired.', code_fully_used: 'This code has already been used.', already_redeemed: 'You have already redeemed this code.' };
-        return reply.code(400).send({ error: validation.error, message: msgs[validation.error!] || 'Invalid code.' });
-      }
-      const rcKey = app.env.RC_SECRET_API_KEY;
-      if (!rcKey) return reply.code(500).send({ error: 'configuration_error', message: 'Subscription service not configured.' });
-
-      const { promoCode } = validation;
-      const entitlementId = app.env.RC_ENTITLEMENT_ID || 'pro';
-      try {
-        const currentSub = await app.repos.subscriptions.findByUserId(userId);
-        const result = await grantPromotionalEntitlement(userId, entitlementId, promoCode.months, rcKey);
-        await app.repos.promoCodes.recordRedemption(promoCode.id, userId, result.expiresAt);
-        const now = new Date();
-        await app.repos.subscriptions.upsert(userId, {
-          tier: 'pro', status: 'active', method: 'redeemed',
-          currentPeriodStart: now, currentPeriodEnd: result.expiresAt,
-          trialStart: null, trialEnd: null,
-          metadata: { redeemCode: promoCode.code, redeemCodeRedeemedAt: now.toISOString() },
-        });
-        runBackgroundTask(req, app.repos.subscriptionEvents.recordEvent({
-          userId, subscriptionId: currentSub?.id, eventType: 'promo_redeemed',
-          previousState: { tier: currentSub?.tier, status: currentSub?.status, method: currentSub?.method },
-          newState: { tier: 'pro', status: 'active', method: 'redeemed' },
-          periodStart: now, periodEnd: result.expiresAt,
-          metadata: { promoCode: promoCode.code },
-        }), 'promo_redeemed_event');
-        return { ok: true, expiresAt: result.expiresAt.toISOString() };
-      } catch (err) {
-        app.log.error({ msg: '[redeem:failed]', userId, error: (err as Error).message });
-        return reply.code(500).send({ error: 'redemption_failed', message: 'Failed to redeem code. Please try again.' });
-      }
     });
   });
 

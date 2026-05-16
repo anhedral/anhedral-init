@@ -19,10 +19,6 @@ export type AuthMeResponse = {
     lastName?: string | null;
     displayName: string;
     imageUrl?: string | null;
-    avatarUrl?: string | null;
-    creditsBalance: number;
-    subscriptionTier: string;
-    subscriptionStatus: string;
   };
 };
 export type PricingResponse = {

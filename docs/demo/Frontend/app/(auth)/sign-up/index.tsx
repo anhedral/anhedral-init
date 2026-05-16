@@ -10,10 +10,9 @@ export default function SignUpScreen() {
       contentContainerClassName="min-h-full bg-background px-4 pb-10 pt-6 sm:px-6"
       keyboardDismissMode="interactive">
       <View className="mx-auto w-full max-w-5xl gap-6">
-        <View className="flex-row items-center justify-between rounded-[28px] border border-border/70 bg-card px-4 py-3">
+        <View className="flex-row items-center justify-between border-b border-border py-3">
           <View>
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Starter onboarding</Text>
-            <Text className="mt-1 text-lg font-semibold">demo</Text>
+            <Text className="text-lg font-semibold">demo</Text>
           </View>
           <ThemeToggle />
         </View>
@@ -23,11 +22,10 @@ export default function SignUpScreen() {
             <SignUpForm />
           </View>
 
-          <View className="flex-1 rounded-[28px] border border-border/70 bg-card px-6 py-8 sm:order-1">
-            <Text className="text-xs uppercase tracking-[3px] text-muted-foreground">Create account</Text>
-            <Text className="mt-4 text-4xl font-semibold leading-tight">Get users into the signed-in product shell immediately.</Text>
-            <Text className="mt-4 text-base leading-7 text-muted-foreground">
-              New accounts land in a dashboard that already exposes RevenueCat subscription state, credits, and an R2 avatar flow.
+          <View className="flex-1 border border-border bg-card px-6 py-8 sm:order-1">
+            <Text className="text-2xl font-semibold">Create account</Text>
+            <Text className="mt-3 text-muted-foreground">
+              Create a user and continue into the protected application area.
             </Text>
           </View>
         </View>

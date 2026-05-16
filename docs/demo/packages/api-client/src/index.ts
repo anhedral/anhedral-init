@@ -65,23 +65,9 @@ export class ApiClient {
     );
   }
 
-  redeemCode(code: string) {
-    return this.request<{ ok: boolean; expiresAt: string }>('/subscriptions/redeem', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    });
-  }
-
   signOut() {
     return this.request<{ success: boolean }>('/auth/signout', {
       method: 'POST',
-    });
-  }
-
-  uploadAvatar(input: { base64: string; mimeType: string; fileName?: string }) {
-    return this.request<{ ok: boolean; avatarUrl: string }>('/auth/avatar', {
-      method: 'POST',
-      body: JSON.stringify(input),
     });
   }
 

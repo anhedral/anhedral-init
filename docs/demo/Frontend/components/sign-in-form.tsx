@@ -44,9 +44,9 @@ export function SignInForm() {
     <View className="gap-6">
       <Card className="rounded-[28px] border-border/70 bg-card shadow-sm shadow-black/5">
         <CardHeader className="px-6 pt-8">
-          <CardTitle className="text-center text-2xl sm:text-left">Sign in to keep building</CardTitle>
+          <CardTitle className="text-center text-2xl sm:text-left">Sign in</CardTitle>
           <CardDescription className="text-center sm:text-left">
-            Use your existing account to return to the starter dashboard.
+            Continue with your account.
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-6 px-6 pb-8">

@@ -62,27 +62,13 @@ export class UserRepository {
     return { created: true };
   }
 
-  async updateAvatar(userId: string, input: {
-    avatarObjectKey: string;
-    avatarMimeType: string;
-  }): Promise<void> {
-    await this.db.update(users).set({
-      avatarObjectKey: input.avatarObjectKey,
-      avatarMimeType: input.avatarMimeType,
-    }).where(eq(users.id, userId));
-    authPluginCache.invalidate(`auth:${userId}`);
-  }
-
-  async getDashboardProfile(userId: string) {
+  async getProfile(userId: string) {
     const rows = await this.db
       .select({
         id: users.id,
         email: users.email,
         displayName: users.displayName,
         profileImageUrl: users.profileImageUrl,
-        avatarObjectKey: users.avatarObjectKey,
-        avatarMimeType: users.avatarMimeType,
-        creditsBalance: users.creditsBalance,
         subscriptionTier: subscriptions.tier,
         subscriptionStatus: subscriptions.status,
       })
