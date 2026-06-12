@@ -21,7 +21,7 @@
     "extension:zip": "pnpm --filter ./Extension zip"
   },
   "devDependencies": {
-    "turbo": "2.8.0"
+    "turbo": "2.9.14"
   },
   "workspaces": [
     "Frontend",
