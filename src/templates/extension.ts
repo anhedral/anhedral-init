@@ -7,13 +7,13 @@ import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldExtension(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'Extension');
+  const dir = path.join(root, 'apps/extension');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
   anhedralPrint.section('Chrome extension (WXT)');
 
   anhedralPrint.step('Scaffolding WXT extension');
-  exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init Extension -t react --pm pnpm`, root);
+  exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init apps/extension -t react --pm pnpm`, root);
   writePackageJson(dir, projectName);
   anhedralPrint.done('WXT extension scaffolded');
 
@@ -142,7 +142,7 @@ function writeEnvExample(dir: string): void {
   writeFile(path.join(dir, '.env.example'), `# Clerk Authentication
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_***
 
-# Backend API URL
+# API API URL
 VITE_API_URL=http://localhost:8787
 
 # Website URL (for sign-up and subscription links)
@@ -160,7 +160,7 @@ function writeEnvFile(dir: string): void {
   writeFile(path.join(dir, '.env'), `# Clerk Authentication
 VITE_CLERK_PUBLISHABLE_KEY=
 
-# Backend API URL
+# API API URL
 VITE_API_URL=http://localhost:8787
 
 # Website URL (for sign-up and subscription links)

@@ -73,13 +73,13 @@ function assertGitignoreContains(projectRoot, relativePath, expectedLines) {
 }
 
 function assertNoNestedGit(projectRoot) {
-  assert.equal(existsSync(path.join(projectRoot, 'apps')), false, 'generated project should not create an apps/ directory');
+  assert.equal(existsSync(path.join(projectRoot, 'apps')), true, 'generated project should create an apps/ directory');
 
-  for (const appName of ['Frontend', 'Backend', 'Extension']) {
+  for (const appName of ['web', 'mobile', 'api', 'desktop', 'extension']) {
     assert.equal(
-      existsSync(path.join(projectRoot, appName, '.git')),
+      existsSync(path.join(projectRoot, 'apps', appName, '.git')),
       false,
-      `${appName} should not contain a nested .git directory`,
+      `apps/${appName} should not contain a nested .git directory`,
     );
   }
 }
@@ -110,20 +110,22 @@ const scenarios = [
     name: 'expo-extension',
     args: [],
     folderName: 'expo-extension-sample',
-    frontend: 'expo_react_native_reusables',
+    frontend: 'monorepo_clients',
     gitignores: [
       ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['Frontend/.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['Backend/.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['apps/mobile/.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
     ],
     checks: [
-      ['pnpm', ['--filter', './Frontend', 'exec', 'expo', 'install', '--check']],
-      ['pnpm', ['--filter', './Frontend', 'build:web']],
-      ['pnpm', ['--filter', './Backend', 'build']],
-      ['pnpm', ['--filter', './Backend', 'test']],
-      ['pnpm', ['--filter', './Extension', 'typecheck']],
-      ['pnpm', ['--filter', './Extension', 'build']],
-      ['pnpm', ['--filter', './Extension', 'zip']],
+      ['pnpm', ['--filter', './apps/web', 'typecheck']],
+      ['pnpm', ['--filter', './apps/mobile', 'exec', 'expo', 'install', '--check']],
+      ['pnpm', ['--filter', './apps/mobile', 'build:web']],
+      ['pnpm', ['--filter', './apps/api', 'build']],
+      ['pnpm', ['--filter', './apps/api', 'test']],
+      ['pnpm', ['--filter', './apps/desktop', 'typecheck']],
+      ['pnpm', ['--filter', './apps/extension', 'typecheck']],
+      ['pnpm', ['--filter', './apps/extension', 'build']],
+      ['pnpm', ['--filter', './apps/extension', 'zip']],
       ['pnpm', ['build']],
     ],
   },

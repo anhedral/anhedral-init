@@ -43,7 +43,7 @@ const cases = [
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
-    stderrIncludes: 'Unexpected argument: demo. Use flags: --toolchain, --skip-install',
+    stderrIncludes: 'Unexpected argument: demo. Use flags: --template, --toolchain, --skip-install',
   },
   {
     name: 'defaults stack before validating toolchain',
@@ -62,6 +62,18 @@ const cases = [
     args: ['init', '--next'],
     expectedExit: 1,
     stderrIncludes: 'Unknown flag: --next',
+  },
+  {
+    name: 'accepts next template flag',
+    args: ['init', '--template', 'next', '--skip-install'],
+    expectedExit: 1,
+    stderrIncludes: 'Current directory is not empty.',
+  },
+  {
+    name: 'rejects invalid template values',
+    args: ['init', '--template', 'whoops'],
+    expectedExit: 1,
+    stderrIncludes: '--template must be one of: fullstack, next',
   },
   {
     name: 'rejects old extension stack flag',
@@ -97,6 +109,8 @@ for (const testCase of cases) {
 
 const defaultFlags = parseCli([]);
 assert.equal(buildOptions(defaultFlags).payments, 'revenuecat_stripe', 'buildOptions should use RevenueCat + Stripe');
+assert.equal(buildOptions(parseCli(['--template', 'next'])).payments, 'stripe', 'Next template should use Stripe only');
+assert.equal(buildOptions(parseCli(['--template=nextjs'])).api, 'nextjs_route_handlers', 'Next aliases should use route handlers');
 assert.equal(buildOptions(defaultFlags).skipInstall, false, 'buildOptions should install dependencies by default');
 assert.equal(buildOptions(parseCli(['--skip-install'])).skipInstall, true, '--skip-install should disable dependency installs');
 assert.equal(

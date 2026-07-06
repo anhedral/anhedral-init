@@ -180,6 +180,81 @@ export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   '@revenuecat/purchases-js': '1.11.1',
 };
 
+export const WEB_APP_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    '@shared/api-client': 'workspace:*',
+    // renovate: datasource=npm depName=@clerk/nextjs
+    '@clerk/nextjs': '7.4.2',
+    // renovate: datasource=npm depName=next
+    next: '16.1.1',
+    // renovate: datasource=npm depName=react
+    react: EXTENSION_DEPENDENCIES.dependencies!.react,
+    // renovate: datasource=npm depName=react-dom
+    'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
+    clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,
+    'tailwind-merge': EXTENSION_DEPENDENCIES.dependencies!['tailwind-merge'],
+    'class-variance-authority': EXTENSION_DEPENDENCIES.dependencies!['class-variance-authority'],
+    'lucide-react': EXTENSION_DEPENDENCIES.dependencies!['lucide-react'],
+  },
+  devDependencies: {
+    // renovate: datasource=npm depName=@tailwindcss/postcss
+    '@tailwindcss/postcss': '4.1.18',
+    '@types/node': SHARED_DB_DEPENDENCIES.devDependencies!['@types/node'],
+    '@types/react': EXTENSION_DEPENDENCIES.devDependencies!['@types/react'],
+    '@types/react-dom': EXTENSION_DEPENDENCIES.devDependencies!['@types/react-dom'],
+    typescript: SHARED_DB_DEPENDENCIES.devDependencies!.typescript,
+  },
+};
+
+export const DESKTOP_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    '@shared/api-client': 'workspace:*',
+    // renovate: datasource=npm depName=@clerk/clerk-js
+    '@clerk/clerk-js': '6.23.0',
+    react: EXTENSION_DEPENDENCIES.dependencies!.react,
+    'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
+    clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,
+    'tailwind-merge': EXTENSION_DEPENDENCIES.dependencies!['tailwind-merge'],
+    'class-variance-authority': EXTENSION_DEPENDENCIES.dependencies!['class-variance-authority'],
+    'lucide-react': EXTENSION_DEPENDENCIES.dependencies!['lucide-react'],
+  },
+  devDependencies: {
+    // renovate: datasource=npm depName=@vitejs/plugin-react
+    '@vitejs/plugin-react': '5.1.2',
+    '@types/node': SHARED_DB_DEPENDENCIES.devDependencies!['@types/node'],
+    '@types/react': EXTENSION_DEPENDENCIES.devDependencies!['@types/react'],
+    '@types/react-dom': EXTENSION_DEPENDENCIES.devDependencies!['@types/react-dom'],
+    // renovate: datasource=npm depName=electron
+    electron: '39.2.7',
+    // renovate: datasource=npm depName=electron-builder
+    'electron-builder': '26.0.12',
+    typescript: SHARED_DB_DEPENDENCIES.devDependencies!.typescript,
+    // renovate: datasource=npm depName=vite
+    vite: '7.3.0',
+  },
+};
+
+export const NEXT_TEMPLATE_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    // renovate: datasource=npm depName=@clerk/nextjs
+    '@clerk/nextjs': '7.4.2',
+    '@neondatabase/serverless': SHARED_DB_DEPENDENCIES.dependencies!['@neondatabase/serverless'],
+    'drizzle-orm': SHARED_DB_DEPENDENCIES.dependencies!['drizzle-orm'],
+    // renovate: datasource=npm depName=stripe
+    stripe: '20.1.2',
+    // renovate: datasource=npm depName=@aws-sdk/client-s3
+    '@aws-sdk/client-s3': BACKEND_DEPENDENCIES.dependencies!['@aws-sdk/client-s3'],
+    // renovate: datasource=npm depName=@aws-sdk/s3-request-presigner
+    '@aws-sdk/s3-request-presigner': BACKEND_DEPENDENCIES.dependencies!['@aws-sdk/s3-request-presigner'],
+    dotenv: SHARED_DB_DEPENDENCIES.dependencies!.dotenv,
+    zod: CONTRACTS_DEPENDENCIES.dependencies!.zod,
+  },
+  devDependencies: {
+    'drizzle-kit': SHARED_DB_DEPENDENCIES.devDependencies!['drizzle-kit'],
+    tsx: SHARED_DB_DEPENDENCIES.devDependencies!.tsx,
+  },
+};
+
 export function withVersions(dependencies: DependencyMap): string[] {
   return Object.entries(dependencies).map(([name, version]) => {
     if (version === 'workspace:*') return `${name}@workspace:*`;
@@ -199,5 +274,8 @@ export function dependencyManifest() {
     backend: BACKEND_DEPENDENCIES,
     extension: EXTENSION_DEPENDENCIES,
     frontendAddons: FRONTEND_ADDON_DEPENDENCIES,
+    webApp: WEB_APP_DEPENDENCIES,
+    desktop: DESKTOP_DEPENDENCIES,
+    nextTemplate: NEXT_TEMPLATE_DEPENDENCIES,
   };
 }

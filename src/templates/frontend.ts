@@ -8,10 +8,10 @@ import { FRONTEND_ADDON_DEPENDENCIES, withVersions } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 
 export async function scaffoldFrontend(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'Frontend');
+  const dir = path.join(root, 'apps/mobile');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
 
-  anhedralPrint.section('Frontend (Expo)');
+  anhedralPrint.section('Mobile (Expo)');
 
   anhedralPrint.step('Scaffolding Expo app with react-native-reusables');
   fs.mkdirSync(dir, { recursive: true });
@@ -36,7 +36,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
     exec('pnpm exec expo install --fix --pnpm', dir);
   }
   appendGitignore(dir, ['.env', '.env.*', '!.env.example']);
-  anhedralPrint.done(skipInstall ? 'Frontend dependency manifests written' : 'Frontend dependencies installed');
+  anhedralPrint.done(skipInstall ? 'Mobile dependency manifests written' : 'Mobile dependencies installed');
 
   writeApiClient(dir);
   writeConfigFile(dir);
@@ -60,7 +60,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
     '@revenuecat/purchases-js': FRONTEND_ADDON_DEPENDENCIES['@revenuecat/purchases-js'],
   });
   if (skipInstall) {
-    anhedralPrint.info(`Skipping RevenueCat SDK install (--skip-install). Run after init: pnpm --filter ./Frontend add ${revenueCatDependencies.join(' ')}`);
+    anhedralPrint.info(`Skipping RevenueCat SDK install (--skip-install). Run after init: pnpm --filter ./apps/mobile add ${revenueCatDependencies.join(' ')}`);
   } else {
     exec(`pnpm add ${revenueCatDependencies.join(' ')}`, dir);
   }
@@ -1293,7 +1293,7 @@ function writeEnvExample(dir: string): void {
   writeFile(path.join(dir, '.env.example'), `# Clerk
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
 
-# Backend API URL
+# API API URL
 EXPO_PUBLIC_API_URL=http://localhost:8787
 
 # RevenueCat
@@ -1308,7 +1308,7 @@ function writeEnvFile(dir: string): void {
   writeFile(path.join(dir, '.env'), `# Clerk
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_demo_placeholder
 
-# Backend API URL
+# API API URL
 EXPO_PUBLIC_API_URL=http://localhost:8787
 
 # RevenueCat

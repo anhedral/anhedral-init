@@ -6,9 +6,9 @@ import { BACKEND_DEPENDENCIES } from '../dependencies.js';
 import type { ProjectOptions } from '../scaffold.js';
 
 export async function scaffoldBackend(root: string, { projectName, displayName, frontendUrl, skipInstall }: ProjectOptions): Promise<void> {
-  const dir = path.join(root, 'Backend');
+  const dir = path.join(root, 'apps/api');
 
-  anhedralPrint.section('Backend (Fastify)');
+  anhedralPrint.section('API (Fastify)');
   anhedralPrint.step('Writing backend source files');
   writePackageJson(dir, projectName);
   writeTsConfig(dir);
@@ -30,7 +30,7 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   writeAppAndIndex(dir, displayName);
   writeVercelConfig(dir);
   writeTestFiles(dir);
-  anhedralPrint.done('Backend source files written');
+  anhedralPrint.done('API source files written');
 
   if (skipInstall) {
     anhedralPrint.info('Skipping backend dependency install (--skip-install)');
@@ -42,7 +42,7 @@ export async function scaffoldBackend(root: string, { projectName, displayName, 
   for (const command of getBackendInstallCommands()) {
     execCommand(command.command, command.args, dir);
   }
-  anhedralPrint.done('Backend dependencies installed');
+  anhedralPrint.done('API dependencies installed');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -53,7 +53,7 @@ function writePackageJson(dir: string, projectName: string): void {
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: projectName + '-backend',
     version: '1.0.0',
-    description: `${projectName} Backend`,
+    description: `${projectName} API`,
     type: 'module',
     scripts: {
       dev: 'tsx --env-file=.env --watch src/index.ts',
@@ -2114,6 +2114,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   }
 
   await app.register(routes);
+  await app.register(routes, { prefix: '/api' });
 
   return app;
 }

@@ -4,9 +4,9 @@
 [![license](https://img.shields.io/npm/l/anhedral.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/anhedral.svg)](https://www.npmjs.com/package/anhedral)
 
-One command to start a production-shaped Expo, Fastify, and Chrome extension application.
+One command to start a production-shaped application.
 
-Anhedral is an opinionated init CLI for teams that want one stable full-stack architecture instead of a menu of half-finished choices. It generates a single pnpm monorepo with an Expo app for web/iOS/Android, a Fastify API, a WXT Chrome extension, shared packages, and deployment-ready structure for Vercel, EAS, and the Chrome Web Store.
+Anhedral is an opinionated init CLI for teams that want stable full-stack architecture instead of a menu of half-finished choices. The default template generates a single pnpm monorepo with an Expo app for web/iOS/Android, a Fastify API, a WXT Chrome extension, shared packages, and deployment-ready structure for Vercel, EAS, and the Chrome Web Store. The Next.js template generates a single shadcn/ui Next.js app with Clerk, Stripe, Neon/Drizzle, R2, and Vercel-ready API routes.
 
 ![Anhedral init CLI](docs/anhedral-cli-init.png)
 
@@ -14,6 +14,12 @@ Anhedral is an opinionated init CLI for teams that want one stable full-stack ar
 
 ```sh
 pnpm dlx anhedral@latest init
+```
+
+Use the Next.js + shadcn/ui template:
+
+```sh
+pnpm dlx anhedral@latest init --template next
 ```
 
 Or with npm:
@@ -31,11 +37,15 @@ pnpm install
 
 ## What It Generates
 
+Default fullstack template:
+
 ```txt
 .
-├─ Frontend/        Expo + React Native Reusables app
-├─ Backend/         Fastify API
-├─ Extension/       WXT Chrome extension
+├─ apps/web/          Next.js + shadcn/ui web app
+├─ apps/mobile/       Expo + React Native Reusables app
+├─ apps/api/          Fastify API
+├─ apps/desktop/      Electron + shadcn/ui desktop app
+├─ apps/extension/    WXT + shadcn/ui Chrome extension
 ├─ packages/
 │  ├─ api-client/   shared typed API client
 │  ├─ config/       shared config helpers
@@ -47,26 +57,35 @@ pnpm install
 └─ package.json     root scripts
 ```
 
-The generated app is intentionally one repository. Deploy the same Git repo as two Vercel projects:
+Next.js template:
 
-- `Frontend`: Expo web export, built with `pnpm build:web`, output to `dist`
-- `Backend`: Fastify API, built with `pnpm build`, entrypoint at `src/index.ts`
+```txt
+.
+├─ app/             Next.js App Router pages and route handlers
+├─ components/      shadcn/ui components
+├─ db/              Drizzle schema, Neon client, migrations
+├─ lib/             Stripe and R2 helpers
+├─ proxy.ts         Clerk route protection
+├─ PRODUCTION.md    deployment checklist
+├─ vercel.json      Vercel project config
+└─ package.json     app scripts
+```
 
-The same `Frontend` source is used for native iOS and Android builds through EAS. The `Extension` source builds a WXT Chrome extension ZIP for the Chrome Web Store.
+The default fullstack app is intentionally one repository. Deploy web and API together as one Vercel Services project:
+
+- `apps/web`: Next.js + shadcn/ui service at `/`, built with `pnpm build`
+- `apps/api`: Fastify service at `/api/*`, built with `pnpm build`, entrypoint at `src/index.ts`
+
+The `apps/mobile` source is used for native iOS and Android builds through EAS. The `apps/desktop` source builds Electron artifacts for macOS, Windows, and Linux. The `apps/extension` source builds a WXT Chrome extension ZIP for the Chrome Web Store.
+
+The Next.js template deploys as a standard single Vercel project from the repository root.
 
 ## Stack
 
-Anhedral supports one carefully maintained stack:
+Anhedral supports two carefully maintained templates:
 
-- Expo + React Native Reusables frontend
-- Fastify backend
-- WXT Chrome extension
-- Neon + Drizzle
-- Cloudflare R2/CDN
-- Clerk auth
-- RevenueCat + Stripe
-- Vercel deployment
-- pnpm workspaces + Turborepo
+- Default fullstack crossplatform monorepo: Next.js + shadcn/ui, Expo + React Native Reusables, Electron + shadcn/ui, WXT + shadcn/ui, Fastify, shared packages, Neon + Drizzle, Cloudflare R2/CDN, Clerk auth, RevenueCat + Stripe, Vercel Services, EAS, pnpm workspaces, Turborepo.
+- Next.js: Next.js App Router + shadcn/ui, Clerk auth, Stripe subscriptions, Neon + Drizzle, Cloudflare R2/CDN, Vercel.
 
 The goal is stability. The generated project avoids framework sprawl, duplicate schemas, and separate frontend/backend/extension repositories.
 
@@ -106,8 +125,10 @@ pnpm dev
 Run one surface at a time:
 
 ```sh
-pnpm dev:frontend
-pnpm dev:backend
+pnpm dev:web
+pnpm dev:mobile
+pnpm dev:api
+pnpm dev:desktop
 pnpm dev:extension
 ```
 
@@ -115,8 +136,10 @@ Verify before deployment:
 
 ```sh
 pnpm verify
-pnpm verify:frontend
-pnpm verify:backend
+pnpm verify:web
+pnpm verify:mobile
+pnpm verify:api
+pnpm verify:desktop
 pnpm verify:extension
 ```
 
@@ -137,33 +160,40 @@ The generated `README.md` and `PRODUCTION.md` explain where every key belongs:
 - Clerk: `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - RevenueCat + Stripe: `EXPO_PUBLIC_RC_*`, `RC_SECRET_API_KEY`, `RC_WEBHOOK_SECRET`
 - Cloudflare R2/CDN: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
-- Vercel: two projects from the same Git repository, rooted at `Frontend` and `Backend`
-- EAS: native iOS and Android builds from `Frontend`
-- Chrome Web Store: WXT ZIP upload from `Extension/.output`
+- Vercel: one Services project from the repository root, with `apps/web` and `apps/api`
+- EAS: native iOS and Android builds from `apps/mobile`
+- Desktop: Electron artifacts from `apps/desktop`
+- Chrome Web Store: WXT ZIP upload from `apps/extension/.output`
 
 ## Deployment
 
 ### Vercel
 
-Import the same GitHub repository twice:
+Import the repository once and set the Vercel Framework Preset to Services.
 
-| Project | Root Directory | Build Command | Output |
+| Service | Root | Route | Build Command |
 | --- | --- | --- | --- |
-| Frontend | `Frontend` | `pnpm build:web` | `dist` |
-| Backend | `Backend` | `pnpm build` | Fastify entrypoint |
-
-Enable Vercel access to source files outside each project root so workspace packages under `packages/*` resolve during builds.
+| Web | `apps/web` | `/` | `pnpm build` |
+| API | `apps/api` | `/api/*` | `pnpm build` |
 
 ### EAS
 
-Use `Frontend` as the Expo project root:
+Use `apps/mobile` as the Expo project root:
 
 ```sh
-cd Frontend
+cd apps/mobile
 pnpm dlx eas-cli@latest login
 pnpm dlx eas-cli@latest init
 pnpm dlx eas-cli@latest build --platform all --profile production
 pnpm dlx eas-cli@latest submit --platform all --latest --profile production
+```
+
+### Desktop
+
+```sh
+pnpm desktop:build:mac
+pnpm desktop:build:win
+pnpm desktop:build:linux
 ```
 
 ### Chrome Extension
@@ -172,7 +202,7 @@ pnpm dlx eas-cli@latest submit --platform all --latest --profile production
 pnpm extension:zip
 ```
 
-Upload `Extension/.output/*-chrome.zip` to the Chrome Web Store Developer Dashboard.
+Upload `apps/extension/.output/*-chrome.zip` to the Chrome Web Store Developer Dashboard.
 
 ## Dependency Policy
 

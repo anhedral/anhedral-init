@@ -10,6 +10,8 @@ const scaffoldSource = readFileSync(path.join(repoRoot, 'src', 'scaffold.ts'), '
 const frontendSource = readFileSync(path.join(repoRoot, 'src', 'templates', 'frontend.ts'), 'utf8');
 const backendSource = readFileSync(path.join(repoRoot, 'src', 'templates', 'backend.ts'), 'utf8');
 const extensionSource = readFileSync(path.join(repoRoot, 'src', 'templates', 'extension.ts'), 'utf8');
+const webSource = readFileSync(path.join(repoRoot, 'src', 'templates', 'web.ts'), 'utf8');
+const desktopSource = readFileSync(path.join(repoRoot, 'src', 'templates', 'desktop.ts'), 'utf8');
 const dependenciesSource = readFileSync(path.join(repoRoot, 'src', 'dependencies.ts'), 'utf8');
 
 assert.match(scaffoldSource, /subscriptionTier: text\('subscription_tier'\)\.notNull\(\)\.default\('free'\)/);
@@ -33,13 +35,21 @@ assert.doesNotMatch(backendSource, /use: '@vercel\/node'/);
 assert.match(backendSource, /ANHEDRAL_DEMO must be false in production/);
 assert.match(backendSource, /src\/routes\/storage\.ts/);
 assert.match(backendSource, /createSignedUploadUrl/);
+assert.match(backendSource, /prefix: '\/api'/);
 
 assert.match(scaffoldSource, /Build Expo web/);
-assert.match(scaffoldSource, /pnpm --filter \.\/Extension zip/);
-assert.doesNotMatch(scaffoldSource, /apps\/frontend|apps\/api|apps\/extension|apps\/\*/);
-assert.match(frontendSource, /path\.join\(root, 'Frontend'\)/);
-assert.match(backendSource, /path\.join\(root, 'Backend'\)/);
-assert.match(extensionSource, /path\.join\(root, 'Extension'\)/);
+assert.match(scaffoldSource, /services: \{/);
+assert.match(scaffoldSource, /source: '\/api\/\(\.\*\)'/);
+assert.match(scaffoldSource, /pnpm --filter \.\/apps\/extension zip/);
+assert.match(scaffoldSource, /pnpm --filter \.\/apps\/desktop build:all/);
+assert.match(scaffoldSource, /'apps\/\*', 'packages\/\*'/);
+assert.match(frontendSource, /path\.join\(root, 'apps\/mobile'\)/);
+assert.match(backendSource, /path\.join\(root, 'apps\/api'\)/);
+assert.match(extensionSource, /path\.join\(root, 'apps\/extension'\)/);
+assert.match(webSource, /path\.join\(root, 'apps\/web'\)/);
+assert.match(webSource, /Next\.js web app/);
+assert.match(desktopSource, /path\.join\(root, 'apps\/desktop'\)/);
+assert.match(desktopSource, /electron-builder --mac --win --linux/);
 
 assert.match(extensionSource, /function writeButtonComponent/);
 assert.doesNotMatch(extensionSource, /shadcn.*add button/);

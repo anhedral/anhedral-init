@@ -56,9 +56,11 @@ pnpm dev
 
 function removeNestedGitDirs(projectRoot) {
   rmSync(path.join(projectRoot, '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'Frontend', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'Backend', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'Extension', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'web', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'mobile', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'api', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'desktop', '.git'), { recursive: true, force: true });
+  rmSync(path.join(projectRoot, 'apps', 'extension', '.git'), { recursive: true, force: true });
 }
 
 const scenarios = [

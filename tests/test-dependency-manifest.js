@@ -18,6 +18,9 @@ function collectDependencyPins() {
     { name: 'backend', group: manifest.backend },
     { name: 'extension', group: manifest.extension },
     { name: 'frontendAddons', group: { dependencies: manifest.frontendAddons } },
+    { name: 'webApp', group: manifest.webApp },
+    { name: 'desktop', group: manifest.desktop },
+    { name: 'nextTemplate', group: manifest.nextTemplate },
   ];
   const pins = new Map();
 
