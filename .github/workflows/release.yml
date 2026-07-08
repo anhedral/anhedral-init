@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -53,11 +54,8 @@ jobs:
             exit 1
           fi
 
-      - name: Build package
-        run: pnpm build
-
-      - name: Verify package contents
-        run: npm pack --dry-run --ignore-scripts
+      - name: Run release checks
+        run: pnpm release:check
 
       - name: Verify npm auth
         run: npm whoami
@@ -65,6 +63,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish package
-        run: npm publish --provenance=false --ignore-scripts
+        run: npm publish --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

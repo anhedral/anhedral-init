@@ -4,9 +4,11 @@
 [![license](https://img.shields.io/npm/l/anhedral.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/anhedral.svg)](https://www.npmjs.com/package/anhedral)
 
-One command to start a production-shaped application.
+One command to start a production-shaped modular application.
 
-Anhedral is an opinionated init CLI for teams that want stable full-stack architecture instead of a menu of half-finished choices. The default template generates a single pnpm monorepo with an Expo app for web/iOS/Android, a Fastify API, a WXT Chrome extension, shared packages, and deployment-ready structure for Vercel, EAS, and the Chrome Web Store. The Next.js template generates a single shadcn/ui Next.js app with Clerk, Stripe, Neon/Drizzle, R2, and Vercel-ready API routes.
+Anhedral is an opinionated init CLI for teams that want stable full-stack architecture without choosing providers or frameworks. It generates a single pnpm monorepo and lets you choose which app surfaces and backend features to scaffold up front, then add more later.
+
+The stack stays fixed: Next.js + shadcn/ui, Expo + React Native Reusables, Electron + shadcn/ui, WXT + shadcn/ui, Fastify, shared packages, Neon + Drizzle, Cloudflare R2, Clerk, RevenueCat, Vercel Services, EAS, pnpm workspaces, and Turborepo.
 
 ![Anhedral init CLI](docs/anhedral-cli-init.png)
 
@@ -16,10 +18,11 @@ Anhedral is an opinionated init CLI for teams that want stable full-stack archit
 pnpm dlx anhedral@latest init
 ```
 
-Use the Next.js + shadcn/ui template:
+The interactive init prompts for app surfaces and backend features. You can also pass the same choices as flags:
 
 ```sh
-pnpm dlx anhedral@latest init --template next
+pnpm dlx anhedral@latest init --web --api --db --auth
+pnpm dlx anhedral@latest init --web --mobile --api --db --auth --billing --storage
 ```
 
 Or with npm:
@@ -35,9 +38,16 @@ pnpm dlx anhedral@latest init --skip-install
 pnpm install
 ```
 
+Add modules later from the generated project root:
+
+```sh
+pnpm dlx anhedral@latest add mobile extension desktop
+pnpm dlx anhedral@latest add billing storage native-subscriptions
+```
+
 ## What It Generates
 
-Default fullstack template:
+Anhedral creates only the selected app surfaces and backend features, plus the shared workspace packages needed to keep clients connected to the same backend API:
 
 ```txt
 .
@@ -57,35 +67,34 @@ Default fullstack template:
 └─ package.json     root scripts
 ```
 
-Next.js template:
-
-```txt
-.
-├─ app/             Next.js App Router pages and route handlers
-├─ components/      shadcn/ui components
-├─ db/              Drizzle schema, Neon client, migrations
-├─ lib/             Stripe and R2 helpers
-├─ proxy.ts         Clerk route protection
-├─ PRODUCTION.md    deployment checklist
-├─ vercel.json      Vercel project config
-└─ package.json     app scripts
-```
-
-The default fullstack app is intentionally one repository. Deploy web and API together as one Vercel Services project:
+The generated app is intentionally one repository. When web and API are selected, deploy them together as one Vercel Services project:
 
 - `apps/web`: Next.js + shadcn/ui service at `/`, built with `pnpm build`
 - `apps/api`: Fastify service at `/api/*`, built with `pnpm build`, entrypoint at `src/index.ts`
 
 The `apps/mobile` source is used for native iOS and Android builds through EAS. The `apps/desktop` source builds Electron artifacts for macOS, Windows, and Linux. The `apps/extension` source builds a WXT Chrome extension ZIP for the Chrome Web Store.
 
-The Next.js template deploys as a standard single Vercel project from the repository root.
+The root `anhedral.json` manifest records installed modules so `anhedral add` only scaffolds missing pieces.
+
+## Scaffold Setup Commands
+
+Anhedral runs framework setup commands where upstream generators provide useful project structure:
+
+```sh
+pnpm dlx shadcn@latest init -d --template next --name web
+pnpm dlx @react-native-reusables/cli@<resolved> init -t clerk-auth
+pnpm dlx wxt@<resolved> init apps/extension -t react --pm pnpm
+```
+
+The Fastify API, Electron app, and shared packages are written directly by Anhedral so their workspace wiring, API contracts, provider integrations, and build scripts stay consistent.
 
 ## Stack
 
-Anhedral supports two carefully maintained templates:
+Anhedral supports one carefully maintained modular stack:
 
-- Default fullstack crossplatform monorepo: Next.js + shadcn/ui, Expo + React Native Reusables, Electron + shadcn/ui, WXT + shadcn/ui, Fastify, shared packages, Neon + Drizzle, Cloudflare R2/CDN, Clerk auth, RevenueCat + Stripe, Vercel Services, EAS, pnpm workspaces, Turborepo.
-- Next.js: Next.js App Router + shadcn/ui, Clerk auth, Stripe subscriptions, Neon + Drizzle, Cloudflare R2/CDN, Vercel.
+- App surfaces: `web`, `mobile`, `api`, `desktop`, `extension`
+- Backend features: `db`, `auth`, `billing`, `storage`, `native-subscriptions`
+- Aliases: `database`, `chrome-extension`, `native-billing`
 
 The goal is stability. The generated project avoids framework sprawl, duplicate schemas, and separate frontend/backend/extension repositories.
 
@@ -107,7 +116,7 @@ The stack is intentionally narrow:
 | Clerk | Clerk handles modern auth across web, native, and extension clients. Compared with hand-rolled auth, it removes a high-risk surface area while still letting the backend own authorization decisions. |
 | RevenueCat + Stripe | RevenueCat coordinates native subscriptions and Stripe web billing behind one entitlement model. Compared with separate payment implementations per platform, the backend can ask one question: what is this user allowed to access? |
 | WXT | WXT gives the Chrome extension a modern TypeScript/Vite workflow and supports the Side Panel API. Compared with hand-maintained manifest scaffolds, it reduces extension build and packaging mistakes. |
-| Vercel | Vercel deploys the Expo web app and Fastify API from the same Git repository with separate project roots. Compared with manually wiring CI/CD early, teams get preview deployments and production deploys from normal commits. |
+| Vercel | Vercel Services deploys the Next.js web app and Fastify API from the same Git repository and domain. Compared with manually wiring CI/CD early, teams get preview deployments and production deploys from normal commits. |
 
 Every part of the stack can be started on free tiers and scales automatically as traffic grows. That matters because the first production architecture should not force a team to choose between moving quickly and being able to handle success.
 

@@ -1,8 +1,8 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { env } from 'node:process';
 import { anhedralPrint } from './print.js';
-import { appendGitignore, writeFile } from './util.js';
+import { appendGitignore, exec, writeFile } from './util.js';
 import { getSkillCommands } from './commands.js';
 import {
   API_CLIENT_DEPENDENCIES,
@@ -19,11 +19,27 @@ import { scaffoldExtension } from './templates/extension.js';
 import { scaffoldFrontend } from './templates/frontend.js';
 import { scaffoldDesktop } from './templates/desktop.js';
 import { scaffoldWeb } from './templates/web.js';
-import { scaffoldNextjs } from './templates/nextjs.js';
+import type { SupportedModule } from './cli.js';
 
 export type FrontendMode = 'expo';
 export type AuthMode = 'clerk';
 export type PaymentsMode = 'revenuecat_stripe' | 'stripe';
+
+export type AppSelections = {
+  web: boolean;
+  mobile: boolean;
+  api: boolean;
+  desktop: boolean;
+  extension: boolean;
+};
+
+export type FeatureSelections = {
+  database: boolean;
+  auth: boolean;
+  billing: boolean;
+  storage: boolean;
+  nativeSubscriptions: boolean;
+};
 
 const SHARED_ENV_GITIGNORE_LINES = ['.env', '.env.*', '!.env.example'] as const;
 const SHARED_TYPESCRIPT_GITIGNORE_LINES = ['*.tsbuildinfo'] as const;
@@ -61,15 +77,22 @@ async function printAsciiLogo(): Promise<void> {
 }
 
 export interface InitOptions {
-  template: 'fullstack' | 'next';
   projectName: string;
   displayName: string;
+  apps: AppSelections;
+  features: FeatureSelections;
   auth: AuthMode;
   payments: PaymentsMode;
   db: 'neon';
   orm: 'drizzle';
   storage: 'r2';
   api: 'fastify' | 'nextjs_route_handlers';
+  skipInstall: boolean;
+  toolchainChannel: ToolchainChannel;
+}
+
+export interface AddOptions {
+  modules: SupportedModule[];
   skipInstall: boolean;
   toolchainChannel: ToolchainChannel;
 }
@@ -84,18 +107,11 @@ export interface ProjectOptions {
 
 type NormalizedStack = {
   schema_version: '2.0.0';
-  mode: 'fullstack' | 'next';
+  mode: 'modular';
   project_name: string;
   display_name: string;
-  frontend: 'monorepo_clients' | 'nextjs_shadcn';
-  clients: {
-    web: 'nextjs_shadcn';
-    mobile: 'expo_react_native_reusables';
-    desktop: 'electron_shadcn';
-    extension: 'wxt_shadcn';
-  } | null;
-  extension: 'wxt_chrome_extension' | null;
-  backend: 'fastify' | 'nextjs_route_handlers';
+  apps: AppSelections;
+  features: FeatureSelections;
   auth: AuthMode;
   payments: PaymentsMode;
   storage: 'cloudflare_r2_via_aws_s3_sdk';
@@ -111,6 +127,12 @@ type NormalizedStack = {
   };
 };
 
+export type AnhedralManifest = {
+  version: string;
+  apps: AppSelections;
+  features: FeatureSelections;
+};
+
 function getUsedToolchain(options: InitOptions, toolchain: ToolchainSpec): Partial<ToolchainSpec> {
   return {
     verifiedAt: toolchain.verifiedAt,
@@ -122,22 +144,14 @@ function getUsedToolchain(options: InitOptions, toolchain: ToolchainSpec): Parti
 
 function normalizeStack(options: InitOptions, generatedPaths: string[]): NormalizedStack {
   const toolchain = resolveToolchain(options.toolchainChannel);
-  const isNext = options.template === 'next';
 
   return {
     schema_version: '2.0.0',
-    mode: options.template,
+    mode: 'modular',
     project_name: options.projectName,
     display_name: options.displayName,
-    frontend: isNext ? 'nextjs_shadcn' : 'monorepo_clients',
-    clients: isNext ? null : {
-      web: 'nextjs_shadcn',
-      mobile: 'expo_react_native_reusables',
-      desktop: 'electron_shadcn',
-      extension: 'wxt_shadcn',
-    },
-    extension: isNext ? null : 'wxt_chrome_extension',
-    backend: isNext ? 'nextjs_route_handlers' : 'fastify',
+    apps: options.apps,
+    features: options.features,
     auth: options.auth,
     payments: options.payments,
     storage: 'cloudflare_r2_via_aws_s3_sdk',
@@ -214,6 +228,97 @@ function writeRootDocs(root: string, options: InitOptions, stack: NormalizedStac
     ? `${options.toolchainChannel} (verified ${stack.outputs.toolchain.verifiedAt})`
     : `${options.toolchainChannel} (floating latest)`;
   const generatedPaths = stack.outputs.generated_paths.map((entry) => `- \`${entry}\``).join('\n') || '- `.`';
+  const selectedApps = [
+    options.apps.web ? 'Web: Next.js + shadcn/ui' : null,
+    options.apps.mobile ? 'Mobile: Expo + React Native Reusables' : null,
+    options.apps.api ? 'API: Fastify' : null,
+    options.apps.desktop ? 'Desktop: Electron + shadcn/ui' : null,
+    options.apps.extension ? 'Extension: WXT Chrome extension' : null,
+  ].filter(Boolean).map((entry) => `- ${entry}`).join('\n') || '- No app surfaces selected';
+  const selectedFeatures = [
+    options.features.database ? `Database: ${options.db} + ${options.orm}` : null,
+    options.features.auth ? `Auth: ${options.auth}` : null,
+    options.features.billing ? 'Billing: RevenueCat + Stripe' : null,
+    options.features.storage ? `Storage: ${options.storage}` : null,
+    options.features.nativeSubscriptions ? 'Native subscriptions: RevenueCat' : null,
+  ].filter(Boolean).map((entry) => `- ${entry}`).join('\n') || '- No backend features selected';
+  const selectedProviderNames = [
+    options.features.auth ? 'Clerk' : null,
+    options.features.billing || options.features.nativeSubscriptions ? 'RevenueCat/Stripe' : null,
+    options.features.database ? 'Neon' : null,
+    options.features.storage ? 'R2' : null,
+  ].filter(Boolean).join(', ') || 'the selected providers';
+  const firstRunCommands = [
+    'pnpm install',
+    'cp .env.example .env',
+    options.apps.extension ? 'cp apps/extension/.env.example apps/extension/.env' : null,
+    options.features.database ? 'pnpm db:generate' : null,
+    options.features.database ? 'pnpm db:migrate' : null,
+    'pnpm verify',
+    options.apps.web ? 'pnpm dev:web' : null,
+    options.apps.api ? 'pnpm dev:api' : null,
+    options.apps.mobile ? 'pnpm dev:mobile' : null,
+    options.apps.desktop ? 'pnpm dev:desktop' : null,
+    options.apps.extension ? 'pnpm dev:extension' : null,
+  ].filter(Boolean).join('\n');
+  const verifyCommands = [
+    'pnpm verify',
+    options.apps.web ? 'pnpm verify:web' : null,
+    options.apps.mobile ? 'pnpm verify:mobile' : null,
+    options.apps.api ? 'pnpm verify:api' : null,
+    options.apps.desktop ? 'pnpm verify:desktop' : null,
+    options.apps.extension ? 'pnpm verify:extension' : null,
+  ].filter(Boolean).join('\n');
+  const platformBuildCommands = [
+    options.apps.mobile ? 'pnpm eas:build:ios' : null,
+    options.apps.mobile ? 'pnpm eas:build:android' : null,
+    options.apps.desktop ? 'pnpm desktop:build' : null,
+    options.apps.extension ? 'pnpm extension:zip' : null,
+  ].filter(Boolean).join('\n') || '# No platform build commands were generated for the selected app surfaces.';
+  const providerSetup = [
+    options.features.database ? `### Neon database
+
+- Create a Neon project and database: https://neon.com/docs/get-started-with-neon/connect-neon
+- Put the pooled connection string in \`DATABASE_URL\` in \`.env\`${options.apps.api ? ', `apps/api/.env`, and the API Vercel service' : ''}.
+- Run \`pnpm db:generate\` and \`pnpm db:migrate\` after \`DATABASE_URL\` is real.` : null,
+    options.features.auth ? `### Clerk auth
+
+- Expo setup: https://docs.expo.dev/guides/using-clerk/
+- Clerk Expo quickstart: https://clerk.com/docs/quickstarts/get-started-with-expo
+${options.apps.mobile ? '- Set `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/mobile/.env` and EAS.\n' : ''}${options.apps.web ? '- Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in the web app env.\n' : ''}${options.apps.api ? '- Set `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` in `apps/api/.env` and the API Vercel service.\n' : ''}${options.apps.extension ? '- Set `VITE_CLERK_PUBLISHABLE_KEY` in `apps/extension/.env`.\n' : ''}- Add allowed origins for the selected clients.` : null,
+    (options.features.billing || options.features.nativeSubscriptions) ? `### RevenueCat + Stripe
+
+- RevenueCat Web overview: https://www.revenuecat.com/docs/web/overview
+- RevenueCat Stripe Billing integration: https://www.revenuecat.com/docs/web/integrations/stripe
+- Stripe API keys: https://docs.stripe.com/keys
+- Create an entitlement named \`pro\`.
+${options.apps.mobile ? '- Create iOS and Android apps in RevenueCat and set `EXPO_PUBLIC_RC_API_KEY_IOS`, `EXPO_PUBLIC_RC_API_KEY_ANDROID`, and `EXPO_PUBLIC_RC_ENTITLEMENT_ID`.\n' : ''}${options.apps.web ? '- Create a Web app in RevenueCat and set `NEXT_PUBLIC_RC_WEB_API_KEY` for the web client.\n' : ''}${options.apps.api ? '- Set `RC_SECRET_API_KEY` and `RC_WEBHOOK_SECRET` only in API envs.\n- Point the RevenueCat webhook to `https://<backend-domain>/webhooks/revenuecat`.\n' : ''}` : null,
+    options.features.storage ? `### Cloudflare R2/CDN
+
+- R2 S3-compatible setup: https://developers.cloudflare.com/r2/get-started/s3/
+- R2 API tokens: https://developers.cloudflare.com/r2/api/tokens/
+- Create a bucket and least-privilege API token.
+- Set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\`${options.apps.api ? ' only in API envs' : ''}.` : null,
+    (options.apps.web || options.apps.api) ? `### Vercel Services
+
+- Services docs: https://vercel.com/docs/services
+- Import this repository once as one Vercel project and select the Services framework preset.
+${options.apps.web ? '- Web service: `apps/web`, route `/`, build command `pnpm build`.\n' : ''}${options.apps.api ? '- API service: `apps/api`, route `/api/*`, build command `pnpm build`, entrypoint `apps/api/src/index.ts`.\n' : ''}` : null,
+    options.apps.mobile ? `### EAS native app builds
+
+- EAS docs: https://docs.expo.dev/eas/
+- Store submission docs: https://docs.expo.dev/deploy/submit-to-app-stores/
+- Use \`apps/mobile\` as the Expo project root for iOS and Android builds.` : null,
+    options.apps.desktop ? `### Desktop app builds
+
+- Build all desktop targets with \`pnpm desktop:build\`.
+- Build one target with \`pnpm desktop:build:mac\`, \`pnpm desktop:build:win\`, or \`pnpm desktop:build:linux\`.` : null,
+    options.apps.extension ? `### Chrome Web Store
+
+- WXT publishing: https://wxt.dev/guide/essentials/publishing.html
+- Chrome publishing: https://developer.chrome.com/docs/webstore/publish
+- Build with \`pnpm extension:zip\`, then upload \`apps/extension/.output/*-chrome.zip\` in the Chrome Web Store Developer Dashboard.` : null,
+  ].filter(Boolean).join('\n\n') || 'No external provider setup is required for the selected modules.';
 
   writeFile(path.join(root, 'README.md'), `# ${options.displayName}
 
@@ -221,19 +326,18 @@ Generated by anhedral.
 
 ## Stack
 
-- Mode: fullstack
-- Web: Next.js + shadcn/ui
-- Mobile: Expo + React Native Reusables
-- API: Fastify
-- Desktop: Electron + shadcn/ui
-- Extension: WXT Chrome extension
+Selected app surfaces:
+
+${selectedApps}
+
+Selected backend features:
+
+${selectedFeatures}
+
 - Shared packages: \`packages/*\`
-- Auth: ${options.auth}
-- Payments: ${options.payments}
-- Database: ${options.db} + ${options.orm}
-- Storage: ${options.storage}
 - API: ${options.api ?? 'framework-native'}
 - Toolchain: ${toolchainLine}
+- Project manifest: recorded in \`anhedral.json\`
 - Dependency manifest: recorded in \`stack.json\`
 
 ## Generated paths
@@ -243,111 +347,40 @@ ${generatedPaths}
 ## First Run
 
 \`\`\`bash
-pnpm install
-cp .env.example .env
-# apps/mobile/.env is generated for local Expo development
-cp apps/extension/.env.example apps/extension/.env
-pnpm db:generate
-pnpm db:migrate
-pnpm verify
-pnpm dev:web
-pnpm dev:api
-pnpm dev:mobile
-pnpm dev:desktop
-pnpm dev:extension
+${firstRunCommands}
 \`\`\`
 
-The generated env files intentionally contain placeholder provider values. That is enough to inspect the project structure and run backend smoke tests, but the full UI needs real provider keys before auth, billing, uploads, and extension sign-in behave like production.
+The generated env files intentionally contain placeholder provider values. That is enough to inspect the project structure and run backend smoke tests, but selected provider features need real keys before they behave like production.
 
 For a provider-free backend smoke test, keep \`ANHEDRAL_DEMO=true\` in \`apps/api/.env\`. Demo mode returns a signed-in sample user and active subscription responses without Clerk, RevenueCat, or Stripe credentials. It is for local development only.
 
 ## Provider Setup
 
-Use this order so each service has the domains and callback URLs it needs:
-
-1. Neon database
-   - Create a Neon project and database: https://neon.com/docs/get-started-with-neon/connect-neon
-   - Put the pooled connection string in \`DATABASE_URL\` in \`.env\`, \`apps/api/.env\`, and the API Vercel project.
-   - Run \`pnpm db:generate\` and \`pnpm db:migrate\` after \`DATABASE_URL\` is real.
-
-2. Clerk auth
-   - Expo setup: https://docs.expo.dev/guides/using-clerk/
-   - Clerk Expo quickstart: https://clerk.com/docs/quickstarts/get-started-with-expo
-   - Set \`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY\` in \`apps/mobile/.env\`, Vercel Mobile, and EAS.
-   - Set \`CLERK_PUBLISHABLE_KEY\` and \`CLERK_SECRET_KEY\` in \`apps/api/.env\` and Vercel API.
-   - Set \`VITE_CLERK_PUBLISHABLE_KEY\` in \`apps/extension/.env\`.
-   - Add allowed origins for \`http://localhost:8081\`, the Mobile Vercel domain, and the extension origin after Chrome assigns an extension id.
-
-3. RevenueCat + Stripe
-   - RevenueCat Web overview: https://www.revenuecat.com/docs/web/overview
-   - RevenueCat Stripe Billing integration: https://www.revenuecat.com/docs/web/integrations/stripe
-   - Stripe API keys: https://docs.stripe.com/keys
-   - Create an entitlement named \`pro\`.
-   - Create iOS, Android, and Web apps in RevenueCat and copy their public SDK keys into \`EXPO_PUBLIC_RC_API_KEY_IOS\`, \`EXPO_PUBLIC_RC_API_KEY_ANDROID\`, and \`EXPO_PUBLIC_RC_WEB_API_KEY\`.
-   - Set \`EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro\`.
-   - Set \`RC_SECRET_API_KEY\` and \`RC_WEBHOOK_SECRET\` only in API envs.
-   - Point the RevenueCat webhook to \`https://<backend-domain>/webhooks/revenuecat\`.
-
-4. Cloudflare R2/CDN
-   - R2 S3-compatible setup: https://developers.cloudflare.com/r2/get-started/s3/
-   - R2 API tokens: https://developers.cloudflare.com/r2/api/tokens/
-   - Create a bucket and least-privilege API token.
-   - Set \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, and \`R2_BUCKET\` only in API envs.
-   - If you use a public CDN/custom domain for uploaded files, add that URL to your own app config before exposing uploads broadly.
-
-5. Vercel Services web/API deploy
-   - Services docs: https://vercel.com/docs/services
-   - Import this repository once as one Vercel project and select the Services framework preset.
-   - Root \`vercel.json\` defines \`apps/web\` as the Next.js service at \`/\` and \`apps/api\` as the Fastify service at \`/api/*\`.
-   - Web service build command: \`pnpm build\`.
-   - API service build command: \`pnpm build\`; entrypoint: \`apps/api/src/index.ts\`.
-
-6. EAS native app builds
-   - EAS docs: https://docs.expo.dev/eas/
-   - Store submission docs: https://docs.expo.dev/deploy/submit-to-app-stores/
-   - Use \`apps/mobile\` as the Expo project root for iOS and Android builds.
-
-7. Desktop app builds
-   - Build all desktop targets with \`pnpm desktop:build\`.
-   - Build one target with \`pnpm desktop:build:mac\`, \`pnpm desktop:build:win\`, or \`pnpm desktop:build:linux\`.
-
-8. Chrome Web Store
-   - WXT publishing: https://wxt.dev/guide/essentials/publishing.html
-   - Chrome publishing: https://developer.chrome.com/docs/webstore/publish
-   - Build with \`pnpm extension:zip\`, then upload \`apps/extension/.output/*-chrome.zip\` in the Chrome Web Store Developer Dashboard.
+${providerSetup}
 
 ## Setup Notes
 
 1. Copy \`.env.example\` into the runtime env files your apps need and fill in provider values.
 2. Review \`install-skills.sh\` and run the listed skill commands manually so you can choose scope and agent targets.
-3. Add the real provider configuration for Clerk, RevenueCat, Stripe web billing, Neon, and R2 where the scaffolded helper files indicate.
+3. Add the real provider configuration for ${selectedProviderNames} where the scaffolded helper files indicate.
 4. Use \`stack.json\` when debugging generated projects; it records the verified dependency manifest used by this init run.
 5. Review \`PRODUCTION.md\` before connecting live provider projects.
 6. Run database generation and migrations from the shared DB package:
 
 \`\`\`bash
-pnpm db:generate
-pnpm db:migrate
+${options.features.database ? 'pnpm db:generate\npnpm db:migrate' : '# Database scripts are generated when the db module is selected.'}
 \`\`\`
 
 Run deployment readiness checks before pushing:
 
 \`\`\`bash
-pnpm verify
-pnpm verify:web
-pnpm verify:mobile
-pnpm verify:api
-pnpm verify:desktop
-pnpm verify:extension
+${verifyCommands}
 \`\`\`
 
 7. Build platform artifacts separately:
 
 \`\`\`bash
-pnpm eas:build:ios
-pnpm eas:build:android
-pnpm desktop:build
-pnpm extension:zip
+${platformBuildCommands}
 \`\`\`
 `);
 }
@@ -631,6 +664,115 @@ Upload \`apps/extension/.output/*-chrome.zip\` to the Chrome Web Store Developer
 
 function writeStackFile(root: string, stack: NormalizedStack): void {
   writeFile(path.join(root, 'stack.json'), JSON.stringify(stack, null, 2) + '\n');
+}
+
+function manifestFromOptions(options: Pick<InitOptions, 'apps' | 'features'>): AnhedralManifest {
+  return {
+    version: '0.1.0',
+    apps: options.apps,
+    features: options.features,
+  };
+}
+
+function writeAnhedralManifest(root: string, manifest: AnhedralManifest): void {
+  writeJsonFile(path.join(root, 'anhedral.json'), manifest);
+}
+
+function readAnhedralManifest(root: string): AnhedralManifest {
+  const filePath = path.join(root, 'anhedral.json');
+  if (!existsSync(filePath)) {
+    throw new Error('anhedral.json was not found. Run anhedral init before anhedral add.');
+  }
+
+  return JSON.parse(readFileSync(filePath, 'utf8')) as AnhedralManifest;
+}
+
+function selectedAppFilters(apps: AppSelections): string[] {
+  const filters: string[] = [];
+  if (apps.web) filters.push('./apps/web');
+  if (apps.mobile) filters.push('./apps/mobile');
+  if (apps.api) filters.push('./apps/api');
+  if (apps.desktop) filters.push('./apps/desktop');
+  if (apps.extension) filters.push('./apps/extension');
+  return filters;
+}
+
+function generatedPathsForOptions(options: Pick<InitOptions, 'apps'>): string[] {
+  const generatedPaths = [
+    'anhedral.json',
+    '.github/workflows/ci.yml',
+    'PRODUCTION.md',
+    'vercel.json',
+    'packages/db',
+    'packages/types',
+    'packages/config',
+    'packages/api-client',
+  ];
+
+  if (options.apps.api) generatedPaths.push('apps/api');
+  if (options.apps.mobile) generatedPaths.push('apps/mobile');
+  if (options.apps.web) generatedPaths.push('apps/web');
+  if (options.apps.desktop) generatedPaths.push('apps/desktop');
+  if (options.apps.extension) generatedPaths.push('apps/extension');
+
+  return generatedPaths;
+}
+
+function optionsFromManifest(root: string, manifest: AnhedralManifest, addOptions: AddOptions): InitOptions {
+  const packageJsonPath = path.join(root, 'package.json');
+  const packageJson = existsSync(packageJsonPath)
+    ? JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string }
+    : {};
+  const projectName = packageJson.name ?? path.basename(root).toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+
+  return {
+    projectName,
+    displayName: path.basename(root) || 'Anhedral App',
+    apps: manifest.apps,
+    features: manifest.features,
+    auth: 'clerk',
+    payments: 'revenuecat_stripe',
+    db: 'neon',
+    orm: 'drizzle',
+    storage: 'r2',
+    api: 'fastify',
+    skipInstall: addOptions.skipInstall,
+    toolchainChannel: addOptions.toolchainChannel,
+  };
+}
+
+function updateManifestForModule(manifest: AnhedralManifest, moduleName: SupportedModule): boolean {
+  switch (moduleName) {
+    case 'web':
+    case 'mobile':
+    case 'api':
+    case 'desktop':
+    case 'extension': {
+      if (manifest.apps[moduleName]) return false;
+      manifest.apps[moduleName] = true;
+      return true;
+    }
+    case 'db':
+      if (manifest.features.database) return false;
+      manifest.features.database = true;
+      return true;
+    case 'auth':
+      if (manifest.features.auth) return false;
+      manifest.features.auth = true;
+      return true;
+    case 'billing':
+      if (manifest.features.billing) return false;
+      manifest.features.billing = true;
+      return true;
+    case 'storage':
+      if (manifest.features.storage) return false;
+      manifest.features.storage = true;
+      return true;
+    case 'native-subscriptions':
+      if (manifest.features.nativeSubscriptions) return false;
+      manifest.features.nativeSubscriptions = true;
+      return true;
+  }
 }
 
 function writeSharedPackages(root: string): void {
@@ -1202,55 +1344,44 @@ export class ApiClient {
   }
 }
 
-function writeRootEnvExample(root: string): void {
+function writeRootEnvExample(root: string, options: InitOptions): void {
   const frontendUrl = 'http://localhost:8081';
-  const webEnv = `NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
-NEXT_PUBLIC_RC_ENTITLEMENT_ID=pro
-`;
-  const expoEnv = `EXPO_PUBLIC_API_URL=http://localhost:8787
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
-EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro
-EXPO_PUBLIC_RC_API_KEY_IOS=
-EXPO_PUBLIC_RC_API_KEY_ANDROID=
-EXPO_PUBLIC_RC_WEB_API_KEY=
-`;
-  const extensionEnv = `VITE_API_URL=http://localhost:8787
+  const appBlocks = [
+    options.apps.web ? `# Web
+NEXT_PUBLIC_API_URL=/api
+${options.features.auth ? 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***\n' : ''}${options.features.billing ? 'NEXT_PUBLIC_RC_ENTITLEMENT_ID=pro\nNEXT_PUBLIC_RC_WEB_API_KEY=\n' : ''}` : null,
+    options.apps.mobile ? `# Mobile
+EXPO_PUBLIC_API_URL=http://localhost:8787
+${options.features.auth ? 'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***\n' : ''}${options.features.nativeSubscriptions || options.features.billing ? 'EXPO_PUBLIC_RC_ENTITLEMENT_ID=pro\nEXPO_PUBLIC_RC_API_KEY_IOS=\nEXPO_PUBLIC_RC_API_KEY_ANDROID=\nEXPO_PUBLIC_RC_WEB_API_KEY=\n' : ''}` : null,
+    options.apps.extension ? `# Extension
+VITE_API_URL=http://localhost:8787
 VITE_WEBSITE_URL=${frontendUrl}
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_***
-VITE_CRX_PUBLIC_KEY=
-VITE_RC_BILLING_URL=
-`;
-  const paymentsEnv = `# RevenueCat
+${options.features.auth ? 'VITE_CLERK_PUBLISHABLE_KEY=pk_test_***\n' : ''}VITE_CRX_PUBLIC_KEY=
+${options.features.billing ? 'VITE_RC_BILLING_URL=\n' : ''}` : null,
+  ].filter(Boolean).join('\n');
+  const serverBlocks = [
+    '# Server',
+    'PORT=8787',
+    options.features.database ? 'DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmode=require' : null,
+    options.features.auth ? '\n# Clerk\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
+    options.features.storage ? '\n# Cloudflare R2\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\nR2_BUCKET=' : null,
+    options.features.billing || options.features.nativeSubscriptions ? `\n# RevenueCat
 RC_SECRET_API_KEY=
 RC_WEBHOOK_SECRET=
 RC_ENTITLEMENT_ID=pro
-RC_OFFERING_ID=default
-`;
+RC_OFFERING_ID=default` : null,
+  ].filter(Boolean).join('\n');
 
   writeFile(path.join(root, '.env.example'), `# Apps
 FRONTEND_URL=${frontendUrl}
 ANHEDRAL_DEMO=false
-${webEnv}${expoEnv}${extensionEnv}
+${appBlocks}
 
-# Server
-PORT=8787
-DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/dbname?sslmode=require
-
-# Clerk
-CLERK_PUBLISHABLE_KEY=pk_test_***
-CLERK_SECRET_KEY=sk_test_***
-
-# Cloudflare R2
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET=
-
-${paymentsEnv}`);
+${serverBlocks}
+`);
 }
 
-function writeRootVercelFiles(root: string): void {
+function writeRootVercelFiles(root: string, options: InitOptions): void {
   writeFile(path.join(root, '.vercelignore'), `apps/extension/.output
 apps/extension/.wxt
 apps/extension/dist
@@ -1260,34 +1391,68 @@ apps/desktop/dist
 apps/desktop/release
 `);
 
+  const services: Record<string, Record<string, string>> = {};
+  const rewrites: Array<{ source: string; destination: { service: string } }> = [];
+
+  if (options.apps.web) {
+    services.web = {
+      root: 'apps/web',
+      framework: 'nextjs',
+      buildCommand: 'pnpm build',
+    };
+    rewrites.push({
+      source: '/(.*)',
+      destination: { service: 'web' },
+    });
+  }
+
+  if (options.apps.api) {
+    services.api = {
+      root: 'apps/api',
+      entrypoint: 'src/index.ts',
+      buildCommand: 'pnpm build',
+    };
+    rewrites.unshift({
+      source: '/api/(.*)',
+      destination: { service: 'api' },
+    });
+  }
+
   writeJsonFile(path.join(root, 'vercel.json'), {
     $schema: 'https://openapi.vercel.sh/vercel.json',
-    services: {
-      web: {
-        root: 'apps/web',
-        framework: 'nextjs',
-        buildCommand: 'pnpm build',
-      },
-      api: {
-        root: 'apps/api',
-        entrypoint: 'src/index.ts',
-        buildCommand: 'pnpm build',
-      },
-    },
-    rewrites: [
-      {
-        source: '/api/(.*)',
-        destination: { service: 'api' },
-      },
-      {
-        source: '/(.*)',
-        destination: { service: 'web' },
-      },
-    ],
+    services,
+    rewrites,
   });
 }
 
-function writeGeneratedCiWorkflow(root: string): void {
+function writeGeneratedCiWorkflow(root: string, options: InitOptions): void {
+  const moduleSteps = [
+    options.apps.mobile ? `      - name: Check Expo dependency alignment
+        run: pnpm --filter ./apps/mobile exec expo install --check
+
+      - name: Build Expo web
+        run: pnpm --filter ./apps/mobile build:web
+` : '',
+    options.apps.web ? `      - name: Build Next.js web
+        run: pnpm --filter ./apps/web build
+` : '',
+    options.apps.api ? `      - name: Test API
+        run: pnpm --filter ./apps/api test
+
+      - name: Build API
+        run: pnpm --filter ./apps/api build
+` : '',
+    options.apps.extension ? `      - name: Build extension
+        run: pnpm --filter ./apps/extension build
+
+      - name: Zip extension
+        run: pnpm --filter ./apps/extension zip
+` : '',
+    options.apps.desktop ? `      - name: Build desktop
+        run: pnpm --filter ./apps/desktop build
+` : '',
+  ].filter(Boolean).join('\n');
+
   writeFile(path.join(root, '.github/workflows/ci.yml'), `name: CI
 
 on:
@@ -1325,80 +1490,71 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check Expo dependency alignment
-        run: pnpm --filter ./apps/mobile exec expo install --check
-
-      - name: Build Next.js web
-        run: pnpm --filter ./apps/web build
-
-      - name: Build Expo web
-        run: pnpm --filter ./apps/mobile build:web
-
-      - name: Test API
-        run: pnpm --filter ./apps/api test
-
-      - name: Build API
-        run: pnpm --filter ./apps/api build
-
-      - name: Build extension
-        run: pnpm --filter ./apps/extension build
-
-      - name: Zip extension
-        run: pnpm --filter ./apps/extension zip
-
-      - name: Build desktop
-        run: pnpm --filter ./apps/desktop build
-
+${moduleSteps}
       - name: Build workspace
         run: pnpm build
 `);
 }
 
 function writeFullstackRootFiles(root: string, options: InitOptions): void {
-  const appFilters = [
-    './apps/web',
-    './apps/mobile',
-    './apps/api',
-    './apps/desktop',
-    './apps/extension',
-  ];
+  const appFilters = selectedAppFilters(options.apps);
   const parallelFilters = appFilters.map((entry) => `--filter=${entry}`).join(' ');
 
   const scripts: Record<string, string> = {
-    dev: `turbo dev --parallel ${parallelFilters}`,
-    'dev:api': 'pnpm --filter ./apps/api dev',
-    'dev:backend': 'pnpm --filter ./apps/api dev',
+    dev: appFilters.length > 0 ? `turbo dev --parallel ${parallelFilters}` : 'echo "No app surfaces selected."',
     build: 'turbo build',
     typecheck: 'turbo typecheck',
-    verify: 'pnpm verify:web && pnpm verify:mobile && pnpm verify:api && pnpm verify:desktop && pnpm verify:extension',
-    'verify:web': 'pnpm --filter ./apps/web typecheck && pnpm --filter ./apps/web build',
-    'verify:mobile': 'pnpm --filter ./apps/mobile exec expo install --check && pnpm --filter ./apps/mobile build:web',
-    'verify:frontend': 'pnpm verify:web && pnpm verify:mobile',
-    'verify:api': 'pnpm --filter ./apps/api test && pnpm --filter ./apps/api build',
-    'verify:backend': 'pnpm verify:api',
-    'verify:desktop': 'pnpm --filter ./apps/desktop typecheck && pnpm --filter ./apps/desktop build',
-    'verify:extension': 'pnpm --filter ./apps/extension typecheck && pnpm --filter ./apps/extension zip',
-    'db:generate': 'pnpm --filter @shared/db db:generate',
-    'db:migrate': 'pnpm --filter @shared/db db:migrate',
-    'db:studio': 'pnpm --filter @shared/db db:studio',
-    'db:check': 'pnpm --filter @shared/db db:check',
   };
 
-  scripts['dev:web'] = 'pnpm --filter ./apps/web dev';
-  scripts['dev:frontend'] = 'pnpm --filter ./apps/mobile dev';
-  scripts['dev:mobile'] = 'pnpm --filter ./apps/mobile dev';
-  scripts['dev:desktop'] = 'pnpm --filter ./apps/desktop dev';
-  scripts['desktop:build'] = 'pnpm --filter ./apps/desktop build:all';
-  scripts['desktop:build:mac'] = 'pnpm --filter ./apps/desktop build:mac';
-  scripts['desktop:build:win'] = 'pnpm --filter ./apps/desktop build:win';
-  scripts['desktop:build:linux'] = 'pnpm --filter ./apps/desktop build:linux';
-  scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
-  scripts['extension:zip'] = 'pnpm --filter ./apps/extension zip';
-  scripts['eas:build:ios'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform ios --profile production';
-  scripts['eas:build:android'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform android --profile production';
-  scripts['eas:build:all'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform all --profile production';
-  scripts['wxt:build'] = 'pnpm --filter ./apps/extension build';
-  scripts['wxt:zip'] = 'pnpm --filter ./apps/extension zip';
+  const verifyScripts: string[] = [];
+  if (options.apps.web) {
+    scripts['dev:web'] = 'pnpm --filter ./apps/web dev';
+    scripts['verify:web'] = 'pnpm --filter ./apps/web typecheck && pnpm --filter ./apps/web build';
+    verifyScripts.push('pnpm verify:web');
+  }
+  if (options.apps.mobile) {
+    scripts['dev:frontend'] = 'pnpm --filter ./apps/mobile dev';
+    scripts['dev:mobile'] = 'pnpm --filter ./apps/mobile dev';
+    scripts['verify:mobile'] = 'pnpm --filter ./apps/mobile exec expo install --check && pnpm --filter ./apps/mobile build:web';
+    scripts['eas:build:ios'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform ios --profile production';
+    scripts['eas:build:android'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform android --profile production';
+    scripts['eas:build:all'] = 'pnpm --dir apps/mobile dlx eas-cli@latest build --platform all --profile production';
+    verifyScripts.push('pnpm verify:mobile');
+  }
+  if (options.apps.api) {
+    scripts['dev:api'] = 'pnpm --filter ./apps/api dev';
+    scripts['dev:backend'] = 'pnpm --filter ./apps/api dev';
+    scripts['verify:api'] = 'pnpm --filter ./apps/api test && pnpm --filter ./apps/api build';
+    scripts['verify:backend'] = 'pnpm verify:api';
+    verifyScripts.push('pnpm verify:api');
+  }
+  if (options.apps.desktop) {
+    scripts['dev:desktop'] = 'pnpm --filter ./apps/desktop dev';
+    scripts['desktop:build'] = 'pnpm --filter ./apps/desktop build:all';
+    scripts['desktop:build:mac'] = 'pnpm --filter ./apps/desktop build:mac';
+    scripts['desktop:build:win'] = 'pnpm --filter ./apps/desktop build:win';
+    scripts['desktop:build:linux'] = 'pnpm --filter ./apps/desktop build:linux';
+    scripts['verify:desktop'] = 'pnpm --filter ./apps/desktop typecheck && pnpm --filter ./apps/desktop build';
+    verifyScripts.push('pnpm verify:desktop');
+  }
+  if (options.apps.extension) {
+    scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
+    scripts['extension:zip'] = 'pnpm --filter ./apps/extension zip';
+    scripts['wxt:build'] = 'pnpm --filter ./apps/extension build';
+    scripts['wxt:zip'] = 'pnpm --filter ./apps/extension zip';
+    scripts['verify:extension'] = 'pnpm --filter ./apps/extension typecheck && pnpm --filter ./apps/extension zip';
+    verifyScripts.push('pnpm verify:extension');
+  }
+  if (options.apps.web || options.apps.mobile) {
+    scripts['verify:frontend'] = [options.apps.web ? 'pnpm verify:web' : null, options.apps.mobile ? 'pnpm verify:mobile' : null].filter(Boolean).join(' && ');
+  }
+  if (options.features.database) {
+    scripts['db:generate'] = 'pnpm --filter @shared/db db:generate';
+    scripts['db:migrate'] = 'pnpm --filter @shared/db db:migrate';
+    scripts['db:studio'] = 'pnpm --filter @shared/db db:studio';
+    scripts['db:check'] = 'pnpm --filter @shared/db db:check';
+  }
+  scripts.verify = verifyScripts.length > 0 ? verifyScripts.join(' && ') : 'pnpm typecheck';
 
   writeRootPackageJson(root, options.projectName, scripts, ['apps/*', 'packages/*'], {
     devDependencies: ROOT_DEPENDENCIES.devDependencies,
@@ -1432,12 +1588,14 @@ function writeFullstackRootFiles(root: string, options: InitOptions): void {
     ...SHARED_ENV_GITIGNORE_LINES,
     ...SHARED_TYPESCRIPT_GITIGNORE_LINES,
   ]);
-  writeRootEnvExample(root);
-  writeRootVercelFiles(root);
-  writeGeneratedCiWorkflow(root);
+  writeRootEnvExample(root, options);
+  writeRootVercelFiles(root, options);
+  writeGeneratedCiWorkflow(root, options);
 }
 
 async function scaffoldFullstack(root: string, options: InitOptions): Promise<string[]> {
+  const generatedPaths = generatedPathsForOptions(options);
+
   anhedralPrint.section('Workspace root');
   anhedralPrint.step('Writing root config (package.json, pnpm workspace, env, vercel)');
   writeFullstackRootFiles(root, options);
@@ -1449,79 +1607,57 @@ async function scaffoldFullstack(root: string, options: InitOptions): Promise<st
   anhedralPrint.done('Shared packages written');
 
   const frontendUrl = 'http://localhost:8081';
-  await scaffoldBackend(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl,
-    skipInstall: options.skipInstall,
-  });
+  if (options.apps.api) {
+    await scaffoldBackend(root, {
+      projectName: options.projectName,
+      displayName: options.displayName,
+      githubOrg: null,
+      frontendUrl,
+      skipInstall: options.skipInstall,
+    });
+  }
 
-  await scaffoldFrontend(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl,
-    skipInstall: options.skipInstall,
-  });
+  if (options.apps.mobile) {
+    await scaffoldFrontend(root, {
+      projectName: options.projectName,
+      displayName: options.displayName,
+      githubOrg: null,
+      frontendUrl,
+      skipInstall: options.skipInstall,
+    });
+  }
 
-  await scaffoldWeb(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl: 'http://localhost:3000',
-    skipInstall: options.skipInstall,
-  });
+  if (options.apps.web) {
+    await scaffoldWeb(root, {
+      projectName: options.projectName,
+      displayName: options.displayName,
+      githubOrg: null,
+      frontendUrl: 'http://localhost:3000',
+      skipInstall: options.skipInstall,
+    });
+  }
 
-  await scaffoldDesktop(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl,
-    skipInstall: options.skipInstall,
-  });
+  if (options.apps.desktop) {
+    await scaffoldDesktop(root, {
+      projectName: options.projectName,
+      displayName: options.displayName,
+      githubOrg: null,
+      frontendUrl,
+      skipInstall: options.skipInstall,
+    });
+  }
 
-  await scaffoldExtension(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl,
-    skipInstall: options.skipInstall,
-  });
+  if (options.apps.extension) {
+    await scaffoldExtension(root, {
+      projectName: options.projectName,
+      displayName: options.displayName,
+      githubOrg: null,
+      frontendUrl,
+      skipInstall: options.skipInstall,
+    });
+  }
 
-  return [
-    '.github/workflows/ci.yml',
-    'PRODUCTION.md',
-    'vercel.json',
-    'apps/web',
-    'apps/mobile',
-    'apps/api',
-    'apps/desktop',
-    'apps/extension',
-    'packages/db',
-    'packages/types',
-    'packages/config',
-    'packages/api-client',
-  ];
-}
-
-async function scaffoldNextTemplate(root: string, options: InitOptions): Promise<string[]> {
-  await scaffoldNextjs(root, {
-    projectName: options.projectName,
-    displayName: options.displayName,
-    githubOrg: null,
-    frontendUrl: 'http://localhost:3000',
-    skipInstall: options.skipInstall,
-  });
-
-  return [
-    'app',
-    'db',
-    'lib',
-    'proxy.ts',
-    'drizzle.config.ts',
-    'PRODUCTION.md',
-  ];
+  return generatedPaths;
 }
 
 export async function scaffoldProject(options: InitOptions): Promise<void> {
@@ -1535,23 +1671,26 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
     await printAsciiLogo();
     anhedralPrint.banner(`Initializing ${options.displayName} in ${root}`);
 
-    const generatedPaths = options.template === 'next'
-      ? await scaffoldNextTemplate(root, options)
-      : await scaffoldFullstack(root, options);
+    const generatedPaths = await scaffoldFullstack(root, options);
+    if (!options.skipInstall) {
+      anhedralPrint.section('Workspace install');
+      anhedralPrint.step('Installing workspace dependencies');
+      exec('pnpm install --no-frozen-lockfile', root);
+      anhedralPrint.done('Workspace dependencies installed');
+    }
 
     anhedralPrint.section('Project metadata');
-    anhedralPrint.step('Writing skills guide, README, and stack.json');
-    const skillCommands = options.template === 'next' ? [] : getSkillCommands();
+    anhedralPrint.step('Writing skills guide, README, stack.json, and anhedral.json');
+    const skillCommands = getSkillCommands();
     if (skillCommands.length > 0) {
       writeSkillsGuide(root, skillCommands);
     }
 
     const stack = normalizeStack(options, generatedPaths);
-    if (options.template === 'fullstack') {
-      writeRootDocs(root, options, stack);
-      writeProductionGuide(root, options);
-    }
+    writeRootDocs(root, options, stack);
+    writeProductionGuide(root, options);
     writeStackFile(root, stack);
+    writeAnhedralManifest(root, manifestFromOptions(options));
     anhedralPrint.done('Project metadata written');
 
     console.log('');
@@ -1562,23 +1701,138 @@ export async function scaffoldProject(options: InitOptions): Promise<void> {
     console.log('');
     anhedralPrint.info('Next commands:');
     console.log('  pnpm install');
-    if (options.template === 'next') {
-      console.log('  cp .env.example .env.local');
-      console.log('  pnpm db:generate && pnpm db:migrate');
-      console.log('  pnpm typecheck');
-      console.log('  pnpm dev');
-    } else {
-      console.log('  cp .env.example .env');
+    console.log('  cp .env.example .env');
+    if (options.apps.extension) {
       console.log('  cp apps/extension/.env.example apps/extension/.env');
+    }
+    if (options.features.database) {
       console.log('  pnpm db:generate && pnpm db:migrate');
-      console.log('  pnpm verify');
+    }
+    console.log('  pnpm verify');
+    if (options.apps.web) {
       console.log('  pnpm dev:web');
+    }
+    if (options.apps.api) {
       console.log('  pnpm dev:api');
+    }
+    if (options.apps.mobile) {
       console.log('  pnpm dev:mobile');
+    }
+    if (options.apps.desktop) {
       console.log('  pnpm dev:desktop');
+    }
+    if (options.apps.extension) {
       console.log('  pnpm dev:extension');
     }
     console.log('');
+  } finally {
+    if (previousToolchain == null) {
+      delete env.ANHEDRAL_TOOLCHAIN;
+    } else {
+      env.ANHEDRAL_TOOLCHAIN = previousToolchain;
+    }
+  }
+}
+
+export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> {
+  const root = path.resolve(process.cwd());
+  const manifest = readAnhedralManifest(root);
+  const requestedMissing = addOptions.modules.filter((moduleName) => updateManifestForModule(manifest, moduleName));
+
+  if (requestedMissing.length === 0) {
+    anhedralPrint.info('All requested modules are already installed.');
+    return;
+  }
+
+  const options = optionsFromManifest(root, manifest, addOptions);
+  const previousToolchain = env.ANHEDRAL_TOOLCHAIN;
+  env.ANHEDRAL_TOOLCHAIN = addOptions.toolchainChannel;
+
+  try {
+    anhedralPrint.banner(`Adding ${requestedMissing.join(', ')} to ${root}`);
+
+    anhedralPrint.section('Workspace root');
+    anhedralPrint.step('Refreshing root config for selected modules');
+    writeFullstackRootFiles(root, options);
+    anhedralPrint.done('Root config refreshed');
+
+    const frontendUrl = 'http://localhost:8081';
+    const generatedPaths: string[] = [];
+
+    if (requestedMissing.includes('api')) {
+      await scaffoldBackend(root, {
+        projectName: options.projectName,
+        displayName: options.displayName,
+        githubOrg: null,
+        frontendUrl,
+        skipInstall: options.skipInstall,
+      });
+      generatedPaths.push('apps/api');
+    }
+
+    if (requestedMissing.includes('mobile')) {
+      await scaffoldFrontend(root, {
+        projectName: options.projectName,
+        displayName: options.displayName,
+        githubOrg: null,
+        frontendUrl,
+        skipInstall: options.skipInstall,
+      });
+      generatedPaths.push('apps/mobile');
+    }
+
+    if (requestedMissing.includes('web')) {
+      await scaffoldWeb(root, {
+        projectName: options.projectName,
+        displayName: options.displayName,
+        githubOrg: null,
+        frontendUrl: 'http://localhost:3000',
+        skipInstall: options.skipInstall,
+      });
+      generatedPaths.push('apps/web');
+    }
+
+    if (requestedMissing.includes('desktop')) {
+      await scaffoldDesktop(root, {
+        projectName: options.projectName,
+        displayName: options.displayName,
+        githubOrg: null,
+        frontendUrl,
+        skipInstall: options.skipInstall,
+      });
+      generatedPaths.push('apps/desktop');
+    }
+
+    if (requestedMissing.includes('extension')) {
+      await scaffoldExtension(root, {
+        projectName: options.projectName,
+        displayName: options.displayName,
+        githubOrg: null,
+        frontendUrl,
+        skipInstall: options.skipInstall,
+      });
+      generatedPaths.push('apps/extension');
+    }
+
+    if (!options.skipInstall) {
+      anhedralPrint.section('Workspace install');
+      anhedralPrint.step('Installing workspace dependencies');
+      exec('pnpm install --no-frozen-lockfile', root);
+      anhedralPrint.done('Workspace dependencies installed');
+    }
+
+    anhedralPrint.section('Project metadata');
+    anhedralPrint.step('Updating README, PRODUCTION.md, anhedral.json, and stack.json');
+    const stack = normalizeStack(options, generatedPathsForOptions(options));
+    writeRootDocs(root, options, stack);
+    writeProductionGuide(root, options);
+    writeAnhedralManifest(root, manifest);
+    writeStackFile(root, stack);
+    anhedralPrint.done('Project metadata updated');
+
+    for (const generatedPath of generatedPaths) {
+      anhedralPrint.done(generatedPath);
+    }
   } finally {
     if (previousToolchain == null) {
       delete env.ANHEDRAL_TOOLCHAIN;

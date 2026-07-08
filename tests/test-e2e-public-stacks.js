@@ -72,10 +72,10 @@ function assertGitignoreContains(projectRoot, relativePath, expectedLines) {
   }
 }
 
-function assertNoNestedGit(projectRoot) {
+function assertNoNestedGit(projectRoot, apps) {
   assert.equal(existsSync(path.join(projectRoot, 'apps')), true, 'generated project should create an apps/ directory');
 
-  for (const appName of ['web', 'mobile', 'api', 'desktop', 'extension']) {
+  for (const appName of Object.keys(apps).filter((appName) => apps[appName])) {
     assert.equal(
       existsSync(path.join(projectRoot, 'apps', appName, '.git')),
       false,
@@ -86,12 +86,14 @@ function assertNoNestedGit(projectRoot) {
 
 function assertStackManifest(projectRoot, scenario) {
   const stack = JSON.parse(readFileSync(path.join(projectRoot, 'stack.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
   const toolchain = stack.outputs.toolchain;
 
-  assert.equal(stack.mode, 'fullstack');
-  assert.equal(stack.frontend, scenario.frontend);
-  assert.equal(stack.extension, 'wxt_chrome_extension');
-  assert.equal(stack.backend, 'fastify');
+  assert.equal(stack.mode, 'modular');
+  assert.deepEqual(stack.apps, scenario.apps);
+  assert.deepEqual(stack.features, scenario.features);
+  assert.deepEqual(manifest.apps, stack.apps);
+  assert.deepEqual(manifest.features, stack.features);
 
   assert.equal('reactNativeReusables' in toolchain, true);
   assert.equal('wxt' in toolchain, true);
@@ -110,24 +112,108 @@ const scenarios = [
     name: 'expo-extension',
     args: [],
     folderName: 'expo-extension-sample',
-    frontend: 'monorepo_clients',
+    apps: {
+      web: true,
+      mobile: true,
+      api: true,
+      desktop: true,
+      extension: true,
+    },
+    features: {
+      database: true,
+      auth: true,
+      billing: true,
+      storage: true,
+      nativeSubscriptions: true,
+    },
     gitignores: [
       ['.gitignore', ['.env', '.env.*', '!.env.example']],
       ['apps/mobile/.gitignore', ['.env', '.env.*', '!.env.example']],
       ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
     ],
     checks: [
-      ['pnpm', ['--filter', './apps/web', 'typecheck']],
-      ['pnpm', ['--filter', './apps/mobile', 'exec', 'expo', 'install', '--check']],
-      ['pnpm', ['--filter', './apps/mobile', 'build:web']],
-      ['pnpm', ['--filter', './apps/api', 'build']],
-      ['pnpm', ['--filter', './apps/api', 'test']],
-      ['pnpm', ['--filter', './apps/desktop', 'typecheck']],
-      ['pnpm', ['--filter', './apps/extension', 'typecheck']],
-      ['pnpm', ['--filter', './apps/extension', 'build']],
-      ['pnpm', ['--filter', './apps/extension', 'zip']],
+      ['pnpm', ['verify']],
       ['pnpm', ['build']],
     ],
+  },
+  {
+    name: 'web-api-minimal',
+    args: ['--web', '--api', '--db', '--auth'],
+    folderName: 'web-api-minimal',
+    apps: {
+      web: true,
+      mobile: false,
+      api: true,
+      desktop: false,
+      extension: false,
+    },
+    features: {
+      database: true,
+      auth: true,
+      billing: false,
+      storage: false,
+      nativeSubscriptions: false,
+    },
+    gitignores: [
+      ['.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
+    ],
+    checks: [
+      ['pnpm', ['verify']],
+      ['pnpm', ['build']],
+    ],
+  },
+  {
+    name: 'api-only',
+    args: ['--api', '--db', '--auth'],
+    folderName: 'api-only',
+    apps: {
+      web: false,
+      mobile: false,
+      api: true,
+      desktop: false,
+      extension: false,
+    },
+    features: {
+      database: true,
+      auth: true,
+      billing: false,
+      storage: false,
+      nativeSubscriptions: false,
+    },
+    gitignores: [
+      ['.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
+    ],
+    checks: [
+      ['pnpm', ['verify']],
+      ['pnpm', ['build']],
+    ],
+  },
+  {
+    name: 'add-desktop-flow',
+    args: ['--api', '--db', '--auth', '--skip-install'],
+    addArgs: ['desktop', '--skip-install'],
+    folderName: 'add-desktop-flow',
+    apps: {
+      web: false,
+      mobile: false,
+      api: true,
+      desktop: true,
+      extension: false,
+    },
+    features: {
+      database: true,
+      auth: true,
+      billing: false,
+      storage: false,
+      nativeSubscriptions: false,
+    },
+    gitignores: [
+      ['.gitignore', ['.env', '.env.*', '!.env.example']],
+      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
+    ],
+    checks: [],
   },
 ];
 
@@ -137,11 +223,14 @@ for (const scenario of scenarios) {
   rmSync(projectRoot, { recursive: true, force: true });
   mkdirSync(projectRoot, { recursive: true });
   run('node', [cliEntry, 'init', ...scenario.args], projectRoot);
+  if (scenario.addArgs) {
+    run('node', [cliEntry, 'add', ...scenario.addArgs], projectRoot);
+  }
 
   for (const [relativePath, expectedLines] of scenario.gitignores) {
     assertGitignoreContains(projectRoot, relativePath, expectedLines);
   }
-  assertNoNestedGit(projectRoot);
+  assertNoNestedGit(projectRoot, scenario.apps);
   assertStackManifest(projectRoot, scenario);
 
   for (const [command, args] of scenario.checks) {

@@ -40,6 +40,7 @@ export async function scaffoldFrontend(root: string, { projectName, displayName,
 
   writeApiClient(dir);
   writeConfigFile(dir);
+  writeTypeDeclarations(dir);
   writeApiHook(dir);
   writeAccountHook(dir);
   writeThemeToggle(dir);
@@ -77,6 +78,7 @@ function patchFrontendPackageJson(dir: string): void {
   packageJson.dependencies = {
     ...(packageJson.dependencies ?? {}),
     '@shared/api-client': FRONTEND_ADDON_DEPENDENCIES['@shared/api-client'],
+    '@react-navigation/native': FRONTEND_ADDON_DEPENDENCIES['@react-navigation/native'],
     '@clerk/expo': FRONTEND_ADDON_DEPENDENCIES['@clerk/expo'],
     'react-native-purchases': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases'],
     'react-native-purchases-ui': FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'],
@@ -110,11 +112,16 @@ function patchFrontendTsConfig(dir: string): void {
 
   const tsConfig = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
     extends?: string;
+    compilerOptions?: Record<string, unknown>;
   };
 
   if (tsConfig.extends === 'expo/tsconfig.base') {
     tsConfig.extends = 'expo/tsconfig.base.json';
   }
+  tsConfig.compilerOptions = {
+    ...(tsConfig.compilerOptions ?? {}),
+    ignoreDeprecations: '6.0',
+  };
 
   writeFile(filePath, JSON.stringify(tsConfig, null, 2) + '\n');
 }
@@ -214,6 +221,10 @@ export function getPlatformRevenueCatApiKey(): string {
   throw new Error(\`Unsupported platform: \${Platform.OS}\`);
 }
 `);
+}
+
+function writeTypeDeclarations(dir: string): void {
+  writeFile(path.join(dir, 'types/css.d.ts'), "declare module '*.css';\n");
 }
 
 function writeApiHook(dir: string): void {

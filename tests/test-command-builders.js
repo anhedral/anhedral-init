@@ -21,7 +21,7 @@ for (const command of backendInstallCommands) {
 
 const manifest = dependencyManifest();
 assert.equal(manifest.packageManager, 'pnpm@10.15.1');
-assert.equal(manifest.backend.dependencies.fastify, '5.6.2');
+assert.equal(manifest.backend.dependencies.fastify, '5.8.5');
 assert.equal(manifest.backend.dependencies['@shared/db'], 'workspace:*');
 assert.equal(manifest.frontendAddons['@shared/api-client'], 'workspace:*');
 assert.equal(manifest.frontendAddons['@clerk/expo'], '3.2.11');

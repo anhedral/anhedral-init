@@ -21,7 +21,7 @@ export const TOOLCHAIN_DEPENDENCIES = {
 export const ROOT_DEPENDENCIES: DependencyGroup = {
   devDependencies: {
     // renovate: datasource=npm depName=turbo
-    turbo: '2.8.0',
+    turbo: '2.9.14',
   },
 };
 
@@ -30,7 +30,7 @@ export const SHARED_DB_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@neondatabase/serverless
     '@neondatabase/serverless': '1.0.2',
     // renovate: datasource=npm depName=drizzle-orm
-    'drizzle-orm': '0.44.7',
+    'drizzle-orm': '0.45.2',
     // renovate: datasource=npm depName=dotenv
     dotenv: '17.2.3',
   },
@@ -76,7 +76,7 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     '@shared/contracts': 'workspace:*',
     '@shared/db': 'workspace:*',
     // renovate: datasource=npm depName=fastify
-    fastify: '5.6.2',
+    fastify: '5.8.5',
     // renovate: datasource=npm depName=fastify-plugin
     'fastify-plugin': '5.1.0',
     // renovate: datasource=npm depName=@fastify/cors
@@ -114,9 +114,9 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     '@types/node': SHARED_DB_DEPENDENCIES.devDependencies!['@types/node'],
     'drizzle-kit': SHARED_DB_DEPENDENCIES.devDependencies!['drizzle-kit'],
     // renovate: datasource=npm depName=vitest
-    vitest: '4.0.16',
+    vitest: '4.1.0',
     // renovate: datasource=npm depName=@vitest/coverage-v8
-    '@vitest/coverage-v8': '4.0.16',
+    '@vitest/coverage-v8': '4.1.0',
     // renovate: datasource=npm depName=eslint
     eslint: '9.39.2',
     // renovate: datasource=npm depName=@eslint/js
@@ -160,7 +160,7 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=autoprefixer
     autoprefixer: '10.4.23',
     // renovate: datasource=npm depName=postcss
-    postcss: '8.5.6',
+    postcss: '8.5.10',
     // renovate: datasource=npm depName=tailwindcss
     tailwindcss: '3.4.19',
     typescript: SHARED_DB_DEPENDENCIES.devDependencies!.typescript,
@@ -170,6 +170,8 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
 
 export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   '@shared/api-client': 'workspace:*',
+  // renovate: datasource=npm depName=@react-navigation/native
+  '@react-navigation/native': '7.1.17',
   // renovate: datasource=npm depName=@clerk/expo
   '@clerk/expo': '3.2.11',
   // renovate: datasource=npm depName=react-native-purchases
@@ -184,7 +186,9 @@ export const WEB_APP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/nextjs
-    '@clerk/nextjs': '7.4.2',
+    '@clerk/nextjs': '6.12.0',
+    // renovate: datasource=npm depName=@clerk/react
+    '@clerk/react': '6.12.0',
     // renovate: datasource=npm depName=next
     next: '16.1.1',
     // renovate: datasource=npm depName=react
@@ -237,7 +241,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
 export const NEXT_TEMPLATE_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     // renovate: datasource=npm depName=@clerk/nextjs
-    '@clerk/nextjs': '7.4.2',
+    '@clerk/nextjs': '6.12.0',
     '@neondatabase/serverless': SHARED_DB_DEPENDENCIES.dependencies!['@neondatabase/serverless'],
     'drizzle-orm': SHARED_DB_DEPENDENCIES.dependencies!['drizzle-orm'],
     // renovate: datasource=npm depName=stripe

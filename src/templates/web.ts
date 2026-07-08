@@ -1,14 +1,24 @@
 import path from 'node:path';
-import { writeFile } from '../util.js';
+import { rmSync } from 'node:fs';
+import { exec, writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { WEB_APP_DEPENDENCIES } from '../dependencies.js';
 
-export async function scaffoldWeb(root: string, { projectName, displayName }: ProjectOptions): Promise<void> {
+export async function scaffoldWeb(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
   const dir = path.join(root, 'apps/web');
 
   anhedralPrint.section('Web (Next.js + shadcn/ui)');
-  anhedralPrint.step('Writing Next.js web app');
+  anhedralPrint.step('Scaffolding Next.js app with shadcn');
+  if (skipInstall) {
+    anhedralPrint.info('Skipping shadcn init (--skip-install). Run after init: pnpm dlx shadcn@latest init -d --template next --name web');
+  } else {
+    exec(`pnpm dlx shadcn@latest init -d --template next --name web`, path.join(root, 'apps'));
+    rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+  }
+  anhedralPrint.done(skipInstall ? 'Next.js + shadcn manifests written' : 'Next.js + shadcn app scaffolded');
+
+  anhedralPrint.step('Writing web app customizations');
   writePackageJson(dir, projectName);
   writeTsConfig(dir);
   writeNextConfig(dir);
@@ -17,7 +27,10 @@ export async function scaffoldWeb(root: string, { projectName, displayName }: Pr
   writeEnvExample(dir);
   writeUiFiles(dir);
   writeAppFiles(dir, displayName);
-  anhedralPrint.done('Next.js web app written');
+  if (!skipInstall) {
+    exec('pnpm install --no-frozen-lockfile', root);
+  }
+  anhedralPrint.done(skipInstall ? 'Next.js web app written' : 'Next.js web dependencies installed');
 }
 
 function writePackageJson(dir: string, projectName: string): void {
@@ -211,13 +224,23 @@ export const metadata: Metadata = {
   description: '${displayName} web app',
 };
 
+function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (!publishableKey) {
+    return <>{children}</>;
+  }
+
+  return <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>;
+}
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body>{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
   );
 }
 `);

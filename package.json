@@ -39,10 +39,11 @@
     "test:cli": "node tests/test-cli.js",
     "test:cli:validation": "node tests/test-cli-validation.js",
     "test:deps": "pnpm build && node tests/test-dependency-manifest.js",
+    "test:pack": "pnpm build && node tests/test-packed-cli.js",
     "test:e2e": "node tests/test-e2e-public-stacks.js",
     "test:e2e:latest": "node tests/test-e2e-public-stacks.js --toolchain latest",
-    "test:all": "pnpm test && pnpm test:deps && pnpm test:e2e",
-    "release:check": "pnpm test:all && npm pack --dry-run",
+    "test:all": "pnpm test && pnpm test:deps && pnpm test:pack && pnpm test:e2e",
+    "release:check": "pnpm test:all && npm pack --dry-run --ignore-scripts",
     "demo:refresh": "pnpm build && node tests/refresh-demo.js"
   },
   "keywords": [

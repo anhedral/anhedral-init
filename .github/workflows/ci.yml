@@ -47,6 +47,14 @@ jobs:
       - name: Run local checks
         run: pnpm test
 
+      - name: Validate dependency manifest
+        if: ${{ matrix.node == 20 }}
+        run: pnpm test:deps
+
+      - name: Smoke test packed CLI
+        if: ${{ matrix.node == 20 }}
+        run: pnpm test:pack
+
   e2e-stable:
     name: E2E Stable
     runs-on: ubuntu-latest

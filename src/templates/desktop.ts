@@ -77,7 +77,7 @@ function writeTsConfig(dir: string): void {
       isolatedModules: true,
       noEmit: true,
       jsx: 'react-jsx',
-      types: ['node'],
+      types: ['node', 'vite/client'],
       paths: { '@/*': ['./src/renderer/*'] },
     },
     include: ['src/**/*', 'vite.config.ts'],
@@ -255,9 +255,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 `);
 
-  writeFile(path.join(dir, 'src/renderer/styles.css'), `@import "tailwindcss";
-
-:root {
+  writeFile(path.join(dir, 'src/renderer/styles.css'), `:root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
@@ -267,6 +265,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 body {
   margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  border: 0;
 }
 `);
 }

@@ -8,7 +8,9 @@ const repoRoot = path.resolve(__dirname, '..');
 const cliEntry = path.join(repoRoot, 'dist', 'index.js');
 const {
   USAGE,
+  buildAddOptions,
   buildOptions,
+  normalizeModuleName,
   parseCli,
 } = await import(path.join(repoRoot, 'dist', 'cli.js'));
 const usageLine = USAGE.trim().split('\n')[0];
@@ -43,7 +45,7 @@ const cases = [
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
-    stderrIncludes: 'Unexpected argument: demo. Use flags: --template, --toolchain, --skip-install',
+    stderrIncludes: 'Unexpected argument: demo. Use module flags, --toolchain, or --skip-install',
   },
   {
     name: 'defaults stack before validating toolchain',
@@ -52,34 +54,34 @@ const cases = [
     stderrIncludes: '--toolchain must be one of: latest, stable',
   },
   {
-    name: 'rejects unknown flags',
-    args: ['init', '--desktop'],
+    name: 'accepts desktop module flag',
+    args: ['init', '--desktop', '--skip-install'],
     expectedExit: 1,
-    stderrIncludes: 'Unknown flag: --desktop',
+    stderrIncludes: 'Current directory is not empty.',
   },
   {
-    name: 'rejects old next stack flag',
+    name: 'accepts extension module flag',
+    args: ['init', '--extension', '--skip-install'],
+    expectedExit: 1,
+    stderrIncludes: 'Current directory is not empty.',
+  },
+  {
+    name: 'rejects unknown module flags',
     args: ['init', '--next'],
     expectedExit: 1,
     stderrIncludes: 'Unknown flag: --next',
   },
   {
-    name: 'accepts next template flag',
+    name: 'rejects old template flag',
     args: ['init', '--template', 'next', '--skip-install'],
     expectedExit: 1,
-    stderrIncludes: 'Current directory is not empty.',
+    stderrIncludes: 'Unknown flag: --template',
   },
   {
-    name: 'rejects invalid template values',
-    args: ['init', '--template', 'whoops'],
+    name: 'rejects template positional value',
+    args: ['init', '--template=next'],
     expectedExit: 1,
-    stderrIncludes: '--template must be one of: fullstack, next',
-  },
-  {
-    name: 'rejects old extension stack flag',
-    args: ['init', '--extension'],
-    expectedExit: 1,
-    stderrIncludes: 'Unknown flag: --extension',
+    stderrIncludes: 'Unknown flag: --template=next',
   },
   {
     name: 'rejects invalid toolchain values',
@@ -109,14 +111,37 @@ for (const testCase of cases) {
 
 const defaultFlags = parseCli([]);
 assert.equal(buildOptions(defaultFlags).payments, 'revenuecat_stripe', 'buildOptions should use RevenueCat + Stripe');
-assert.equal(buildOptions(parseCli(['--template', 'next'])).payments, 'stripe', 'Next template should use Stripe only');
-assert.equal(buildOptions(parseCli(['--template=nextjs'])).api, 'nextjs_route_handlers', 'Next aliases should use route handlers');
 assert.equal(buildOptions(defaultFlags).skipInstall, false, 'buildOptions should install dependencies by default');
 assert.equal(buildOptions(parseCli(['--skip-install'])).skipInstall, true, '--skip-install should disable dependency installs');
 assert.equal(
   buildOptions(parseCli(['--toolchain', 'stable'])).api,
   'fastify',
   'toolchain flags should not require an explicit stack',
+);
+assert.equal(buildOptions(parseCli(['--toolchain=stable'])).api, 'fastify', 'toolchain assignment flags should be accepted');
+
+const minimalOptions = buildOptions(parseCli(['--web', '--api', '--db', '--auth']));
+assert.deepEqual(minimalOptions.apps, {
+  web: true,
+  mobile: false,
+  api: true,
+  desktop: false,
+  extension: false,
+});
+assert.deepEqual(minimalOptions.features, {
+  database: true,
+  auth: true,
+  billing: false,
+  storage: false,
+  nativeSubscriptions: false,
+});
+
+assert.equal(normalizeModuleName('database'), 'db');
+assert.equal(normalizeModuleName('chrome-extension'), 'extension');
+assert.equal(normalizeModuleName('native-billing'), 'native-subscriptions');
+assert.deepEqual(
+  buildAddOptions(['mobile', 'chrome-extension', 'mobile'], parseCli(['--skip-install'])).modules,
+  ['mobile', 'extension'],
 );
 
 console.log(`Validation tests passed: ${cases.length}`);
