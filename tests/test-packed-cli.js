@@ -25,8 +25,15 @@ function run(command, args, cwd) {
   return { stdout, stderr };
 }
 
+function parsePackJson(output) {
+  const start = output.indexOf('[');
+  const end = output.lastIndexOf(']');
+  assert.ok(start >= 0 && end > start, `npm pack should emit a JSON array\noutput:\n${output}`);
+  return JSON.parse(output.slice(start, end + 1));
+}
+
 const packResult = run('npm', ['pack', '--json', '--ignore-scripts'], repoRoot);
-const packed = JSON.parse(packResult.stdout);
+const packed = parsePackJson(packResult.stdout);
 const tarballName = packed[0]?.filename;
 assert.equal(typeof tarballName, 'string', 'npm pack should report a tarball filename');
 
