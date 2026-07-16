@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSyncPortable } from '../scripts/spawn-command.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -12,7 +12,7 @@ const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npmCache = mkdtempSync(path.join(tmpdir(), 'anhedral-npm-cache-'));
 
 function run(command, args, cwd) {
-  const result = spawnSync(command, args, {
+  const result = spawnSyncPortable(command, args, {
     cwd,
     encoding: 'utf8',
     env: {
@@ -37,10 +37,6 @@ function runInstalledCli(cwd) {
   const binRoot = path.join(cwd, 'node_modules', '.bin');
   const binPath = path.join(binRoot, process.platform === 'win32' ? 'anhedral.cmd' : 'anhedral');
   assert.equal(existsSync(binPath), true, `installed CLI shim should exist at ${binPath}`);
-
-  if (process.platform === 'win32') {
-    return run(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${binPath}" --help`], cwd);
-  }
 
   return run(binPath, ['--help'], cwd);
 }

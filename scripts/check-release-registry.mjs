@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSyncPortable } from './spawn-command.mjs';
 
 const mode = process.argv[2];
 const metadataPath = path.resolve(process.argv[3] ?? 'release-artifact/metadata.json');
@@ -23,7 +23,7 @@ if (process.env.ANHEDRAL_NPM_ARGS_PREFIX) {
 const registry = 'https://registry.npmjs.org';
 
 function queryIntegrity() {
-  const result = spawnSync(
+  const result = spawnSyncPortable(
     npmCommand,
     [...npmArgsPrefix,
       'view',

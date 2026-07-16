@@ -19,6 +19,7 @@ import {
   validateReleaseDeclaration,
 } from '../scripts/check-release-policy.mjs';
 import { scanTarball, scanText } from '../scripts/secret-scanner.mjs';
+import { resolveSpawnCommand } from '../scripts/spawn-command.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -78,6 +79,18 @@ function makeTarEntry(name, contents) {
 }
 
 try {
+  assert.deepEqual(resolveSpawnCommand('npm', ['pack'], { platform: 'linux' }), {
+    command: 'npm',
+    args: ['pack'],
+  });
+  assert.deepEqual(resolveSpawnCommand('npm.cmd', ['pack', '--json'], {
+    platform: 'win32',
+    comSpec: 'C:\\Windows\\System32\\cmd.exe',
+  }), {
+    command: 'C:\\Windows\\System32\\cmd.exe',
+    args: ['/d', '/s', '/c', 'call', 'npm.cmd', 'pack', '--json'],
+  });
+
   assert.equal(isValidSemver('0.2.0'), true);
   assert.equal(isValidSemver('1.0.0-rc.1'), true);
   assert.equal(isValidSemver('1.0'), false);

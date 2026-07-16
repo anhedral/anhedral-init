@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -16,13 +16,15 @@ const {
   deriveProjectName,
   normalizeModuleName,
   parseCli,
-} = await import(path.join(repoRoot, 'dist', 'cli.js'));
-const { assertPackageName, childPackageName } = await import(path.join(repoRoot, 'dist', 'render.js'));
+} = await import(pathToFileURL(path.join(repoRoot, 'dist', 'cli.js')).href);
+const { assertPackageName, childPackageName } = await import(
+  pathToFileURL(path.join(repoRoot, 'dist', 'render.js')).href
+);
 const {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
   shouldPromptForInitModules,
-} = await import(path.join(repoRoot, 'dist', 'prompts.js'));
+} = await import(pathToFileURL(path.join(repoRoot, 'dist', 'prompts.js')).href);
 const usageLine = USAGE.trim().split('\n')[0];
 
 function runCli(args) {

@@ -158,7 +158,13 @@ const viteCommand = process.platform === 'win32' ? 'vite.cmd' : 'vite';
 const electronCommand = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 
 function start(command, args, options = {}) {
-  return spawn(command, args, {
+  const invocation = process.platform === 'win32'
+    ? {
+        command: process.env.ComSpec || 'cmd.exe',
+        args: ['/d', '/s', '/c', 'call', command, ...args],
+      }
+    : { command, args };
+  return spawn(invocation.command, invocation.args, {
     cwd: process.cwd(),
     stdio: 'inherit',
     ...options,

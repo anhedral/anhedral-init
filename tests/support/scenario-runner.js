@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSyncPortable } from '../../scripts/spawn-command.mjs';
 
 function withSkipInstall(args) {
   return args.includes('--skip-install') ? [...args] : [...args, '--skip-install'];
@@ -25,7 +25,7 @@ export function runCommand(command, args, cwd, {
     console.log(`Running in ${cwd}: ${command} ${args.join(' ')}`);
   }
 
-  const result = spawnSync(command, args, {
+  const result = spawnSyncPortable(command, args, {
     cwd,
     encoding: 'utf8',
     env: {

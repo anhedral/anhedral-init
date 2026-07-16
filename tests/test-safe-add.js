@@ -4,11 +4,13 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
-const { writeFile: writeGeneratedFile } = await import(path.join(repoRoot, 'dist', 'util.js'));
+const { writeFile: writeGeneratedFile } = await import(
+  pathToFileURL(path.join(repoRoot, 'dist', 'util.js')).href
+);
 
 function run(args, cwd, expectedStatus = 0) {
   const result = spawnSync('node', [cliEntry, ...args], { cwd, encoding: 'utf8' });

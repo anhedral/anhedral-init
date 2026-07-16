@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { spawnSyncPortable } from '../scripts/spawn-command.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -49,7 +49,7 @@ try {
   assert.doesNotMatch(license, /MIT License/i);
 
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(npmCommand, ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+  const result = spawnSyncPortable(npmCommand, ['pack', '--dry-run', '--json', '--ignore-scripts'], {
     cwd: repoRoot,
     encoding: 'utf8',
     env: {

@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveSpawnCommand } from '../scripts/spawn-command.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const execFileAsync = promisify(execFile);
 
-const { dependencyManifest } = await import(path.join(repoRoot, 'dist', 'dependencies.js'));
+const { dependencyManifest } = await import(
+  pathToFileURL(path.join(repoRoot, 'dist', 'dependencies.js')).href
+);
 
 function overridePackageName(selector) {
   const rangeSeparator = selector.lastIndexOf('@');
@@ -63,7 +66,11 @@ function collectDependencyPins() {
 }
 
 async function npmViewVersion(packageName, version) {
-  const { stdout } = await execFileAsync('npm', ['view', `${packageName}@${version}`, 'version'], {
+  const invocation = resolveSpawnCommand(
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    ['view', `${packageName}@${version}`, 'version'],
+  );
+  const { stdout } = await execFileAsync(invocation.command, invocation.args, {
     cwd: repoRoot,
     encoding: 'utf8',
   });

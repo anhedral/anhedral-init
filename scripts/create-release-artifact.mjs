@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { spawnSyncPortable } from './spawn-command.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -35,7 +35,7 @@ try {
   mkdirSync(artifactDirectory, { recursive: true });
 
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(
+  const result = spawnSyncPortable(
     npmCommand,
     ['pack', '--json', '--ignore-scripts', '--pack-destination', artifactDirectory],
     {
