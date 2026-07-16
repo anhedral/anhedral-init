@@ -3,9 +3,10 @@ import path from 'node:path';
 import { env } from 'node:process';
 import { anhedralPrint } from './print.js';
 import { appendGitignore, exec, writeFile } from './util.js';
-import { MOBILE_NODE_ENGINE, NODE_ENGINE, PACKAGE_MANAGER, ROOT_DEPENDENCIES } from './dependencies.js';
+import { MOBILE_NODE_ENGINE, NODE_ENGINE, PACKAGE_MANAGER, ROOT_DEPENDENCIES, TOOLCHAIN_DEPENDENCIES } from './dependencies.js';
 import { resolveToolchainChannel, type ToolchainChannel } from './toolchain.js';
 import { scaffoldApi } from './templates/api.js';
+import { r2BucketName, scaffoldAssetsPrivateProxy } from './templates/assets-private-proxy.js';
 import { scaffoldDesktop } from './templates/desktop.js';
 import { scaffoldExtension } from './templates/extension.js';
 import { scaffoldMobile } from './templates/mobile.js';
@@ -317,10 +318,26 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     scripts['verify:web'] = 'pnpm --filter ./apps/web typecheck && pnpm --filter ./apps/web build';
     verify.push('pnpm verify:web');
   }
+  if (options.apps.web || options.apps.api) {
+    scripts['deploy:vercel:link'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} link`;
+    scripts['deploy:vercel:preview'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} deploy`;
+    scripts['deploy:vercel:production'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} deploy --prod`;
+    scripts['deploy:vercel:inspect'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} inspect`;
+    scripts['deploy:vercel:domain:inspect'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} domains inspect`;
+  }
   if (options.apps.mobile) {
     scripts['dev:mobile'] = 'pnpm --filter ./apps/mobile dev';
     scripts['verify:mobile'] = 'pnpm --filter ./apps/mobile typecheck && pnpm --filter ./apps/mobile build:web';
     verify.push('pnpm verify:mobile');
+    const eas = `pnpm --dir apps/mobile dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']}`;
+    scripts['mobile:eas:login'] = `${eas} login`;
+    scripts['mobile:eas:init'] = `${eas} init`;
+    scripts['mobile:build:internal:ios'] = `${eas} build --platform ios --profile preview`;
+    scripts['mobile:build:internal:android'] = `${eas} build --platform android --profile preview`;
+    scripts['mobile:build:production:ios'] = `${eas} build --platform ios --profile production`;
+    scripts['mobile:build:production:android'] = `${eas} build --platform android --profile production`;
+    scripts['mobile:submit:ios'] = `${eas} submit --platform ios --profile production --latest`;
+    scripts['mobile:submit:android'] = `${eas} submit --platform android --profile production --latest`;
   }
   if (options.apps.api) {
     scripts['dev:api'] = 'pnpm --filter ./apps/api dev';
@@ -340,12 +357,26 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     verify.push('pnpm verify:extension');
   }
   if (options.features.database) {
+    scripts['neon:login'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} auth`;
+    scripts['neon:project:create'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} projects create`;
     scripts['db:generate'] = 'pnpm --filter @shared/db db:generate';
     scripts['db:migrate'] = 'pnpm --filter @shared/db db:migrate';
     scripts['db:check'] = 'pnpm --filter @shared/db db:check';
     scripts['db:studio'] = 'pnpm --filter @shared/db db:studio';
     scripts['verify:db'] = 'node scripts/verify-db-migrations.mjs && pnpm db:check';
     verify.push('pnpm verify:db');
+  }
+  if (options.features.storage) {
+    const bucketName = r2BucketName(options.projectName);
+    scripts['r2:login'] = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler} login`;
+    scripts['r2:bucket:create'] = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler} r2 bucket create ${bucketName}`;
+    scripts['r2:cors:list'] = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler} r2 bucket cors list ${bucketName}`;
+    scripts['r2:cors:set'] = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler} r2 bucket cors set ${bucketName} --file cloudflare/r2-cors.template.json`;
+    scripts['assets:proxy:check'] = 'pnpm --filter ./apps/assets-private-proxy check';
+    scripts['assets:proxy:dev'] = 'pnpm --filter ./apps/assets-private-proxy dev';
+    scripts['assets:proxy:deploy'] = 'pnpm --filter ./apps/assets-private-proxy deploy';
+    scripts['verify:assets-proxy'] = 'pnpm assets:proxy:check';
+    verify.push('pnpm verify:assets-proxy');
   }
   if (!Object.values(options.apps).some(Boolean)) verify.unshift('pnpm typecheck');
   scripts.verify = verify.join(' && ');
@@ -819,7 +850,7 @@ function writeRootFiles(root: string, options: ResolvedInitOptions, mode: 'init'
   writeDatabaseVerificationScript(root, options);
   const vercelIgnore = path.join(root, '.vercelignore');
   const currentIgnore = pathEntryExists(vercelIgnore) ? readFileSync(vercelIgnore, 'utf8') : '';
-  const ignoreLines = [...new Set([...currentIgnore.split('\n').filter(Boolean), 'apps/extension/.output', 'apps/mobile/dist', 'apps/desktop/release'])];
+  const ignoreLines = [...new Set([...currentIgnore.split('\n').filter(Boolean), 'apps/extension/.output', 'apps/mobile/dist', 'apps/desktop/release', 'apps/assets-private-proxy'])];
   writeFile(vercelIgnore, ignoreLines.join('\n') + '\n');
   writeFile(path.join(root, '.github/workflows/anhedral-ci.yml'), generatedCi(options));
 }
@@ -830,6 +861,7 @@ function enabledModuleNames(options: ResolvedInitOptions): readonly ModuleId[] {
 
 function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUserDocs: boolean): void {
   const modules = enabledModuleNames(options);
+  const storageBucketName = r2BucketName(options.projectName);
   const commands = [
     'pnpm install',
     options.apps.api ? 'cp apps/api/.env.example apps/api/.env' : null,
@@ -842,6 +874,27 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
     options.features.database ? 'git add packages/db/migrations' : null,
     'pnpm verify',
     options.features.database ? 'pnpm db:migrate' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const deploymentRows = [
+    options.apps.web || options.apps.api ? '| Web/API | Vercel Git integration | Import this repository once; branch pushes create previews and the production branch deploys automatically. |' : null,
+    options.apps.mobile ? '| Mobile | EAS Build + App Store Connect + Google Play Console | EAS creates signed binaries; Apple TestFlight/App Review and Google testing tracks/store review control release. |' : null,
+    options.features.database ? '| Database | Neon | Provision the project, set `DATABASE_URL`, review/apply Drizzle migrations, and use separate branches or projects for preview and production. |' : null,
+    options.features.storage ? '| Object storage | Private Cloudflare R2 + `assets-private-proxy` Worker | Authenticated uploads use presigned R2 URLs; the Worker streams known-key GET/HEAD downloads through `assets.<domain>` while direct bucket access stays disabled. |' : null,
+    options.apps.extension ? '| Chrome extension | Chrome Web Store | Build the production ZIP, test it as an unpublished/trusted-tester item, complete privacy disclosures, and submit it for review. |' : null,
+    options.apps.desktop ? '| Desktop | electron-builder artifacts | Build and sign on each target OS, then publish through the release channel chosen for the product. |' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const deploymentCommands = [
+    options.apps.web || options.apps.api ? 'pnpm deploy:vercel:link' : null,
+    options.apps.web || options.apps.api ? 'pnpm deploy:vercel:preview' : null,
+    options.apps.web || options.apps.api ? 'pnpm deploy:vercel:production' : null,
+    options.apps.mobile ? 'pnpm mobile:eas:login' : null,
+    options.apps.mobile ? 'pnpm mobile:build:internal:ios' : null,
+    options.apps.mobile ? 'pnpm mobile:build:internal:android' : null,
+    options.features.database ? `pnpm neon:project:create -- --name ${options.projectName}` : null,
+    options.features.storage ? 'pnpm r2:bucket:create' : null,
+    options.features.storage ? 'pnpm assets:proxy:check' : null,
+    options.features.storage ? 'pnpm assets:proxy:deploy' : null,
+    options.apps.extension ? 'pnpm extension:zip' : null,
   ].filter((value): value is string => value !== null).join('\n');
   if (includeUserDocs) {
     writeFile(path.join(root, 'README.md'), `# ${markdownHeading(options.displayName)}
@@ -864,6 +917,20 @@ Add provider-specific source components with \`anhedral ui add <component>\`.
 ${commands}
 \`\`\`
 
+## Deployment
+
+Only the selected surfaces and providers contribute deployment scripts. Deployment CLIs are exact-version, on-demand tools so they do not inflate the application lockfile.
+
+| Selection | Delivery target | Strategy |
+| --- | --- | --- |
+${deploymentRows}
+
+\`\`\`sh
+${deploymentCommands}
+\`\`\`
+
+Read \`PRODUCTION.md\` before creating accounts or production resources. It contains the selection-specific account, environment, DNS, testing, store, and release sequence.
+
 Generated-file ownership and exact tool versions are recorded in \`anhedral.json\`.
 `);
     const productionItems = [
@@ -876,16 +943,95 @@ Generated-file ownership and exact tool versions are recorded in \`anhedral.json
       options.features.storage ? '- Set a strong `CRON_SECRET` and verify Vercel invokes `/api/internal/storage/cleanup` on schedule.' : null,
       options.features.billing ? '- Configure `ABLY_API_KEY`, set a strong `CRON_SECRET`, and verify Vercel invokes `/api/internal/realtime/flush` every five minutes to retry the transactional outbox.' : null,
       options.features.billing ? '- Use a dedicated RevenueCat secret REST API key with customer-read access; keep it server-only and rotate it independently from the 32+ character webhook authorization secret.' : null,
-      options.features.storage ? '- Configure R2 CORS for every browser origin with `AllowedMethods: ["PUT"]`, `AllowedHeaders: ["Content-Type"]`, optional `ExposeHeaders: ["ETag"]` and `MaxAgeSeconds`, then verify both the preflight and a signed PUT in a browser.' : null,
-      options.features.storage ? '- Configure an R2 lifecycle rule for the `staging/` prefix as a backstop, with an age longer than the application cleanup grace period.' : null,
+      options.features.storage ? '- List the live R2 CORS policy, merge every exact browser origin into `cloudflare/r2-cors.template.json`, then apply the complete replacement policy and verify preflight plus signed PUT.' : null,
+      options.features.storage ? '- Configure an R2 lifecycle rule for the `storage/staging/` prefix as a backstop, with an age longer than the application cleanup grace period.' : null,
       options.features.database ? '- Commit every reviewed Drizzle SQL migration and its metadata with the schema change; `pnpm verify:db` rejects a missing or untracked SQL baseline and validates migration history.' : null,
       options.features.database ? '- Generated CI runs `pnpm db:generate` and fails when `packages/db/migrations` changes, preventing schema changes without a matching migration.' : null,
       '- Run `pnpm verify` before deployment.',
       '- Run `anhedral doctor` before incremental generation.',
     ].filter((item): item is string => item !== null);
+    const productionSections = [
+      options.apps.web || options.apps.api || options.features.storage ? `## Domain registration and Cloudflare control plane
+
+Registration and DNS hosting are separate jobs. You can buy the domain at GoDaddy while Cloudflare becomes authoritative DNS immediately; transferring the registrar later is optional.
+
+1. Buy the domain at GoDaddy under an organization-controlled account. Enable auto-renewal, MFA, accurate registrant contact details, and record renewal ownership.
+2. Add the domain as a website/zone in Cloudflare. Before changing nameservers, copy every existing DNS record—especially MX, TXT, DKIM, SPF, DMARC, verification, and subdomain records—and disable DNSSEC/DS records at GoDaddy if enabled.
+3. Cloudflare assigns two authoritative nameservers. Replace the GoDaddy nameservers with those exact values, then wait until Cloudflare marks the zone **Active**. Recreate and verify mail and other records before considering the migration complete. Re-enable DNSSEC in Cloudflare after activation.
+4. Optional registrar transfer: after the domain is eligible (commonly not within 60 days of registration, a prior transfer, or certain registrant changes), unlock it at GoDaddy, request its EPP/authorization code, and start **Transfer Domains** in Cloudflare. Approve the transfer and payment. DNS can remain live throughout because Cloudflare was already authoritative.
+5. Keep Cloudflare as the shared domain control plane: DNS and DNSSEC at the zone; Workers and R2 for the asset hostname; and optional Queues, Workflows, Durable Objects, WAF, Turnstile, or other compute/security products when the application actually needs them. Vercel remains the web/API runtime.
+
+Use organization-owned Cloudflare and GoDaddy accounts with MFA and least-privilege member roles. Do not confuse changing nameservers (DNS delegation) with transferring the registration (registrar/billing ownership). Follow the current [GoDaddy nameserver instructions](https://help.dc-aws.godaddy.com/help/edit-my-domain-nameservers-664), [GoDaddy transfer-away sequence](https://www.godaddy.com/en-ca/help/transfer-my-domain-away-from-godaddy-3560), [Cloudflare nameserver guidance](https://developers.cloudflare.com/dns/nameservers/update-nameservers/), and [Cloudflare registrar-transfer sequence](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare/).` : null,
+      options.apps.web || options.apps.api ? `## Vercel: web and API
+
+1. Push the repository to GitHub and import it in Vercel. Choose the **Services** framework preset and keep the repository root as the project root; \`vercel.json\` maps the selected \`apps/web\` and \`apps/api\` services.
+2. Add every required variable from the package-local \`.env.example\` files to Vercel's Development, Preview, and Production environments. Server secrets belong only to the API service. Never put a secret in a \`NEXT_PUBLIC_*\` variable.
+3. Run \`pnpm deploy:vercel:link\` for local CLI access. The normal release path is Git: every non-production branch/PR receives a preview deployment, and merging to the configured production branch creates production automatically. The explicit \`deploy:vercel:preview\` and \`deploy:vercel:production\` scripts are escape hatches for manual releases.
+4. Run \`pnpm deploy:vercel:inspect -- <deployment-url>\` when diagnosing a deployment. Verify health, authentication, scheduled jobs, and provider callbacks in Preview before merging.
+5. Add \`app.example.com\` in Vercel **Project → Settings → Domains** before changing DNS. Inspect it with \`pnpm deploy:vercel:domain:inspect -- app.example.com\`, then create the exact A/CNAME/TXT records Vercel reports in Cloudflare DNS. Leave the Vercel A/CNAME record **DNS only** (gray cloud), because placing Cloudflare's reverse proxy in front of Vercel hides traffic signals, adds another CDN hop, and can interfere with Vercel caching/firewall behavior. Ownership-verification TXT records are also DNS only. Vercel provisions TLS after validation.
+
+When web and API are both selected, keep the generated \`/api/(.*)\` route before the web catch-all. The browser uses same-origin \`/api\`; mobile, desktop, and extension builds need the absolute production API URL.` : null,
+      options.features.auth ? `## Clerk: production identity
+
+1. Create the Clerk application for development, then create its separate **Production** instance. Copy \`pk_live_*\` and \`sk_live_*\` keys into the production environments; keep \`CLERK_SECRET_KEY\` server-only.
+2. Add the production root domain in Clerk and publish the DNS records shown on **Domains**. Configure a subdomain allowlist, production OAuth credentials, allowlisted redirect URLs, webhook URLs/signing secrets, and native application identifiers that apply to the selected clients.
+3. Use development keys locally and production keys only for production builds. Vercel Preview deployments should use a separate Clerk application/domain when stable preview auth is required; do not point previews at live user data.
+4. Redeploy every selected client after changing public Clerk keys. Test sign-in, sign-out, token refresh, deep links, and physical-device behavior before release.${options.apps.extension ? '\n5. For the extension, create a stable CRX ID, configure Clerk Chrome Extension deployment for that ID, and set `VITE_CLERK_FRONTEND_API_URL` plus `VITE_CLERK_SYNC_HOST` when using web-to-extension session sync. OAuth and email-link flows require Sync Host.' : ''}` : null,
+      options.features.database ? `## Neon and Drizzle: database
+
+1. Create a Neon account, then run \`pnpm neon:login\` and \`pnpm neon:project:create -- --name ${options.projectName}\`, or create the project in the Neon console.
+2. Copy the pooled Postgres connection string to \`DATABASE_URL\` in \`packages/db/.env\` locally and the API's Vercel environment in production. Keep preview and production databases isolated with Neon branches or separate projects.
+3. Change the Drizzle schema, run \`pnpm db:generate\`, review and commit the SQL and metadata, then run \`pnpm verify:db\`.
+4. Apply \`pnpm db:migrate\` against the intended database as a controlled release step before sending production traffic to code that requires the new schema. Backward-compatible migrations make rollback safer; never run unreviewed migration generation during a Vercel build.
+5. Enable Neon backups/restore controls appropriate to the plan, restrict credentials, and rotate a leaked connection string immediately.` : null,
+      options.features.storage ? `## Cloudflare R2: private bucket and generated Worker
+
+1. Run \`pnpm r2:login\` and \`pnpm r2:bucket:create\` to create \`${storageBucketName}\`, or create that bucket in **R2 → Overview**. Keep both the \`r2.dev\` development URL and R2 bucket custom-domain access disabled; the bucket itself remains private.
+2. Create an Object Read & Write S3 API token scoped to this bucket. Put \`BASE_URL\`, \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\`, \`R2_BUCKET_NAME=${storageBucketName}\`, \`R2_PREFIX=storage\`, and \`R2_PROXY_READ_URL_TTL_SECONDS=600\` in the API deployment. The Worker uses the in-process \`ASSETS\` binding instead of these S3 credentials. Keep \`CLOUDFLARE_API_TOKEN\` operations/CI-only for Wrangler.
+3. Direct browser uploads continue to use short-lived presigned PUT URLs on \`<ACCOUNT_ID>.r2.cloudflarestorage.com\`. Presigned URLs do **not** work on custom domains. Run \`pnpm r2:cors:list\`, edit the user-owned \`cloudflare/r2-cors.template.json\`, then run \`pnpm r2:cors:set\`. The set command replaces the complete live policy, so retain every exact uploading origin.
+4. Open \`apps/assets-private-proxy/wrangler.jsonc\`. Replace both \`assets.example.com\` values with \`assets.yourdomain.com\`. The generated config names the Worker \`assets-private-proxy\`, disables \`workers.dev\` and preview URLs, binds \`${storageBucketName}\` as \`ASSETS\`, sets \`R2_PREFIX=storage\`, enables logs, and declares the hostname as a Worker Custom Domain.
+5. Run \`pnpm assets:proxy:check\`, then \`pnpm assets:proxy:deploy\`. Wrangler creates or updates the Worker, R2 binding, managed proxied DNS record, TLS certificate, and custom domain. The dashboard equivalent is **Workers & Pages → assets-private-proxy → Settings → Bindings** (R2, variable \`ASSETS\`, bucket \`${storageBucketName}\`) and **Domains & Routes → Add → Custom domain**.
+6. The Worker streams GET/HEAD bodies, preserves metadata/ranges/conditionals, caches complete public responses, rejects other methods and unexpected hosts, and never lists the bucket. It exposes only \`storage/confirmed/\` by unguessable key; \`storage/staging/\` and \`generation-inputs\` return 404. Authenticated private reads use \`GET /api/storage/uploads/:uploadId/read-url\`, which verifies ownership before returning a short-lived S3 URL.
+7. Add an R2 lifecycle rule for \`storage/staging/\` longer than the API cleanup grace period. Set a strong \`CRON_SECRET\` in Vercel and verify cleanup. Test missing keys, invalid encodings, GET, HEAD, range, conditional, cache HIT/MISS, forbidden methods, private-prefix rejection, authenticated read authorization, TTL bounds, and direct bucket inaccessibility.
+
+\`app.yourdomain.com\` is a Cloudflare DNS-only record targeting Vercel. \`assets.yourdomain.com\` is a Cloudflare-managed Worker Custom Domain and stays proxied. Never connect the asset hostname directly to R2, never CNAME it to \`r2.dev\`, and never expose S3 credentials in a client bundle.` : null,
+      options.apps.mobile ? `## Expo, TestFlight, and app stores
+
+Accounts required: an Expo/EAS account, an Apple Developer Program membership with App Store Connect access for iOS, and a Google Play Console developer account for Android. Create unique iOS bundle and Android package identifiers before the first store build.
+
+1. Run \`pnpm mobile:eas:login\`, then \`pnpm mobile:eas:init\` from the repository root to create/link the EAS project. Review and commit the project ID/configuration that EAS adds.
+2. Put public build-time values in the matching EAS environment/profile; keep server secrets out of Expo. Configure Apple/Google credentials with EAS and test sign-in/deep links on physical devices.
+3. Internal EAS distribution: run \`pnpm mobile:build:internal:ios\` and/or \`pnpm mobile:build:internal:android\`. iOS ad hoc distribution requires registered device UDIDs; Android internal builds can be installed from the EAS share URL. These builds do not require a development server.
+4. TestFlight: run \`pnpm mobile:build:production:ios\`, then \`pnpm mobile:submit:ios\`. After App Store Connect processes the build, assign it to internal testers. External testers require TestFlight Beta App Review. TestFlight approval is not App Store production approval.
+5. Google Play: create the app/listing and required policy declarations in Play Console. Run \`pnpm mobile:build:production:android\`, then \`pnpm mobile:submit:android\`. Start with the internal testing track, promote through closed/open testing as appropriate, and only then roll out production. A brand-new Play app may require its first binary to be uploaded manually before API-based submissions work.
+6. Complete store metadata, screenshots, privacy/data-safety declarations, content ratings, export compliance, pricing/availability, review credentials, and release notes. Submit for store review and use staged/phased rollout where appropriate.` : null,
+      options.apps.extension ? `## Chrome Web Store
+
+1. Register a Chrome Web Store developer account, verify its contact email, accept the agreement, and pay Google's one-time registration fee.
+2. Configure production extension environment values and a stable CRX public key/ID, then run \`pnpm verify:extension\` and \`pnpm extension:zip\`. Load the unpacked production build in Chrome first and test install, update, permissions, authentication, API calls, and sign-out.
+3. In the Developer Dashboard, create an item and upload the ZIP from \`apps/extension/.output\`. Complete the listing (description, icons, screenshots, category, regions) and keep the manifest version higher for every update.
+4. State one narrow purpose, justify every permission/host permission, disclose all handled data, certify limited use, and provide a public privacy-policy URL consistent with actual behavior. Clerk login counts as handling authentication data. Supply reviewer test instructions and credentials when features are gated.
+5. Publish first to trusted testers/unlisted visibility, verify the store-installed CRX ID matches Clerk and backend allowlists, then submit the production listing for review. Store review and rollout are separate from GitHub/Vercel deployment.` : null,
+      options.apps.desktop ? `## Electron desktop
+
+Builds are platform-specific: produce macOS, Windows, and Linux artifacts on their matching CI runners with the package's \`build:mac\`, \`build:win\`, and \`build:linux\` scripts. Configure signing/notarization credentials in CI, never in the repository. Test clean install, upgrade, deep links, Clerk return flow, auto-update strategy, and OS security warnings before publishing artifacts to the chosen release channel.` : null,
+    ].filter((section): section is string => section !== null);
     writeFile(path.join(root, 'PRODUCTION.md'), `# ${markdownHeading(options.displayName)} production guide
 
+This guide includes only the surfaces and providers selected when the project was generated. Provision separate Preview and Production resources, use least-privilege credentials, and keep account ownership with the organization rather than an individual developer.
+
+## Release gate
+
 ${productionItems.join('\n')}
+
+${productionSections.join('\n\n')}
+
+## Final release order
+
+- Run \`pnpm verify\` and \`anhedral doctor\`; review the exact production diff.
+${options.features.database ? '- Apply reviewed, backward-compatible database migrations.' : ''}
+${options.apps.web || options.apps.api ? '- Deploy provider infrastructure and secrets, then deploy API/web.' : ''}
+${options.apps.mobile || options.apps.extension || options.apps.desktop ? '- Build immutable client artifacts only after production URLs and public keys are final.\n- Release to internal testers, verify telemetry and rollback, then promote through each store review/rollout.' : ''}
 `);
   }
   writeFile(path.join(root, 'ANHEDRAL.md'), `# Anhedral-managed project information
@@ -905,13 +1051,14 @@ Resolved modules: ${modules.join(', ')}
     options.apps.api ? '- HTTP and provider integration lives in `apps/api`: keep Fastify routes thin, validate boundaries, and put secrets only in server environment files.' : null,
     options.apps.desktop ? '- Desktop lives in `apps/desktop`: keep Electron main/preload privileges minimal and application UI in the sandboxed React renderer.' : null,
     options.apps.extension ? '- Browser extension code lives in `apps/extension`: use WXT entrypoints and request only permissions required by the feature.' : null,
+    options.features.storage ? '- Private-bucket asset delivery lives in `apps/assets-private-proxy`: preserve the `ASSETS` R2 binding, streaming responses, method/host restrictions, and Cloudflare-managed custom domain.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const featureGuidance = [
     options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
     options.features.database ? '- Neon/Drizzle state is authoritative. Change `packages/db/src/schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
     options.features.auth ? '- Clerk owns identity and sessions. Never trust a client-supplied user ID; derive identity from verified server authentication.' : null,
     options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
-    options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. Clients receive short-lived URLs and never storage secrets.' : null,
+    options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   writeFile(path.join(root, 'SKILL.md'), `---
 name: anhedral-project
@@ -957,6 +1104,15 @@ ${featureGuidance}
 - Keep server secrets out of browser, Expo, Electron renderer, and extension bundles. Only variables with the framework's explicit public prefix may enter client code.
 - Validate external input at the API boundary, use parameterized Drizzle queries, and keep privileged Electron functionality behind a narrow context-isolated preload bridge.
 
+## Deployment conventions
+
+- Read \`PRODUCTION.md\` before provisioning or changing production resources. It is tailored to this project's selected surfaces and providers.
+${options.apps.web || options.apps.api ? '- Prefer GitHub-triggered Vercel Preview and Production deployments. Keep the generated Services routing intact; use manual `deploy:vercel:*` scripts only when explicitly required.' : ''}
+${options.features.database ? '- Treat reviewed, committed Drizzle SQL as the release artifact. Apply migrations as a controlled step against the intended Neon environment; never generate migrations during an application build.' : ''}
+${options.features.storage ? '- Keep the R2 bucket private and deploy `assets-private-proxy` at the Cloudflare Worker custom domain. Expose only `storage/confirmed/` publicly; use the owner-authorized read-URL endpoint for private objects and keep `CLOUDFLARE_API_TOKEN` operations-only.' : ''}
+${options.apps.mobile ? '- Promote mobile artifacts through EAS internal distribution, TestFlight/Google Play testing, then store review. Build-time public variables are not secrets.' : ''}
+${options.apps.extension ? '- Publish the exact verified WXT ZIP through trusted/unlisted Chrome Web Store testing before production review; preserve a stable CRX ID and least-privilege permissions.' : ''}
+
 ## Verify changes
 
 Run the strongest applicable checks before handing work back:
@@ -987,6 +1143,8 @@ function collectFiles(root: string, relativeRoot = ''): string[] {
 }
 
 function ownerForPath(relativePath: string): ModuleId | 'root' {
+  if (relativePath.startsWith('apps/assets-private-proxy/')) return 'storage';
+  if (relativePath.startsWith('cloudflare/')) return 'storage';
   const app = /^apps\/(web|mobile|api|desktop|extension)(?:\/|$)/.exec(relativePath);
   if (app) return app[1] as ModuleId;
   if (relativePath.startsWith('packages/db/')) return 'db';
@@ -995,6 +1153,8 @@ function ownerForPath(relativePath: string): ModuleId | 'root' {
 
 function defaultOwnership(relativePath: string): FileOwnershipClass {
   if (relativePath === 'README.md' || relativePath === 'PRODUCTION.md') return 'user';
+  if (relativePath === 'apps/assets-private-proxy/wrangler.jsonc') return 'user';
+  if (relativePath === 'cloudflare/r2-cors.template.json') return 'user';
   if (ROOT_MERGEABLE_FILES.has(relativePath)) return 'mergeable';
   return 'managed';
 }
@@ -1097,6 +1257,7 @@ async function writeSelectedModules(
   if (options.apps.web) await scaffoldWeb(root, shared);
   if (options.apps.desktop) await scaffoldDesktop(root, shared);
   if (options.apps.extension) await scaffoldExtension(root, shared);
+  if (options.features.storage) scaffoldAssetsPrivateProxy(root, shared);
   return templates;
 }
 

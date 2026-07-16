@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
+import { r2BucketName } from '../dist/templates/assets-private-proxy.js';
 import { scaffoldDesktop } from '../dist/templates/desktop.js';
 import { scaffoldExtension } from '../dist/templates/extension.js';
 import { scaffoldMobile } from '../dist/templates/mobile.js';
@@ -54,6 +55,10 @@ const roots = {
 const originalToolchain = process.env.ANHEDRAL_TOOLCHAIN;
 
 try {
+  assert.equal(r2BucketName('@scope/My.App'), 'my-app-assets');
+  assert.equal(r2BucketName('---'), 'anhedral-assets');
+  assert.ok(r2BucketName('a'.repeat(100)).length <= 63);
+
   process.env.ANHEDRAL_TOOLCHAIN = 'stable';
   await scaffoldWeb(roots.appOnly, options('app-only'));
   await scaffoldMobile(roots.appOnly, options('app-only'));

@@ -17,6 +17,14 @@ export const TOOLCHAIN_DEPENDENCIES = {
   shadcn: '4.13.0',
   // renovate: datasource=npm depName=wxt
   wxt: '0.20.27',
+  // renovate: datasource=npm depName=vercel
+  vercel: '56.2.1',
+  // renovate: datasource=npm depName=eas-cli
+  'eas-cli': '21.0.1',
+  // renovate: datasource=npm depName=neonctl
+  neonctl: '2.33.2',
+  // renovate: datasource=npm depName=wrangler
+  wrangler: '4.111.0',
 } as const;
 
 export const SECURITY_OVERRIDES: DependencyMap = {

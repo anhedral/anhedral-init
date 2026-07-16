@@ -7,8 +7,8 @@
       "path": ".env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 404,
-      "sha256": "b0b212add64690bd0cc95adb7c4cf275d24d42679848da1c4d783cdbd4ec3c5d"
+      "bytes": 514,
+      "sha256": "b58b6975e8697d7bb547f47c3aa4b8a06a8df0594b05e8ffc1f7c173e774aba5"
     },
     {
       "path": ".github/workflows/anhedral-ci.yml",
@@ -28,8 +28,8 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 61,
-      "sha256": "120ea73f6afde97f7d346310fc741aaaf91c9b6e161fff7d75ae0a1595943931"
+      "bytes": 87,
+      "sha256": "1a78cb5b2f0e923074c16fcb1a176a36bb06d9b748982d600134fada7bb4940b"
     },
     {
       "path": "ANHEDRAL.md",
@@ -42,36 +42,36 @@
       "path": "PRODUCTION.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1755,
-      "sha256": "d0671e26fbd3694966c7a0872e20c5fe7999f728b93cde7082eb7dc779890e26"
+      "bytes": 15156,
+      "sha256": "bff773013c38041fa310ca0d01c482d1e5b8249a312a9bd0dcaa835d6f92b5e3"
     },
     {
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 829,
-      "sha256": "42ae00cf713595eae191e569ff53f2a2327cf3b55c4bf0276711e2f1ad18abaa"
+      "bytes": 2623,
+      "sha256": "e9462f3ef48b9e5df013ec7a5ba5d87bb5f6a0db53d41589cfd3e361ceb41a56"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4480,
-      "sha256": "10f097f6f49dcb10797959627ce2b1ca98019f720a51f6388105af3496f6e7ce"
+      "bytes": 5882,
+      "sha256": "c9686254464181f51a5670251de8d793e5b33999dbbc4a85e04787c8ce4504a7"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 25506,
-      "sha256": "8bdb14c1627753906b27659e0de24bf454c1b2385e9bbe880006520957f7d518"
+      "bytes": 26533,
+      "sha256": "d9feefc8485d2397f19bd9d36ed07b1b939a25218df1ef1f0699f8144bacaee6"
     },
     {
       "path": "apps/api/.env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 1518,
-      "sha256": "fd3a547e599fa1b8dd69db2c8ce43fdb499f0796d14609a35d383f575706f392"
+      "bytes": 1874,
+      "sha256": "96f5052e0d87dedf1e3dc5e081c2d50d5d923dede035a92ab6c2c588bbb71fec"
     },
     {
       "path": "apps/api/.gitignore",
@@ -112,8 +112,8 @@
       "path": "apps/api/src/env.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 7781,
-      "sha256": "6ed9ae4fd8e23e0cd85625ab44ee01be38946376aa4ce1a2f22618e8b177db70"
+      "bytes": 8444,
+      "sha256": "807000f4e11366ac922df8c52caf44876182b78297bb8e3e213babd91a95cbe5"
     },
     {
       "path": "apps/api/src/index.ts",
@@ -133,43 +133,43 @@
       "path": "apps/api/src/routes.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 12946,
-      "sha256": "d2035e755639f45ba56398dea34bcfab132dd1b479b0e0c0a57f209fb0756956"
+      "bytes": 13320,
+      "sha256": "ca96f39d3cce2beaa6ff3251b2d346ccecae350c4c67bc878723bfbbbfd8734b"
     },
     {
       "path": "apps/api/src/storage.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 25545,
-      "sha256": "be49f764dcd6864754ae6d59761bbb9b5a75480c62c7353e6c783c58fb5cfc83"
+      "bytes": 26848,
+      "sha256": "330ce1a53db1fe7dd4b52980a6028aee953b0e5c5783ca4b15be082f327cce2f"
     },
     {
       "path": "apps/api/tests/env.test.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 4987,
-      "sha256": "66d78486b9f61e68d43a3dd4ca0adad7204c4e597901c80c4c349a13a470506e"
+      "bytes": 5655,
+      "sha256": "dee3821b2847ff0325f0dfefb09981d6f7ea5bcde05daebb8d9a63ce254cf982"
     },
     {
       "path": "apps/api/tests/health.test.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 4341,
-      "sha256": "5de73839909190c904a433a7d5fbd1e026571334cd55d27695a8f0f57cb967d0"
+      "bytes": 4391,
+      "sha256": "298f5723bfefd38fc409a4aa50b9507db124b1fe1b2d3f14b1a49e4d9ae9ee33"
     },
     {
       "path": "apps/api/tests/revenuecat-webhook.test.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 16718,
-      "sha256": "267d165990762a7411aeb958cea59d079328efa9a1e27b78edd2d12ef68e192b"
+      "bytes": 16936,
+      "sha256": "3ddd04666e2cda8518950b22e857fab5704fabac039c604cd73f5bef02e69bc7"
     },
     {
       "path": "apps/api/tests/storage.test.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 25857,
-      "sha256": "43e2a1c973d03017ed82119f9b74171bf3f71c1549a8d024413e73d21f12b9e2"
+      "bytes": 28913,
+      "sha256": "7c2fc2dec779fece5aad5e09527ce69ef2d5a7a61ffeefbbb165d23a05111fc3"
     },
     {
       "path": "apps/api/tsconfig.json",
@@ -184,6 +184,27 @@
       "mode": "0644",
       "bytes": 365,
       "sha256": "291f61bd92e7880937f5d94bd28584424b1ff629c11207da3452b79537a11ddc"
+    },
+    {
+      "path": "apps/assets-private-proxy/package.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 323,
+      "sha256": "b93a194cfa8011826d27706ee5c11c00e55f4801de5125758b442e97143d4fa2"
+    },
+    {
+      "path": "apps/assets-private-proxy/src/index.js",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 6835,
+      "sha256": "6fd9f99bf2ad1648e809e48ce585718f2fe1b6034eb5c753e76b5b0acc045d6d"
+    },
+    {
+      "path": "apps/assets-private-proxy/wrangler.jsonc",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 650,
+      "sha256": "819eb398322d9cb178b0c87c22edc5c9268bf9530c11bf36a5b4ab365bb8bd7f"
     },
     {
       "path": "apps/desktop/.env.example",
@@ -567,8 +588,8 @@
       "path": "apps/mobile/package.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 1726,
-      "sha256": "7e08ba3f5452d4a9ef790d9015af98fc7447cdbe17029cad3e75f1491184c6c2"
+      "bytes": 2372,
+      "sha256": "21c3863768ce65b729d4ec28b885942ee0932e34081f1a3b363d8169c6204796"
     },
     {
       "path": "apps/mobile/tailwind.config.js",
@@ -711,11 +732,25 @@
       "sha256": "86c57aa7eec3e819fc7f5f7075219d9383d4ce824b751816636e581170b7cc97"
     },
     {
+      "path": "cloudflare/README.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 880,
+      "sha256": "dbabb58c35c54e3c79f253ead2eea2e01e9d89f2b9d35b355cd9ec7415fe29b1"
+    },
+    {
+      "path": "cloudflare/r2-cors.template.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 420,
+      "sha256": "0b36a74d26fb9d1f814be9e4d542fd22244f5e48fe0d97b532b2a34d3224e89e"
+    },
+    {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 1827,
-      "sha256": "170c79047f62ef14e9e6e53265ef42c6cdc22c52ab7fe9744ad9809137c268c3"
+      "bytes": 3868,
+      "sha256": "be78cc10503fee4a582be58e1fddbd436a31eff6a5f819c8c2696d33142e799a"
     },
     {
       "path": "packages/api-client/package.json",
@@ -728,8 +763,8 @@
       "path": "packages/api-client/src/index.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 7705,
-      "sha256": "8a8b8c62372bbf8774936a6b66dc43209ddb8d8393d10746fc6110d0eb1f790b"
+      "bytes": 7929,
+      "sha256": "d19c5adbdfbadceee1215bb926822d549aded288b0f091590429bcfaefb3e7f1"
     },
     {
       "path": "packages/api-client/tsconfig.json",
@@ -749,8 +784,8 @@
       "path": "packages/contracts/src/index.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 3504,
-      "sha256": "431d4093e9f1c26d32b7d9d2df23f5b0affc86edd99a9dcb3c99d4b67bfa7868"
+      "bytes": 3677,
+      "sha256": "a6cb82b88c3203f494b505a20c7e324e047618e7e141116c697dc5230f3a7f11"
     },
     {
       "path": "packages/contracts/tsconfig.json",
@@ -865,5 +900,5 @@
       "sha256": "54571e9bf3fb5667c756cfb1b1d105831a1ad3dc8e3050488ebfc216b14d7800"
     }
   ],
-  "digest": "fda92f19b76de8f7dd52980857f1433583677a0b4db24ce9d3f663a029f7c36c"
+  "digest": "4a4b37beef040881142b22f5227feb2be5d88061f079383b80a88f3bfd640496"
 }

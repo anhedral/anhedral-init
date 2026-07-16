@@ -7,6 +7,7 @@ import {
   MOBILE_APP_DEPENDENCIES,
   MOBILE_NATIVEWIND_DEPENDENCIES,
   MOBILE_UNIWIND_DEPENDENCIES,
+  TOOLCHAIN_DEPENDENCIES,
 } from '../dependencies.js';
 import type { NativeStylingLibrary } from '../ui.js';
 import type { ProjectOptions } from '../scaffold.js';
@@ -235,6 +236,13 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
       web: 'expo start -c --web',
       build: 'pnpm typecheck && pnpm build:web',
       'build:web': 'expo export --platform web',
+      'eas:login': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} login`,
+      'build:internal:ios': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} build --platform ios --profile preview`,
+      'build:internal:android': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} build --platform android --profile preview`,
+      'build:production:ios': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} build --platform ios --profile production`,
+      'build:production:android': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} build --platform android --profile production`,
+      'submit:ios': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} submit --platform ios --profile production --latest`,
+      'submit:android': `pnpm dlx eas-cli@${TOOLCHAIN_DEPENDENCIES['eas-cli']} submit --platform android --profile production --latest`,
       typecheck: 'tsc --noEmit',
     },
     dependencies: selectedDependencies(options),

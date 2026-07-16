@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 123 | `fda92f19b76de8f7dd52980857f1433583677a0b4db24ce9d3f663a029f7c36c` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 56 | `a0348988876569b83f4f25d13f9f056b322b3bd357ac20f8765d418aea6feee3` |
-| `api-only` | api |  | deterministic golden | 27 | `0afff351ebc56ef88a6638f1f4f6ffd06d12453f82d40533ad56f608291c0c2b` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 57 | `5259e17ab26cb10169b1ced4ab769e8620c7999fd2f66fdc7e61a169f2656188` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 128 | `4a4b37beef040881142b22f5227feb2be5d88061f079383b80a88f3bfd640496` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 56 | `e8d9ae656d0e0592f6b064091c5ea69317f0325ce2ec5df7d757093a2a19a84e` |
+| `api-only` | api |  | deterministic golden | 27 | `1f4cc7a4d75e6b2a530ea6424b8b7eef4c6192b0a55af3a5e7a09b66679637fe` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 57 | `0eb7b03b54327add2a2f96f09f2d9dafb9461c60ca96906fa687603cbdab8e38` |
 
 ## expo-extension
 
@@ -64,6 +64,11 @@ expo-extension-sample/
 │   │   │   └── storage.test.ts
 │   │   ├── tsconfig.json
 │   │   └── vitest.config.ts
+│   ├── assets-private-proxy/
+│   │   ├── package.json
+│   │   ├── src/
+│   │   │   └── index.js
+│   │   └── wrangler.jsonc
 │   ├── desktop/
 │   │   ├── .env.example
 │   │   ├── components.json
@@ -169,6 +174,9 @@ expo-extension-sample/
 │       ├── package.json
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
+├── cloudflare/
+│   ├── README.md
+│   └── r2-cors.template.json
 ├── package.json
 ├── packages/
 │   ├── api-client/

@@ -124,14 +124,15 @@ Naming follows these rules:
 - Tests live beside the package they verify under `tests/` and use `*.test.ts`. Generator-maintained CI and deployment configuration remain at the root.
 - Only the root owns `pnpm-workspace.yaml` and `pnpm-lock.yaml`; nested workspace files, lockfiles, `.git` directories, and `node_modules` are removed.
 - `README.md` and `PRODUCTION.md` become user-owned after initialization. Root JSON/YAML configuration is mergeable. `SKILL.md` is refreshed as managed agent guidance when modules are added; other recorded files are managed and may be replaced only while unmodified.
-- Feature files are conditional: `auth` adds Clerk files, `billing` adds RevenueCat and realtime files, `storage` adds R2 files, and `native-subscriptions` adds the native RevenueCat client.
+- Feature files are conditional: `auth` adds Clerk files, `billing` adds RevenueCat and realtime files, `storage` adds R2 API code plus the private-bucket asset Worker, and `native-subscriptions` adds the native RevenueCat client.
 
 The complete conditional source tree is:
 
 ```text
 .
 ├── .github/workflows/anhedral-ci.yml
-├── apps/{api,desktop,extension,mobile,web}/
+├── apps/{api,assets-private-proxy,desktop,extension,mobile,web}/
+├── cloudflare/{README.md,r2-cors.template.json}
 ├── packages/{api-client,contracts,db,realtime}/
 ├── scripts/verify-db-migrations.mjs
 ├── .env.example
@@ -184,11 +185,21 @@ The complete conditional source tree is:
 | `apps/api/src/index.ts` | Starts the server and performs bounded graceful shutdown on process signals. |
 | `apps/api/src/realtime.ts` | Issues scoped Ably token requests and publishes per-user subscription invalidations. |
 | `apps/api/src/routes.ts` | Defines health, readiness, auth, billing, realtime, storage, webhook, and internal cron routes. |
-| `apps/api/src/storage.ts` | Implements authenticated R2 presign, confirmation, ownership, validation, and cleanup. |
+| `apps/api/src/storage.ts` | Implements authenticated R2 upload presigning, confirmation, owner-authorized read URLs, validation, and cleanup. |
 | `apps/api/tests/env.test.ts` | Exercises defaults and rejects unsafe or malformed production environments. |
 | `apps/api/tests/health.test.ts` | Verifies health, readiness, draining, safe errors, and exact-origin CORS. |
 | `apps/api/tests/revenuecat-webhook.test.ts` | Verifies RevenueCat authorization, reconciliation, replay, transfer, ordering, retry, and transactions. |
 | `apps/api/tests/storage.test.ts` | Verifies upload metadata, ownership, concurrency, confirmation, and cleanup limits. |
+
+### Private asset Worker (`apps/assets-private-proxy`, selected by `storage`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/assets-private-proxy/package.json` | Pinned on-demand Wrangler development, type-generation, and deployment commands. |
+| `apps/assets-private-proxy/wrangler.jsonc` | User-owned Worker name, custom domain, private R2 `ASSETS` binding, compatibility, and observability configuration. |
+| `apps/assets-private-proxy/src/index.js` | Streams known-key GET/HEAD objects from the private bucket with metadata, range, conditional, cache, host, and method handling. |
+| `cloudflare/README.md` | Explains the split between private R2, public confirmed-object delivery, authenticated reads, and Wrangler credentials. |
+| `cloudflare/r2-cors.template.json` | User-owned full-policy template for exact browser upload origins and required R2 headers. |
 
 ### Web app (`apps/web`, selected by `web`)
 
@@ -359,6 +370,7 @@ pnpm verify:api
 pnpm verify:desktop
 pnpm verify:extension
 pnpm verify:db
+pnpm verify:assets-proxy
 ```
 
 Database projects also receive `db:generate`, `db:migrate`, `db:check`, and `db:studio` scripts. `verify:db` requires migration SQL, confirms it is tracked when run in a Git worktree, and runs Drizzle's migration-history check. Generated Linux CI additionally runs `db:generate` and rejects any tracked or untracked change under `packages/db/migrations`, so every schema change must include its reviewed SQL migration and metadata.
@@ -376,7 +388,7 @@ Only selected integrations add dependencies, code, tables, and environment keys.
 - Clerk extension networking: `VITE_CLERK_FRONTEND_API_URL` and optional `VITE_CLERK_SYNC_HOST`
 - RevenueCat: server-only `RC_WEBHOOK_SECRET` and `RC_SECRET_API_KEY`, `RC_ENTITLEMENT_ID`, and client-safe `EXPO_PUBLIC_RC_*`
 - Ably realtime: server-only `ABLY_API_KEY`; clients obtain user-scoped, short-lived token requests from the API
-- R2: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `CRON_SECRET`
+- R2: `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, `R2_PROXY_READ_URL_TTL_SECONDS=600`, operations-only `CLOUDFLARE_API_TOKEN`, and `CRON_SECRET`
 
 Never commit real `.env` files. Production startup fails when a selected provider is missing or malformed: database URLs must use `postgres:`/`postgresql:` with real credentials and a non-local host; Clerk keys must use their `pk_live_`/`sk_live_` forms; RevenueCat and cron secrets must be high entropy and non-placeholder; and R2 credentials and bucket names must match Cloudflare's issued formats. Browser `CORS_ORIGINS` must be listed explicitly as exact HTTPS origins in production; literal `null` remains supported for the desktop file origin. `ANHEDRAL_DEMO=true` is also rejected in production.
 The API trusts no forwarding proxy by default. Set `TRUST_PROXY_HOPS` only when the deployment is behind a known reverse-proxy chain, and set it to that exact hop count.
@@ -391,23 +403,135 @@ Generated Chrome extension manifests derive validated, deduplicated host permiss
 
 ## Deployment
 
-The root `vercel.json` uses Vercel's current `services` schema. It declares `apps/api` and `apps/web` as independent service roots, then routes `/api/(.*)` to the API before the web catch-all. Vercel preserves the original request path, so Fastify mounts its routes under `/api` locally and in deployment. The generated web client uses same-origin `/api` by default in production so preview and custom domains stay deployment-relative; local client examples use `http://localhost:8787/api`, while mobile, desktop, and extension production URLs remain absolute. Billing projects schedule the authenticated realtime-outbox retry every five minutes, and storage projects schedule staging cleanup once per day; set a strong `CRON_SECRET` in Vercel. Configure an R2 lifecycle rule for `staging/` as a longer-lived storage backstop. Select the Services framework preset in Vercel before deploying.
+Deployment is selection-aware. Generated `package.json` files contain scripts only for selected targets. Each script invokes an exact-version CLI on demand, avoiding permanent deployment-tool dependency trees in the application lockfile. Generated `PRODUCTION.md` contains the matching account, environment, DNS, test, and release sequence.
 
-Browser uploads to R2 presigned URLs also require a bucket CORS policy. Replace the example origin with every exact browser origin that may upload (origins contain no path or trailing slash), then verify the browser preflight and signed `PUT`:
+| Selected stack | Generated delivery path | Accounts/resources required |
+| --- | --- | --- |
+| Web and/or API | GitHub → Vercel Git integration | GitHub repository, Vercel project/team, production domain |
+| Mobile | EAS Build → TestFlight/App Store and Google Play tracks | Expo/EAS, Apple Developer + App Store Connect, Google Play Console |
+| Database | Drizzle migrations → Neon | Neon project and environment-isolated connection strings |
+| Storage | API-signed uploads → private R2 → generated `assets-private-proxy` Worker | Cloudflare account, private R2 bucket/token, Cloudflare-managed domain |
+| Extension | WXT ZIP → Chrome Web Store | Chrome Web Store developer account, listing/privacy assets |
+| Desktop | electron-builder artifacts | Signing/notarization credentials and a chosen artifact/update channel |
 
-```json
-[
-  {
-    "AllowedOrigins": ["https://app.example.com"],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["Content-Type"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+### GoDaddy domain to Cloudflare control plane
+
+Buying a domain and operating its DNS are separate. A practical Anhedral setup is: register the domain at GoDaddy, make Cloudflare authoritative for DNS and edge services, and keep Vercel as the web/API runtime.
+
+1. Buy the domain in an organization-controlled GoDaddy account. Enable MFA and auto-renewal, use durable registrant contact details, and record who owns renewal and recovery.
+2. In Cloudflare, add the domain as a website/zone. Inventory every existing GoDaddy DNS record first—especially MX, SPF, DKIM, DMARC, TXT verification, and subdomains. If GoDaddy DNSSEC/DS records are enabled, disable them and let their TTL expire before changing nameservers.
+3. Cloudflare assigns two authoritative nameservers. Replace the nameservers at GoDaddy with those exact values and wait for the Cloudflare zone to become **Active**. Verify mail and application records, then re-enable DNSSEC from Cloudflare.
+4. At this point Cloudflare manages DNS, Workers, R2 hostnames, TLS, WAF, Turnstile, Queues, Durable Objects, and durable Workflows even though GoDaddy is still the registrar. This nameserver change is enough to use Cloudflare; a registrar transfer is not required.
+5. If you also want registration/billing at Cloudflare Registrar, wait until the domain is transfer-eligible—ICANN commonly blocks transfers within 60 days of registration, another transfer, or certain registrant changes. Unlock it at GoDaddy, request the EPP/authorization code, start **Transfer Domains** in Cloudflare, pay/approve the transfer, and keep the already-active Cloudflare nameservers in place.
+
+This distinction matters: changing nameservers delegates DNS; transferring the registrar moves registration, renewal, and billing. Cloudflare requires the zone to be active on its nameservers before a registrar transfer. See [GoDaddy’s nameserver instructions](https://help.dc-aws.godaddy.com/help/edit-my-domain-nameservers-664), [GoDaddy’s transfer-away sequence](https://www.godaddy.com/en-ca/help/transfer-my-domain-away-from-godaddy-3560), [Cloudflare’s transfer sequence](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare/), and [Cloudflare’s nameserver migration guidance](https://developers.cloudflare.com/dns/nameservers/update-nameservers/).
+
+### Vercel from GitHub
+
+Import the GitHub repository once in Vercel, select the **Services** framework preset, and keep the repository root as the project root. The generated `vercel.json` declares selected `apps/api` and `apps/web` directories as independent services and routes `/api/(.*)` before the web catch-all. Non-production branch pushes and pull requests receive Preview deployments; merging to Vercel's production branch creates Production automatically.
+
+Add package-local environment variables separately to Vercel's Development, Preview, and Production environments. Secrets belong only to the API service. The web client uses same-origin `/api` in production; mobile, desktop, and extension builds require an absolute production API URL. Billing projects schedule realtime-outbox retries and storage projects schedule staging cleanup, so set a strong `CRON_SECRET` and verify both routes before launch.
+
+```sh
+pnpm deploy:vercel:link
+pnpm deploy:vercel:preview
+pnpm deploy:vercel:production
+pnpm deploy:vercel:inspect -- <deployment-url>
+pnpm deploy:vercel:domain:inspect -- app.example.com
 ```
 
-Use `apps/mobile` as the EAS project root. Run `pnpm desktop:build` for a current-host Electron artifact; use the desktop package's explicit `build:mac`, `build:win`, or `build:linux` script in matching platform CI. Create the Chrome extension archive with `pnpm extension:zip`.
+For a custom web domain, add `app.example.com` in Vercel first, run the generated domain-inspection script, and copy the exact A/CNAME/TXT values Vercel reports into Cloudflare DNS. Keep Vercel A/CNAME records **DNS only** (gray cloud) and verification TXT records unproxied; Cloudflare remains authoritative DNS without becoming a second reverse proxy/CDN in front of Vercel. Vercel provisions TLS after verification. See [Vercel Git deployments](https://vercel.com/docs/git), [custom domains with external DNS](https://vercel.com/docs/domains/set-up-custom-domain), and [Vercel’s Cloudflare guidance](https://vercel.com/kb/guide/cloudflare-with-vercel).
+
+### Neon and production migrations
+
+Database projects add pinned on-demand `neonctl` scripts, `neon:login` and `neon:project:create`. Create the project in Neon's console or run:
+
+```sh
+pnpm neon:login
+pnpm neon:project:create -- --name my-app
+```
+
+Use Neon's pooled connection string as `DATABASE_URL`, and isolate Preview from Production with branches or separate projects. Run `db:generate`, review and commit the SQL/metadata, pass `verify:db`, then apply `db:migrate` before code requiring the schema receives traffic. Never generate or apply unreviewed migrations during a Vercel build. See [Neon projects](https://neon.com/docs/manage/projects) and [Neon CLI](https://neon.com/docs/reference/cli-projects).
+
+### Clerk production setup
+
+Create a Clerk Production instance instead of reusing development. Copy `pk_live_*` public keys to selected clients and `sk_live_*` only to the API. Add the production root domain in Clerk, publish its requested DNS records, restrict the subdomain allowlist, and configure production OAuth credentials, redirect URLs, webhook URLs/secrets, and selected iOS/Android identifiers. Stable Preview auth should use a separate Clerk application/domain rather than live production users.
+
+For an extension, configure a stable CRX ID and Clerk Chrome Extension deployment. Set `VITE_CLERK_FRONTEND_API_URL` and, for web-to-extension session synchronization, `VITE_CLERK_SYNC_HOST`; OAuth and email-link flows depend on Sync Host. Rebuild clients after changing public keys and test sign-in, sign-out, refresh, deep links, and physical devices. See [Clerk production deployment](https://clerk.com/docs/guides/development/deployment/production) and [Clerk's Chrome Extension SDK](https://clerk.com/docs/reference/chrome-extension/overview).
+
+### Private R2 with the generated asset Worker
+
+Storage projects add pinned on-demand Wrangler scripts:
+
+```sh
+pnpm r2:login
+pnpm r2:bucket:create
+pnpm r2:cors:list
+pnpm r2:cors:set
+pnpm assets:proxy:check
+pnpm assets:proxy:deploy
+```
+
+Storage selection now generates `apps/assets-private-proxy` in the output project. The resource sequence is fixed:
+
+1. `r2:bucket:create` creates the normalized `<project>-assets` bucket. Leave both `r2.dev` and R2 bucket custom-domain access disabled.
+2. Scope an Object Read & Write S3 API token to the bucket. Put `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, and `R2_PROXY_READ_URL_TTL_SECONDS=600` in the API environment. Keep `CLOUDFLARE_API_TOKEN` limited to Wrangler automation/CI. Presigned URLs use `<ACCOUNT_ID>.r2.cloudflarestorage.com` and cannot use custom domains.
+3. Run `r2:cors:list`, edit the user-owned `cloudflare/r2-cors.template.json` with every exact upload origin, and then run `r2:cors:set`. The command replaces the complete bucket policy.
+4. Edit the user-owned `apps/assets-private-proxy/wrangler.jsonc`: replace both `assets.example.com` values with `assets.yourdomain.com`. It already names the Worker `assets-private-proxy`, disables `workers.dev`/preview URLs, binds the bucket as `ASSETS`, sets `R2_PREFIX=storage`, enables logs, and declares a Worker Custom Domain.
+5. Deploy it. Wrangler creates or updates the Worker, R2 binding, managed proxied DNS record, TLS, and custom hostname. In the dashboard, the equivalent is **Workers & Pages → assets-private-proxy → Settings → Bindings** and **Domains & Routes → Add → Custom domain**.
+6. Do not add `assets.yourdomain.com` under the R2 bucket's Custom Domains screen—that turns on public bucket delivery. The hostname belongs to the Worker, while the bucket remains private.
+
+The generated Worker is adapted from the supplied production pattern and uses Anhedral throughout. It streams objects, supports GET/HEAD, ranges, conditional requests, R2 metadata and Cloudflare cache, rejects writes and unexpected hosts, and never lists the bucket. Only `storage/confirmed/` is **public-by-unguessable-key**; staging and `generation-inputs` return 404. User-private reads use the authenticated API read-URL endpoint, which checks upload ownership and returns a short-lived presigned GET URL.
+
+Browser uploads require bucket CORS. Replace the origin with every exact browser/extension origin, allow only required methods/headers, and verify preflight plus signed `PUT`:
+
+```json
+{
+  "rules": [
+    {
+      "id": "anhedral-browser-uploads",
+      "allowed": {
+        "origins": ["https://app.example.com", "http://localhost:3000"],
+        "methods": ["GET", "HEAD", "PUT"],
+        "headers": ["Content-Type"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
+```
+
+Add an R2 lifecycle rule for `storage/staging/` beyond the API cleanup grace period. `app.example.com` is a Cloudflare DNS-only record targeting Vercel; `assets.example.com` is a Cloudflare-managed, proxied Worker Custom Domain. Never CNAME to `r2.dev`, expose S3 credentials to a client, or mistake CORS for authentication. See [Worker R2 bindings](https://developers.cloudflare.com/workers/wrangler/configuration/#r2-buckets), [Worker Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/), [R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/), and [R2 CORS](https://developers.cloudflare.com/r2/buckets/cors/).
+
+### Expo, internal builds, TestFlight, and Google Play
+
+Mobile release requires Expo/EAS, Apple Developer + App Store Connect for iOS, and Google Play Console for Android. Establish unique bundle/package identifiers and store listings before the first release.
+
+```sh
+pnpm mobile:eas:login
+pnpm mobile:eas:init
+pnpm mobile:build:internal:ios
+pnpm mobile:build:internal:android
+pnpm mobile:build:production:ios
+pnpm mobile:submit:ios
+pnpm mobile:build:production:android
+pnpm mobile:submit:android
+```
+
+`apps/mobile/eas.json` defines development, internal `preview`, production, and submission profiles. Internal EAS builds are standalone tester builds: iOS ad hoc distribution needs registered device UDIDs, while Android builds can be shared from EAS. For TestFlight, submit a production iOS build, wait for App Store Connect processing, then assign internal testers; external testers require TestFlight Beta App Review. TestFlight approval does not publish to the App Store.
+
+For Android, create the Play listing and policy declarations, submit the AAB, begin on the internal testing track, and promote through closed/open testing as appropriate before Production. A new Play app may require its first binary to be uploaded manually before API submission works. Both stores require metadata, screenshots, privacy/data-safety answers, content ratings, review credentials, release notes, and a separate review/rollout decision. See [EAS distribution](https://docs.expo.dev/distribution/introduction/), [internal distribution](https://docs.expo.dev/build/internal-distribution/), [iOS submission](https://docs.expo.dev/submit/ios/), and [Android submission](https://docs.expo.dev/submit/android/).
+
+### Chrome Web Store
+
+Register and verify a Chrome Web Store developer account and pay Google's one-time registration fee. Configure production values and a stable CRX ID, run `pnpm verify:extension` and `pnpm extension:zip`, then test the unpacked production build before uploading the ZIP from `apps/extension/.output`.
+
+Complete icons/screenshots/listing metadata, define one narrow purpose, justify every permission and host permission, disclose all handled data, certify limited use, and provide a public privacy policy consistent with behavior. Authentication is user-data handling. Give reviewers test instructions/credentials for gated features. Publish first to trusted testers or unlisted visibility; verify the store-installed CRX ID against Clerk/backend allowlists before production review. See [developer registration](https://developer.chrome.com/docs/webstore/register), [publishing](https://developer.chrome.com/docs/webstore/publish/), [distribution/testing](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution), and [privacy fields](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy).
+
+### Electron artifacts
+
+Run `pnpm desktop:build` for the current host. Produce macOS, Windows, and Linux artifacts with `build:mac`, `build:win`, and `build:linux` on matching CI runners. Keep signing/notarization credentials in CI secrets, then test clean installs, upgrades, Clerk return flows, auto-update strategy, and OS security warnings before publishing through the chosen release channel.
 
 ## Package API
 

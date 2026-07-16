@@ -122,6 +122,11 @@ try {
   const generatedRootPackage = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'));
   assert.equal(generatedRootPackage.engines.node, '^20.19.0 || >=22.12.0');
   assert.equal(generatedRootPackage.pnpm, undefined, 'pnpm-only settings belong in pnpm-workspace.yaml');
+  assert.equal(generatedRootPackage.devDependencies.vercel, undefined);
+  assert.equal(generatedRootPackage.devDependencies.neonctl, undefined);
+  assert.equal(generatedRootPackage.devDependencies.wrangler, undefined);
+  assert.equal(generatedRootPackage.scripts['deploy:vercel:production'], 'pnpm dlx vercel@56.2.1 deploy --prod');
+  assert.equal(generatedRootPackage.scripts['mobile:eas:login'], undefined);
   const apiPackage = JSON.parse(readFileSync(apiPackagePath, 'utf8'));
   assert.equal(apiPackage.dependencies['@shared/db'], undefined);
   assert.equal(apiPackage.dependencies['@clerk/fastify'], undefined);
@@ -135,11 +140,27 @@ try {
   run(['init', 'mobile', 'storage', '--skip-install'], mobileStorageProject);
   const mobileStoragePackage = JSON.parse(readFileSync(path.join(mobileStorageProject, 'package.json'), 'utf8'));
   assert.equal(mobileStoragePackage.engines.node, '^22.13.0 || ^24.3.0 || >=25');
+  assert.equal(mobileStoragePackage.devDependencies.vercel, undefined);
+  assert.equal(mobileStoragePackage.devDependencies.neonctl, undefined);
+  assert.equal(mobileStoragePackage.devDependencies.wrangler, undefined);
+  assert.equal(mobileStoragePackage.scripts['mobile:submit:ios'], 'pnpm --dir apps/mobile dlx eas-cli@21.0.1 submit --platform ios --profile production --latest');
+  assert.equal(mobileStoragePackage.scripts['neon:project:create'], 'pnpm dlx neonctl@2.33.2 projects create');
+  assert.equal(mobileStoragePackage.scripts['r2:bucket:create'], 'pnpm dlx wrangler@4.111.0 r2 bucket create mobile-storage-project-assets');
+  assert.equal(mobileStoragePackage.scripts['r2:cors:list'], 'pnpm dlx wrangler@4.111.0 r2 bucket cors list mobile-storage-project-assets');
+  assert.match(mobileStoragePackage.scripts['r2:cors:set'], /cloudflare\/r2-cors\.template\.json/);
+  assert.equal(mobileStoragePackage.scripts['assets:proxy:deploy'], 'pnpm --filter ./apps/assets-private-proxy deploy');
+  const generatedMobilePackage = JSON.parse(readFileSync(path.join(mobileStorageProject, 'apps/mobile/package.json'), 'utf8'));
+  assert.equal(generatedMobilePackage.devDependencies['eas-cli'], undefined);
+  assert.equal(generatedMobilePackage.scripts['submit:ios'], 'pnpm dlx eas-cli@21.0.1 submit --platform ios --profile production --latest');
   assert.match(
     readFileSync(path.join(mobileStorageProject, '.github/workflows/anhedral-ci.yml'), 'utf8'),
     /node-version: 22\.13\.0/,
   );
   assert.match(readFileSync(path.join(mobileStorageProject, '.env.example'), 'utf8'), /^CRON_SECRET=$/m);
+  const rootEnvInventory = readFileSync(path.join(mobileStorageProject, '.env.example'), 'utf8');
+  assert.match(rootEnvInventory, /^R2_BUCKET_NAME=$/m);
+  assert.match(rootEnvInventory, /^R2_PREFIX=storage$/m);
+  assert.doesNotMatch(rootEnvInventory, /^R2_BUCKET=/m);
   assert.deepEqual(
     JSON.parse(readFileSync(path.join(mobileStorageProject, 'vercel.json'), 'utf8')).crons,
     [{ path: '/api/internal/storage/cleanup', schedule: '0 3 * * *' }],
@@ -151,17 +172,53 @@ try {
   const productionGuide = readFileSync(path.join(mobileStorageProject, 'PRODUCTION.md'), 'utf8');
   assert.match(productionGuide, /CRON_SECRET/);
   assert.match(productionGuide, /R2 CORS/);
-  assert.match(productionGuide, /AllowedMethods/);
+  assert.match(productionGuide, /cloudflare\/r2-cors\.template\.json/);
+  assert.match(productionGuide, /complete live policy/);
   assert.match(productionGuide, /R2 lifecycle rule/);
+  assert.match(productionGuide, /Presigned URLs do \*\*not\*\* work on custom domains/);
+  assert.match(productionGuide, /TestFlight Beta App Review/);
+  assert.match(productionGuide, /Google Play Console/);
+  assert.match(productionGuide, /GoDaddy/);
+  assert.match(productionGuide, /DNS only/);
+  assert.match(productionGuide, /assets-private-proxy/);
+  assert.match(productionGuide, /storage\/confirmed\//);
+  assert.match(productionGuide, /authenticated private reads/i);
+  const proxyDirectory = path.join(mobileStorageProject, 'apps/assets-private-proxy');
+  const proxyConfig = readFileSync(path.join(proxyDirectory, 'wrangler.jsonc'), 'utf8');
+  const proxySource = readFileSync(path.join(proxyDirectory, 'src/index.js'), 'utf8');
+  assert.match(proxyConfig, /"name": "assets-private-proxy"/);
+  assert.match(proxyConfig, /"workers_dev": false/);
+  assert.match(proxyConfig, /"binding": "ASSETS"/);
+  assert.match(proxyConfig, /"bucket_name": "mobile-storage-project-assets"/);
+  assert.match(proxyConfig, /"custom_domain": true/);
+  assert.match(proxyConfig, /"R2_PREFIX": "storage"/);
+  assert.match(proxySource, /private Anhedral R2 bucket/);
+  assert.match(proxySource, /env\.ASSETS\.get/);
+  assert.match(proxySource, /publicPrefix/);
+  assert.match(proxySource, /generation-inputs/);
+  const corsTemplatePath = path.join(mobileStorageProject, 'cloudflare/r2-cors.template.json');
+  assert.deepEqual(JSON.parse(readFileSync(corsTemplatePath, 'utf8')).rules[0].allowed.methods, ['GET', 'HEAD', 'PUT']);
+  const storageManifest = JSON.parse(readFileSync(path.join(mobileStorageProject, 'anhedral.json'), 'utf8'));
+  assert.equal(storageManifest.files['apps/assets-private-proxy/wrangler.jsonc'].ownership, 'user');
+  assert.equal(storageManifest.files['cloudflare/r2-cors.template.json'].ownership, 'user');
+  const proxySyntax = spawnSync('node', ['--check', 'src/index.js'], { cwd: proxyDirectory, encoding: 'utf8' });
+  assert.equal(proxySyntax.status, 0, proxySyntax.stderr);
   const storageSource = readFileSync(path.join(mobileStorageProject, 'apps/api/src/storage.ts'), 'utf8');
   assert.match(storageSource, /ContentLength: contentLength/);
   assert.match(storageSource, /signableHeaders: new Set\(\['content-type', 'content-length'\]\)/);
   assert.match(storageSource, /UPLOAD_CLEANUP_GRACE_MS = 10 \* 60 \* 1000/);
   assert.match(storageSource, /pg_advisory_xact_lock/);
   assert.match(storageSource, /isolationLevel: 'ReadCommitted'/);
+  assert.match(storageSource, /env\.R2_PREFIX/);
+  assert.match(storageSource, /R2_PROXY_READ_URL_TTL_SECONDS/);
+  const apiEnvExample = readFileSync(path.join(mobileStorageProject, 'apps/api/.env.example'), 'utf8');
+  for (const name of ['BASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PREFIX', 'R2_PROXY_READ_URL_TTL_SECONDS', 'CLOUDFLARE_API_TOKEN']) {
+    assert.match(apiEnvExample, new RegExp(`^${name}=`, 'm'));
+  }
   const apiClientSource = readFileSync(path.join(mobileStorageProject, 'packages/api-client/src/index.ts'), 'utf8');
   assert.match(apiClientSource, /body\.size !== upload\.signedContentLength/);
   assert.match(apiClientSource, /method: 'PUT', body, headers/);
+  assert.match(apiClientSource, /getUploadReadUrl/);
 
   const fieldMergeProject = path.join(workspace, 'field-merge-project');
   mkdirSync(fieldMergeProject);

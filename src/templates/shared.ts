@@ -208,9 +208,14 @@ export const UploadRecordSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'rejected']),
   createdAt: z.string().datetime(),
   confirmedAt: z.string().datetime().nullable(),
+  privateReadUrl: z.string().url(),
 });
 export const ConfirmUploadResponseSchema = z.object({ upload: UploadRecordSchema });
 export const GetUploadResponseSchema = z.object({ upload: UploadRecordSchema });
+export const GetUploadReadUrlResponseSchema = z.object({
+  url: z.string().url(),
+  expiresIn: z.number().int().min(60).max(604800),
+});
 export type CreateUploadRequest = z.infer<typeof CreateUploadRequestSchema>;
 export type CreateUploadResponse = z.infer<typeof CreateUploadResponseSchema>;
 export type ConfirmUploadRequest = z.infer<typeof ConfirmUploadRequestSchema>;
@@ -229,6 +234,7 @@ function apiClientSource(options: ProjectOptions): string {
     options.features.storage ? 'CreateUploadResponseSchema' : null,
     options.features.storage ? 'ConfirmUploadResponseSchema' : null,
     options.features.storage ? 'GetUploadResponseSchema' : null,
+    options.features.storage ? 'GetUploadReadUrlResponseSchema' : null,
     options.features.storage ? 'type CreateUploadRequest' : null,
     options.features.storage ? 'type CreateUploadResponse' : null,
     options.features.storage ? 'type ConfirmUploadRequest' : null,
@@ -277,6 +283,10 @@ function apiClientSource(options: ProjectOptions): string {
 
   getUpload(uploadId: string, init: RequestInit = {}) {
     return this.request(\`/storage/uploads/\${encodeURIComponent(uploadId)}\`, init, GetUploadResponseSchema);
+  }
+
+  getUploadReadUrl(uploadId: string, init: RequestInit = {}) {
+    return this.request(\`/storage/uploads/\${encodeURIComponent(uploadId)}/read-url\`, init, GetUploadReadUrlResponseSchema);
   }` : null,
   ].filter((value): value is string => value !== null);
   return `import type { ZodType } from 'zod';

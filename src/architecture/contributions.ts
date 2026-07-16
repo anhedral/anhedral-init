@@ -82,10 +82,14 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
   storage: Object.freeze({
     module: 'storage',
     environment: Object.freeze([
+      { name: 'BASE_URL', defaultValue: 'http://localhost:8787' },
       { name: 'R2_ACCOUNT_ID', defaultValue: '' },
       { name: 'R2_ACCESS_KEY_ID', defaultValue: '' },
       { name: 'R2_SECRET_ACCESS_KEY', defaultValue: '' },
-      { name: 'R2_BUCKET', defaultValue: '' },
+      { name: 'R2_BUCKET_NAME', defaultValue: '' },
+      { name: 'R2_PREFIX', defaultValue: 'storage' },
+      { name: 'R2_PROXY_READ_URL_TTL_SECONDS', defaultValue: '600' },
+      { name: 'CLOUDFLARE_API_TOKEN', defaultValue: '' },
       { name: 'CRON_SECRET', defaultValue: '' },
     ]),
     crons: Object.freeze([

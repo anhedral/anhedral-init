@@ -62,13 +62,17 @@ function envSource(options: ProjectOptions): string {
     options.features.storage ? 'R2_ACCOUNT_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_ACCESS_KEY_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_SECRET_ACCESS_KEY: z.string().optional()' : null,
-    options.features.storage ? 'R2_BUCKET: z.string().optional()' : null,
+    options.features.storage ? 'BASE_URL: OptionalUrlSchema' : null,
+    options.features.storage ? 'R2_BUCKET_NAME: z.string().optional()' : null,
+    options.features.storage ? "R2_PREFIX: z.string().trim().regex(/^[a-zA-Z0-9._-]+$/).default('storage')" : null,
+    options.features.storage ? 'R2_PROXY_READ_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(604800).default(600)' : null,
+    options.features.storage ? 'CLOUDFLARE_API_TOKEN: z.string().optional()' : null,
     options.features.billing || options.features.storage ? 'CRON_SECRET: OptionalSecretSchema' : null,
   ].filter((value): value is string => value !== null);
   const productionKeys = [...new Set([
     ...(options.features.auth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
     ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY', 'ABLY_API_KEY', 'CRON_SECRET'] : []),
-    ...(options.features.storage ? ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'CRON_SECRET'] : []),
+    ...(options.features.storage ? ['BASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'CRON_SECRET'] : []),
   ])];
   return `import { z } from 'zod';
 
@@ -138,6 +142,9 @@ ${options.features.auth ? `function assertProductionClerkKey(
 }
 ` : ''}
 ${options.features.storage ? `function assertProductionR2Configuration(env: AppEnv): void {
+  if (!env.BASE_URL || new URL(env.BASE_URL).protocol !== 'https:' || isPlaceholder(new URL(env.BASE_URL).hostname)) {
+    throw new Error('BASE_URL must be the canonical HTTPS application origin in production');
+  }
   if (!env.R2_ACCOUNT_ID || !/^[a-f0-9]{32}$/i.test(env.R2_ACCOUNT_ID) || isPlaceholder(env.R2_ACCOUNT_ID)) {
     throw new Error('R2_ACCOUNT_ID must be a 32-character Cloudflare account ID in production');
   }
@@ -147,8 +154,8 @@ ${options.features.storage ? `function assertProductionR2Configuration(env: AppE
   if (!env.R2_SECRET_ACCESS_KEY || !/^[a-f0-9]{64}$/i.test(env.R2_SECRET_ACCESS_KEY) || isPlaceholder(env.R2_SECRET_ACCESS_KEY)) {
     throw new Error('R2_SECRET_ACCESS_KEY must be a 64-character R2 secret access key in production');
   }
-  if (!env.R2_BUCKET || !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(env.R2_BUCKET) || isPlaceholder(env.R2_BUCKET)) {
-    throw new Error('R2_BUCKET must be 3-63 lowercase letters, numbers, or hyphens and start and end with an alphanumeric character');
+  if (!env.R2_BUCKET_NAME || !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(env.R2_BUCKET_NAME) || isPlaceholder(env.R2_BUCKET_NAME)) {
+    throw new Error('R2_BUCKET_NAME must be 3-63 lowercase letters, numbers, or hyphens and start and end with an alphanumeric character');
   }
 }
 ` : ''}
@@ -170,6 +177,11 @@ function assertStrongBillingSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY
 ${options.features.storage && !options.features.billing ? `const OptionalSecretSchema = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
   z.string().optional(),
+);
+` : ''}
+${options.features.storage ? `const OptionalUrlSchema = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().url().optional(),
 );
 ` : ''}
 ${options.features.billing || options.features.storage ? `function assertStrongCronSecret(value: string | undefined): void {
@@ -250,7 +262,11 @@ function envTestSource(options: ProjectOptions): string {
     options.features.storage ? "R2_ACCOUNT_ID: 'a'.repeat(32)" : null,
     options.features.storage ? "R2_ACCESS_KEY_ID: 'b'.repeat(32)" : null,
     options.features.storage ? "R2_SECRET_ACCESS_KEY: 'c'.repeat(64)" : null,
-    options.features.storage ? "R2_BUCKET: 'production-uploads'" : null,
+    options.features.storage ? "BASE_URL: 'https://app.acme.dev'" : null,
+    options.features.storage ? "R2_BUCKET_NAME: 'production-uploads'" : null,
+    options.features.storage ? "R2_PREFIX: 'storage'" : null,
+    options.features.storage ? "R2_PROXY_READ_URL_TTL_SECONDS: '600'" : null,
+    options.features.storage ? 'CLOUDFLARE_API_TOKEN: undefined' : null,
     options.features.billing || options.features.storage ? "CRON_SECRET: syntheticSecret('cron')" : null,
   ].filter((value): value is string => value !== null);
   const cases = [
@@ -288,9 +304,15 @@ function envTestSource(options: ProjectOptions): string {
     expect(() => loadEnv({ ...validProductionEnv, R2_ACCOUNT_ID: 'account' })).toThrow(/R2_ACCOUNT_ID must be a 32-character/);
     expect(() => loadEnv({ ...validProductionEnv, R2_ACCESS_KEY_ID: 'access' })).toThrow(/R2_ACCESS_KEY_ID must be a 32-character/);
     expect(() => loadEnv({ ...validProductionEnv, R2_SECRET_ACCESS_KEY: '${'c'.repeat(63)}' })).toThrow(/R2_SECRET_ACCESS_KEY must be a 64-character/);
-    expect(() => loadEnv({ ...validProductionEnv, R2_BUCKET: 'Production_Uploads' })).toThrow(/R2_BUCKET must be 3-63/);
+    expect(() => loadEnv({ ...validProductionEnv, BASE_URL: 'http://app.acme.dev' })).toThrow(/BASE_URL must be the canonical HTTPS/);
+    expect(() => loadEnv({ ...validProductionEnv, R2_BUCKET_NAME: 'Production_Uploads' })).toThrow(/R2_BUCKET_NAME must be 3-63/);
+    expect(() => loadEnv({ ...validProductionEnv, R2_PREFIX: 'nested/storage' })).toThrow();
+    expect(() => loadEnv({ ...validProductionEnv, R2_PROXY_READ_URL_TTL_SECONDS: '59' })).toThrow();
     expect(() => loadEnv({ ...validProductionEnv, CRON_SECRET: 'change-me-${'x'.repeat(32)}' })).toThrow(/CRON_SECRET must be at least 32 characters/);
     expect(() => loadEnv({ ...validProductionEnv, CRON_SECRET: 'a'.repeat(40) })).toThrow(/sufficiently diverse/);
+  });` : null,
+    options.features.storage ? `  it('treats a blank optional BASE_URL as unset outside production', () => {
+    expect(loadEnv({ ...validProductionEnv, NODE_ENV: 'test', BASE_URL: '' }).BASE_URL).toBeUndefined();
   });` : null,
   ].filter((value): value is string => value !== null);
   return `import { describe, expect, it } from 'vitest';
@@ -348,7 +370,7 @@ export function authenticatedUserId(request: FastifyRequest, env: AppEnv): strin
 
 function storageSource(): string {
   return `import crypto from 'node:crypto';
-import { CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { and, asc, eq, gt, isNull, lte, or } from 'drizzle-orm';
 import { db, sqlClient, uploads } from '@shared/db';
@@ -377,23 +399,24 @@ export class StorageError extends Error {
   }
 }
 
-export function objectKeyForUser(userId: string, fileName: string): string {
+export function objectKeyForUser(userId: string, fileName: string, prefix = 'storage'): string {
   const safeUser = userId.replace(/[^a-zA-Z0-9_-]+/g, '_');
   const safeFile = fileName.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 120) || 'upload';
-  return \`staging/\${safeUser}/\${crypto.randomUUID()}--\${safeFile}\`;
+  return \`\${prefix}/staging/\${safeUser}/\${crypto.randomUUID()}--\${safeFile}\`;
 }
 
 function confirmedObjectKeyForUpload(userId: string, uploadId: string, stagingObjectKey: string): string {
   const safeUser = userId.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  const prefix = stagingObjectKey.split('/')[0] ?? 'storage';
   const leaf = stagingObjectKey.split('/').at(-1) ?? 'upload';
   const separator = leaf.indexOf('--');
   const safeFile = separator >= 0 ? leaf.slice(separator + 2) : leaf;
   // Confirmation validates only provider-reported size/type metadata. The object bytes remain
   // untrusted application input and require content-specific validation before use.
-  return \`confirmed/\${safeUser}/\${uploadId}--\${safeFile}\`;
+  return \`\${prefix}/confirmed/\${safeUser}/\${uploadId}--\${safeFile}\`;
 }
 
-function publicUpload(row: UploadRow): PublicUploadRecord {
+function publicUpload(row: UploadRow, baseUrl: string): PublicUploadRecord {
   const status = row.status === 'pending' || row.status === 'confirmed' || row.status === 'rejected'
     ? row.status
     : 'rejected';
@@ -406,6 +429,7 @@ function publicUpload(row: UploadRow): PublicUploadRecord {
     contentTrust: 'untrusted' as const,
     createdAt: row.createdAt.toISOString(),
     confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    privateReadUrl: baseUrl.replace(/\\/+$/, '') + '/api/storage/uploads/' + encodeURIComponent(row.id) + '/read-url',
   };
 }
 
@@ -558,6 +582,7 @@ type ObjectMetadata = { sizeBytes: number; contentType: string | null; etag: str
 
 export interface ObjectGateway {
   signPut(objectKey: string, contentType: string, contentLength: number, expiresIn: number): Promise<string>;
+  signGet?(objectKey: string, expiresIn: number): Promise<string>;
   head(objectKey: string): Promise<ObjectMetadata | null>;
   copy(sourceObjectKey: string, destinationObjectKey: string, sourceEtag: string): Promise<void>;
   delete(objectKey: string): Promise<void>;
@@ -566,14 +591,14 @@ export interface ObjectGateway {
 let cachedClient: { key: string; client: S3Client } | null = null;
 
 function storageConfiguration(env: AppEnv) {
-  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET) {
+  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET_NAME) {
     throw new StorageError('R2 is not configured', 503, 'storage_not_configured');
   }
   return {
     accountId: env.R2_ACCOUNT_ID,
     accessKeyId: env.R2_ACCESS_KEY_ID,
     secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucket: env.R2_BUCKET,
+    bucket: env.R2_BUCKET_NAME,
   };
 }
 
@@ -611,6 +636,12 @@ export function createObjectGateway(env: AppEnv): ObjectGateway {
         // The SDK intentionally treats content-type as unsignable unless it is opted back in.
         signableHeaders: new Set(['content-type', 'content-length']),
       });
+    },
+    async signGet(objectKey, expiresIn) {
+      return getSignedUrl(client, new GetObjectCommand({
+        Bucket: bucket,
+        Key: objectKey,
+      }), { expiresIn });
     },
     async head(objectKey) {
       try {
@@ -653,6 +684,7 @@ export interface StorageService {
   }>;
   confirmUpload(userId: string, uploadId: string): Promise<{ upload: PublicUploadRecord }>;
   getUpload(userId: string, uploadId: string): Promise<{ upload: PublicUploadRecord }>;
+  createReadUrl(userId: string, uploadId: string): Promise<{ url: string; expiresIn: number }>;
   cleanupUploads(limit?: number): Promise<{
     processed: number;
     cleaned: number;
@@ -692,6 +724,7 @@ export function createStorageService(
   dependencies: { store?: UploadStore; objects?: ObjectGateway } = {},
 ): StorageService {
   const store = dependencies.store ?? uploadStore;
+  const baseUrl = env.BASE_URL ?? 'http://localhost:8787';
   const objectGateway = () => dependencies.objects ?? createObjectGateway(env);
   const finishConfirmedUpload = async (upload: UploadRow, objects: ObjectGateway) => {
     if (!upload.stagingDeletedAt) {
@@ -705,13 +738,13 @@ export function createStorageService(
         throw new StorageError('Upload is confirmed but staging cleanup must be retried', 503, 'upload_staging_cleanup_failed');
       }
     }
-    return { upload: publicUpload(upload) };
+    return { upload: publicUpload(upload, baseUrl) };
   };
 
   return {
     async createUpload(userId, input) {
       const uploadId = crypto.randomUUID();
-      const stagingObjectKey = objectKeyForUser(userId, input.fileName);
+      const stagingObjectKey = objectKeyForUser(userId, input.fileName, env.R2_PREFIX);
       const uploadUrlExpiresAt = new Date(Date.now() + UPLOAD_URL_EXPIRES_IN_SECONDS * 1000);
       await store.reserve({
         id: uploadId,
@@ -847,7 +880,21 @@ export function createStorageService(
     async getUpload(userId, uploadId) {
       const upload = await store.find(uploadId, userId);
       if (!upload) throw new StorageError('Upload not found', 404, 'upload_not_found');
-      return { upload: publicUpload(upload) };
+      return { upload: publicUpload(upload, baseUrl) };
+    },
+
+    async createReadUrl(userId, uploadId) {
+      const upload = await store.find(uploadId, userId);
+      if (!upload || upload.status !== 'confirmed' || !upload.objectKey) {
+        throw new StorageError('Asset not found', 404, 'asset_not_found');
+      }
+      const expiresIn = env.R2_PROXY_READ_URL_TTL_SECONDS;
+      const objects = objectGateway();
+      if (!objects.signGet) throw new StorageError('Private asset reads are not configured', 503, 'storage_read_not_configured');
+      return {
+        url: await objects.signGet(upload.objectKey, expiresIn),
+        expiresIn,
+      };
     },
 
     async cleanupUploads(limit = MAX_UPLOAD_CLEANUP_ITEMS_PER_RUN) {
@@ -1557,6 +1604,12 @@ function routesSource(options: ProjectOptions): string {
     return storageService.getUpload(authenticatedUserId(request, env), parsed.data.uploadId);
   });
 
+  app.get('/storage/uploads/:uploadId/read-url', async (request, reply) => {
+    const parsed = UploadParamsSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_upload_id', message: 'A valid uploadId is required' });
+    return storageService.createReadUrl(authenticatedUserId(request, env), parsed.data.uploadId);
+  });
+
   app.get('/internal/storage/cleanup', async (request, reply) => {
     if (!env.CRON_SECRET || !matchesBearerSecret(request.headers.authorization, env.CRON_SECRET)) {
       return reply.code(401).send({ ok: false, error: 'invalid_authorization' });
@@ -1632,7 +1685,7 @@ ${billingStore}${storageService}    const serviceState = dependencies.serviceSta
 `;
 }
 
-function billingRouteTestSource(): string {
+function billingRouteTestSource(options: ProjectOptions): string {
   return `import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -1662,7 +1715,7 @@ const env: AppEnv = {
   RC_SECRET_API_KEY: syntheticSecret('revenuecat'),
   RC_ENTITLEMENT_ID: 'pro',
   ABLY_API_KEY: undefined,
-  CRON_SECRET: syntheticSecret('cron'),
+${options.features.storage ? "  R2_PREFIX: 'storage',\n  R2_PROXY_READ_URL_TTL_SECONDS: 600,\n" : ''}  CRON_SECRET: syntheticSecret('cron'),
 };
 
 const payload = {
@@ -1764,7 +1817,11 @@ describe('RevenueCat webhook', () => {
       R2_ACCOUNT_ID: 'a'.repeat(32),
       R2_ACCESS_KEY_ID: 'b'.repeat(32),
       R2_SECRET_ACCESS_KEY: 'c'.repeat(64),
-      R2_BUCKET: 'production-uploads',
+      BASE_URL: 'https://app.acme.dev',
+      R2_BUCKET_NAME: 'production-uploads',
+      R2_PREFIX: 'storage',
+      R2_PROXY_READ_URL_TTL_SECONDS: '600',
+      CLOUDFLARE_API_TOKEN: undefined,
       CRON_SECRET: syntheticSecret('cron'),
     };
     expect(() => loadEnv({
@@ -2058,7 +2115,11 @@ const env: AppEnv = {
 ${options.features.billing ? "  RC_WEBHOOK_SECRET: undefined,\n  RC_SECRET_API_KEY: undefined,\n  RC_ENTITLEMENT_ID: 'pro',\n  ABLY_API_KEY: undefined,\n" : ''}  R2_ACCOUNT_ID: 'account',
   R2_ACCESS_KEY_ID: 'access',
   R2_SECRET_ACCESS_KEY: 'secret',
-  R2_BUCKET: 'bucket',
+  BASE_URL: 'http://localhost:8787',
+  R2_BUCKET_NAME: 'bucket',
+  R2_PREFIX: 'storage',
+  R2_PROXY_READ_URL_TTL_SECONDS: 600,
+  CLOUDFLARE_API_TOKEN: undefined,
   CRON_SECRET: 'test-cron-secret-1234',
 };
 
@@ -2080,6 +2141,7 @@ describe('storage routes', () => {
       createUpload: vi.fn(),
       confirmUpload: vi.fn(),
       getUpload: vi.fn(),
+      createReadUrl: vi.fn(),
       cleanupUploads: vi.fn(),
     };
     const app = await routeApp(service);
@@ -2104,7 +2166,7 @@ describe('storage routes', () => {
     const service: StorageService = {
       createUpload: vi.fn(async (_userId, input) => ({
         uploadId,
-        stagingObjectKey: 'staging/demo-object',
+        stagingObjectKey: 'storage/staging/demo-object',
         uploadUrl: 'https://storage.example/upload',
         expiresIn: 120,
         requiredHeaders: { 'content-type': input.contentType },
@@ -2114,6 +2176,7 @@ describe('storage routes', () => {
       })),
       confirmUpload: vi.fn(),
       getUpload: vi.fn(),
+      createReadUrl: vi.fn(),
       cleanupUploads: vi.fn(async () => ({
         processed: 0,
         cleaned: 0,
@@ -2154,6 +2217,7 @@ describe('storage routes', () => {
       createUpload: vi.fn(),
       confirmUpload: vi.fn(),
       getUpload: vi.fn(),
+      createReadUrl: vi.fn(),
       cleanupUploads: vi.fn(async () => ({
         processed: 2,
         cleaned: 2,
@@ -2210,6 +2274,29 @@ describe('storage routes', () => {
     expect(service.cleanupUploads).toHaveBeenCalledTimes(2);
     await app.close();
   });
+
+  it('returns an authenticated short-lived private read URL for an owned upload', async () => {
+    const uploadId = '11111111-1111-4111-8111-111111111111';
+    const service: StorageService = {
+      createUpload: vi.fn(),
+      confirmUpload: vi.fn(),
+      getUpload: vi.fn(),
+      createReadUrl: vi.fn(async () => ({
+        url: 'https://account.r2.cloudflarestorage.com/bucket/object?X-Amz-Signature=test',
+        expiresIn: 600,
+      })),
+      cleanupUploads: vi.fn(),
+    };
+    const app = await routeApp(service);
+    const response = await app.inject({
+      method: 'GET',
+      url: \`/api/storage/uploads/\${uploadId}/read-url\`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(expect.objectContaining({ expiresIn: 600 }));
+    expect(service.createReadUrl).toHaveBeenCalledWith('demo-user', uploadId);
+    await app.close();
+  });
 });
 
 describe('storage reservation policy', () => {
@@ -2233,7 +2320,7 @@ describe('storage reservation policy', () => {
     const reservation = {
       id: '11111111-1111-4111-8111-111111111111',
       userId: 'demo-user',
-      stagingObjectKey: 'staging/demo-user/new--photo.jpg',
+      stagingObjectKey: 'storage/staging/demo-user/new--photo.jpg',
       contentType: 'image/jpeg',
       expectedSize: 1024,
       uploadUrlExpiresAt: new Date(Date.now() + 120_000),
@@ -2278,9 +2365,54 @@ describe('storage reservation policy', () => {
 describe('R2 upload confirmation', () => {
   it('cryptographically binds the declared Content-Length into the presigned PUT', async () => {
     const { createObjectGateway } = await import('../src/storage');
-    const signedUrl = await createObjectGateway(env).signPut('staging/demo-user/object', 'image/jpeg', 1024, 120);
+    const signedUrl = await createObjectGateway(env).signPut('storage/staging/demo-user/object', 'image/jpeg', 1024, 120);
     const signedHeaders = new URL(signedUrl).searchParams.get('X-Amz-SignedHeaders')?.split(';') ?? [];
     expect(signedHeaders).toEqual(expect.arrayContaining(['content-length', 'content-type']));
+  });
+
+  it('authorizes private reads by upload owner and applies the configured TTL', async () => {
+    const confirmed = {
+      id: '11111111-1111-4111-8111-111111111111',
+      userId: 'demo-user',
+      stagingObjectKey: 'storage/staging/demo-user/source--photo.jpg',
+      objectKey: 'storage/confirmed/demo-user/11111111-1111-4111-8111-111111111111--photo.jpg',
+      contentType: 'image/jpeg',
+      expectedSize: 1024,
+      actualSize: 1024,
+      status: 'confirmed',
+      rejectionReason: null,
+      uploadUrlExpiresAt: new Date(),
+      stagingDeletedAt: new Date(),
+      confirmedAt: new Date(),
+      createdAt: new Date(),
+    } satisfies NonNullable<Awaited<ReturnType<UploadStore['find']>>>;
+    const store: UploadStore = {
+      reserve: vi.fn(),
+      find: vi.fn(async (id, userId) => id === confirmed.id && userId === confirmed.userId ? confirmed : null),
+      confirm: vi.fn(),
+      reject: vi.fn(),
+      listCleanupCandidates: vi.fn(async () => []),
+      completeStagingCleanup: vi.fn(),
+    };
+    const signGet = vi.fn(async () => 'https://account.r2.cloudflarestorage.com/signed');
+    const objects: ObjectGateway = {
+      signPut: vi.fn(),
+      signGet,
+      head: vi.fn(),
+      copy: vi.fn(),
+      delete: vi.fn(),
+    };
+    const { createStorageService, StorageError } = await import('../src/storage');
+    const service = createStorageService(env, { store, objects });
+    await expect(service.createReadUrl('other-user', confirmed.id)).rejects.toMatchObject({
+      code: 'asset_not_found',
+      statusCode: 404,
+    } satisfies Partial<InstanceType<typeof StorageError>>);
+    await expect(service.createReadUrl(confirmed.userId, confirmed.id)).resolves.toEqual({
+      url: 'https://account.r2.cloudflarestorage.com/signed',
+      expiresIn: 600,
+    });
+    expect(signGet).toHaveBeenCalledWith(confirmed.objectKey, 600);
   });
 
   it('keeps invalid objects pending until deletion succeeds, then rejects the upload', async () => {
@@ -2382,7 +2514,7 @@ describe('R2 upload confirmation', () => {
     const copyCall = vi.mocked(objects.copy).mock.calls[0];
     expect(copyCall?.[0]).toBe(created.stagingObjectKey);
     expect(copyCall?.[1]).not.toBe(created.stagingObjectKey);
-    expect(copyCall?.[1]).toMatch(/^confirmed\\//);
+    expect(copyCall?.[1]).toMatch(/^storage\\/confirmed\\//);
     expect(copyCall?.[2]).toBe('etag-confirmed');
     expect(result.upload.objectKey).toBe(copyCall?.[1]);
     expect(result.upload.contentTrust).toBe('untrusted');
@@ -2430,7 +2562,7 @@ describe('R2 upload confirmation', () => {
 
     const result = await service.confirmUpload('demo-user', created.uploadId);
     expect(result.upload.status).toBe('confirmed');
-    expect(result.upload.objectKey).toMatch(/^confirmed\\//);
+    expect(result.upload.objectKey).toMatch(/^storage\\/confirmed\\//);
     expect(result.upload.contentTrust).toBe('untrusted');
     expect(store.confirm).not.toHaveBeenCalled();
     expect(objects.delete).toHaveBeenCalledWith(created.stagingObjectKey);
@@ -2480,7 +2612,7 @@ describe('R2 upload confirmation', () => {
       statusCode: 409,
     });
     const promotedKey = vi.mocked(objects.copy).mock.calls[0]?.[1];
-    expect(promotedKey).toMatch(/^confirmed\\//);
+    expect(promotedKey).toMatch(/^storage\\/confirmed\\//);
     expect(objects.delete).toHaveBeenCalledWith(promotedKey);
   });
 
@@ -2551,7 +2683,7 @@ describe('R2 upload confirmation', () => {
     const expired = {
       id: '11111111-1111-4111-8111-111111111111',
       userId: 'demo-user',
-      stagingObjectKey: 'staging/demo-user/expired--photo.jpg',
+      stagingObjectKey: 'storage/staging/demo-user/expired--photo.jpg',
       objectKey: null,
       contentType: 'image/jpeg',
       expectedSize: 1024,
@@ -2620,7 +2752,7 @@ describe('R2 upload confirmation', () => {
     const rows = Array.from({ length: 52 }, (_, index) => ({
       id: String(index).padStart(4, '0'),
       userId: 'demo-user',
-      stagingObjectKey: \`staging/demo-user/\${index}--photo.jpg\`,
+      stagingObjectKey: \`storage/staging/demo-user/\${index}--photo.jpg\`,
       objectKey: null,
       contentType: 'image/jpeg',
       expectedSize: 1024,
@@ -2873,6 +3005,7 @@ beforeAll(() => {
   process.env.NODE_ENV = 'test';
   process.env.ANHEDRAL_DEMO = 'true';
   process.env.DATABASE_URL ||= 'postgresql://user:pass@localhost:5432/test';
+  ${options.features.storage ? "process.env.BASE_URL = 'http://localhost:8787';" : ''}
 });
 
 describe('health', () => {
@@ -2972,7 +3105,7 @@ describe('health', () => {
 `);
   writeFile(path.join(dir, 'tests/env.test.ts'), envTestSource(options));
   if (options.features.billing) {
-    writeFile(path.join(dir, 'tests/revenuecat-webhook.test.ts'), billingRouteTestSource());
+    writeFile(path.join(dir, 'tests/revenuecat-webhook.test.ts'), billingRouteTestSource(options));
   }
   if (options.features.storage) {
     writeFile(path.join(dir, 'tests/storage.test.ts'), storageRouteTestSource(options));
@@ -2986,7 +3119,7 @@ describe('health', () => {
     options.features.database ? '# Production requires a postgres/postgresql URL with real credentials and a non-local host.\nDATABASE_URL=postgresql://user:pass@localhost:5432/app' : null,
     options.features.auth ? '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
     options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro\n# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
-    options.features.storage ? '# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\n# Add an R2 lifecycle rule for the staging/ prefix as a last-resort cleanup backstop.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET=' : null,
+    options.features.storage ? '# Canonical application/API origin used when constructing protected storage links. Use HTTPS in production.\nBASE_URL=http://localhost:8787\n# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET_NAME=\n# Keep every application object inside one top-level namespace.\nR2_PREFIX=storage\n# Authenticated read URLs are clamped to 60-604800 seconds.\nR2_PROXY_READ_URL_TTL_SECONDS=600\n# Operations/CI only. Wrangler reads this automatically; do not expose it to clients or the Worker.\nCLOUDFLARE_API_TOKEN=' : null,
     options.features.billing || options.features.storage ? '# Vercel sends this as Authorization: Bearer <CRON_SECRET>; use a non-placeholder value of at least 32 characters.\nCRON_SECRET=' : null,
   ].filter((value): value is string => value !== null);
   writeFile(path.join(dir, '.env.example'), envLines.join('\n') + '\n');

@@ -96,6 +96,9 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/api/tests/{health.test.ts,env.test.ts}                [api]
   apps/api/tests/revenuecat-webhook.test.ts                  [billing]
   apps/api/tests/storage.test.ts                             [storage]
+  apps/assets-private-proxy/{package.json,wrangler.jsonc}    [storage]
+  apps/assets-private-proxy/src/index.js                     [storage]
+  cloudflare/{README.md,r2-cors.template.json}               [storage]
   apps/web/{package.json,tsconfig.json,next-env.d.ts,next.config.ts,postcss.config.mjs,components.json,.env.example} [web]
   apps/web/app/{layout.tsx,page.tsx,globals.css}             [web]
   apps/web/components/ui/{button.tsx,card.tsx}               [web]
@@ -143,6 +146,9 @@ api:       dev:api, verify:api = test:coverage + build
 desktop:   dev:desktop, desktop:build, verify:desktop = typecheck + build
 extension: dev:extension, extension:zip, verify:extension = typecheck + zip
 db:        db:generate, db:migrate, db:check, db:studio, verify:db
+storage:   r2:login, r2:bucket:create, r2:cors:list, r2:cors:set,
+           assets:proxy:check, assets:proxy:dev, assets:proxy:deploy,
+           verify:assets-proxy
 ```
 
 Set root `verify` to every selected `verify:<module>` joined with `&&`; include `verify:db`. If no app exists, begin it with `pnpm typecheck`.
@@ -183,7 +189,7 @@ Create `turbo.json` using `https://turborepo.dev/schema.json` with:
 - `typecheck.dependsOn = ["^build"]`.
 - `dev.cache = false` and `dev.persistent = true`.
 
-Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, and desktop release output in `.vercelignore`.
+Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, desktop release output, and `apps/assets-private-proxy` in `.vercelignore`.
 
 Create the single root `vercel.json` using `https://openapi.vercel.sh/vercel.json`. Add service `api` rooted at `apps/api` and service `web` rooted at `apps/web` as selected. Put the `/api/(.*)` rewrite before the web `/(.*)` catch-all. If billing is selected, add `*/5 * * * *` for `/api/internal/realtime/flush`; if storage is selected, add `0 3 * * *` for `/api/internal/storage/cleanup`. Protect both internal routes with the same high-entropy `CRON_SECRET` bearer token.
 
@@ -239,7 +245,7 @@ Implement these layers:
 
 Always provide `GET /api/health` and `GET /api/ready`. Readiness returns 503 for dependency failure or shutdown. Do not leak internal errors, stack traces, credentials, or arbitrary details in 5xx responses. Allow safe details only for intentional 4xx errors.
 
-When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation. In the same database transaction as every accepted subscription mutation, increment its revision and insert an outbox record. Expose authenticated `GET /api/subscriptions/me`, `POST /api/subscriptions/refresh`, and `POST /api/realtime/token`; issue a short-lived Ably token request limited to the authenticated Clerk user's subscribe-only channel. Publish only `{ type, revision }`, mark delivery after publish, retain failures for retry, and expose `GET /api/internal/realtime/flush` behind `CRON_SECRET`. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate keys by authenticated user, and provide an authenticated cleanup endpoint for the scheduled cron.
+When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation. In the same database transaction as every accepted subscription mutation, increment its revision and insert an outbox record. Expose authenticated `GET /api/subscriptions/me`, `POST /api/subscriptions/refresh`, and `POST /api/realtime/token`; issue a short-lived Ably token request limited to the authenticated Clerk user's subscribe-only channel. Publish only `{ type, revision }`, mark delivery after publish, retain failures for retry, and expose `GET /api/internal/realtime/flush` behind `CRON_SECRET`. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate every key below `R2_PREFIX`, expose an owner-authorized read-URL endpoint with a bounded presigned-GET TTL, and provide an authenticated cleanup endpoint for the scheduled cron.
 
 Test health, readiness, shutdown state, safe errors, and exact CORS behavior. Test environment validation. Add replay/out-of-order/retry tests for billing and size/type/ownership/cleanup tests for storage.
 
@@ -269,7 +275,7 @@ After selected surfaces exist, perform a cross-surface pass:
 
 - `auth`: Clerk server verification; protected API route; provider/account UI in every selected client; token-aware API hooks; client publishable keys and server secret separated.
 - `billing`: revisioned database state and transactional outbox; RevenueCat webhook/direct refresh; entitlement, scoped-token, and retry routes; Ably publisher and shared subscriber; contracts/API-client methods; live hooks in every client. Never expose RevenueCat or Ably secret keys.
-- `storage`: upload tables; R2 presign/confirm/cleanup; contracts and client methods; Vercel cron; R2 CORS and lifecycle documentation.
+- `storage`: upload tables; R2 presign/confirm/cleanup; owner-authorized presigned GET URLs; contracts and client methods; Vercel cron; generated R2 CORS/lifecycle guidance; and `apps/assets-private-proxy` with Worker name `assets-private-proxy`, private bucket binding `ASSETS`, `workers.dev` disabled, a user-owned custom-domain config, confirmed-prefix-only streaming GET/HEAD delivery, ranges, conditionals, cache, method/host validation, and no bucket listing.
 - `native-subscriptions`: mobile RevenueCat SDKs, platform keys, Clerk identity synchronization, entitlement/paywall behavior, and error recovery.
 
 Search the finished workspace for imports of unselected providers. Remove both source branches and dependencies when a feature is absent.
@@ -302,13 +308,15 @@ billing:   RC_WEBHOOK_SECRET, RC_SECRET_API_KEY, RC_ENTITLEMENT_ID,
            ABLY_API_KEY, CRON_SECRET
 native:    EXPO_PUBLIC_RC_API_KEY_IOS, EXPO_PUBLIC_RC_API_KEY_ANDROID,
            EXPO_PUBLIC_RC_ENTITLEMENT_ID
-storage:   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
+storage:   BASE_URL, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+           R2_BUCKET_NAME, R2_PREFIX=storage,
+           R2_PROXY_READ_URL_TTL_SECONDS=600, CLOUDFLARE_API_TOKEN (ops/CI only),
            CRON_SECRET
 ```
 
 Use explicit local CORS origins for selected browser clients. Include `null` only for Electron's file origin. Production uses exact HTTPS origins. Keep `ANHEDRAL_DEMO=false`, server secrets server-only, and real environment files out of Git.
 
-For R2, document browser-origin CORS allowing PUT and `Content-Type`, optionally exposing `ETag`, and add a lifecycle rule for `staging/` whose age exceeds the application cleanup grace period.
+For R2, generate a user-owned `cloudflare/r2-cors.template.json`, list the live policy before replacing it, and retain every exact upload origin. Add a lifecycle rule for `storage/staging/` whose age exceeds the application cleanup grace period. Keep `r2.dev` and R2 bucket custom domains disabled. Use the generated Worker Custom Domain at `assets.<domain>` for public-by-key `storage/confirmed/` objects only. Use the authenticated upload-owner read-URL route for private delivery; it returns a short-lived presigned GET governed by `R2_PROXY_READ_URL_TTL_SECONDS`.
 
 ## 9. Install, migrate, and verify
 
@@ -335,7 +343,7 @@ pnpm verify
 pnpm build
 ```
 
-Run API coverage when API exists, Expo compatibility checks when mobile exists, a packaged Electron smoke test when desktop exists, and load unpacked WXT output when extension exists. Exercise one authenticated API call per selected client. For billing, replay a webhook, send an older event, verify an outbox record is committed atomically, verify the scoped token cannot publish or subscribe to another user, and observe one native purchase/refresh update web, Android, extension, and desktop sessions. Disconnect one client, mutate the entitlement, reconnect/foreground it, and confirm authoritative recovery. For storage, perform browser preflight, presigned upload, confirmation, cross-user rejection, and cleanup.
+Run API coverage when API exists, Expo compatibility checks when mobile exists, a packaged Electron smoke test when desktop exists, and load unpacked WXT output when extension exists. Exercise one authenticated API call per selected client. For billing, replay a webhook, send an older event, verify an outbox record is committed atomically, verify the scoped token cannot publish or subscribe to another user, and observe one native purchase/refresh update web, Android, extension, and desktop sessions. Disconnect one client, mutate the entitlement, reconnect/foreground it, and confirm authoritative recovery. For storage, perform browser preflight, presigned upload, confirmation, cross-user private-read rejection, read-URL TTL verification, cleanup, Worker syntax/Wrangler dry-run validation, GET/HEAD/range/conditional/cache behavior, forbidden methods, unexpected hosts, missing keys, staging/private-prefix rejection, and direct-bucket inaccessibility.
 
 Do not weaken types, tests, provider validation, security headers, or migration checks to make verification green. Report the failing package and command, fix the owning layer, and rerun the narrow check before root verification.
 
@@ -354,6 +362,7 @@ Answer yes to every applicable item:
 - For billing, are revisions monotonic, outbox writes atomic, Ably capabilities user-scoped, and all clients recovery-safe?
 - Is a reviewed, committed migration present for `db`?
 - Do CI, Vercel services/rewrites, cron, CORS, and local ports agree?
+- For storage, is the bucket private, is the hostname attached to the Worker rather than R2, and does the documented public-key or authenticated download policy match the code?
 - Did `pnpm verify` and `pnpm build` pass?
 - Is `anhedral.json` absent unless produced by the matching CLI?
 

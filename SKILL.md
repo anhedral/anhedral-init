@@ -122,7 +122,7 @@ Common selected keys are:
 - Clerk clients: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - RevenueCat: `RC_WEBHOOK_SECRET`, `RC_SECRET_API_KEY`, `RC_ENTITLEMENT_ID`, `EXPO_PUBLIC_RC_*`
 - Ably billing synchronization: server-only `ABLY_API_KEY`; clients obtain scoped tokens from the API
-- R2: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+- R2: `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, `R2_PROXY_READ_URL_TTL_SECONDS=600`; keep `CLOUDFLARE_API_TOKEN` operations/CI-only
 - Internal billing/storage jobs: high-entropy server-only `CRON_SECRET`
 
 Never commit real `.env` files. Keep `ANHEDRAL_DEMO=false` in production.
@@ -136,6 +136,10 @@ Treat the root `vercel.json` as the only Vercel Services configuration. It uses 
 For billing, keep Neon authoritative: RevenueCat reconciliation writes the subscription revision and realtime outbox atomically, Ably carries only per-user invalidations, and every client refetches the entitlement. Schedule the authenticated outbox flush every five minutes and verify purchase, webhook, reconnect, and foreground recovery paths.
 
 Use `apps/mobile` for EAS, `pnpm desktop:build` for a current-host Electron artifact, matching platform-specific desktop scripts in CI, and `pnpm extension:zip` for the WXT archive.
+
+For storage, generate `apps/assets-private-proxy` plus `cloudflare/r2-cors.template.json` and keep the R2 bucket private. The Worker must be named `assets-private-proxy`, bind the normalized `<project>-assets` bucket as `ASSETS`, disable `workers.dev`, and own `assets.<domain>` as a Worker Custom Domain. Presigned uploads continue on the R2 S3 API hostname. Root every key below `R2_PREFIX=storage`; expose only `storage/confirmed/` through the Worker and reject staging plus `generation-inputs`. Authenticated private reads must verify upload ownership and return a presigned GET URL bounded by `R2_PROXY_READ_URL_TTL_SECONDS`.
+
+When explaining domains, distinguish DNS delegation from registrar transfer. A GoDaddy registration can use Cloudflare authoritative nameservers immediately; transferring registration/billing to Cloudflare Registrar is optional and subject to eligibility locks. Keep Vercel app/API A or CNAME records DNS-only in Cloudflare, while Worker Custom Domains stay Cloudflare-managed and proxied.
 
 ## Verify outcomes
 

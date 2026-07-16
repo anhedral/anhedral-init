@@ -30,7 +30,9 @@ try {
   assert.match(env, /ABLY_API_KEY/);
   assert.match(env, /R2_ACCOUNT_ID must be a 32-character/);
   assert.match(env, /R2_SECRET_ACCESS_KEY must be a 64-character/);
-  assert.match(env, /R2_BUCKET must be 3-63 lowercase/);
+  assert.match(env, /R2_BUCKET_NAME must be 3-63 lowercase/);
+  assert.match(env, /BASE_URL must be the canonical HTTPS/);
+  assert.match(env, /R2_PROXY_READ_URL_TTL_SECONDS/);
   assert.match(env, /CRON_SECRET must be at least 32 characters/);
   assert.match(env, /only explicit HTTPS origins in production/);
   assert.match(env, /literal null is allowed for desktop applications/);
@@ -47,6 +49,9 @@ try {
   assert.match(example, /Production requires a postgres\/postgresql URL/);
   assert.match(example, /pk_live_ \/ sk_live_/);
   assert.match(example, /32-hex account ID/);
+  assert.match(example, /R2_BUCKET_NAME=/);
+  assert.match(example, /R2_PREFIX=storage/);
+  assert.match(example, /CLOUDFLARE_API_TOKEN=/);
   assert.match(example, /at least 32 characters/);
   assert.match(example, /Server-only Ably API key/);
 
