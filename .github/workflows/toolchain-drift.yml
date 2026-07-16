@@ -94,18 +94,23 @@ jobs:
           test -d "$SDK_ROOT"
           java -version
 
+      - name: Reclaim Android build space
+        if: matrix.target == 'mobile'
+        run: bash scripts/reclaim-android-ci-space.sh
+
       - name: Install generator dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Discover Chrome
+      - name: Discover Chromium
         if: matrix.target == 'extension'
         run: |
-          CHROME_PATH=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
-          if [ -z "$CHROME_PATH" ]; then
-            echo "Chrome is required for extension runtime acceptance"
+          CHROMIUM_PATH=$(command -v chromium || command -v chromium-browser || true)
+          if [ -z "$CHROMIUM_PATH" ]; then
+            echo "Unbranded Chromium is required for extension runtime acceptance"
             exit 1
           fi
-          echo "ANHEDRAL_CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROMIUM_PATH" --version
+          echo "ANHEDRAL_CHROME_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
 
       - name: Require Xvfb
         if: matrix.target == 'desktop'

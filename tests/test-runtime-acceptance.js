@@ -231,25 +231,28 @@ async function evaluateTarget(debugTarget, expression) {
 
 async function waitForInspectableTarget({ port, state, label, matches, inspect }) {
   const deadline = Date.now() + probeTimeoutMs;
-  let lastError = null;
+  let lastEndpointError = null;
+  let lastInspectionError = null;
   while (Date.now() < deadline) {
     if (state.spawnError) throw state.spawnError;
     if (state.exited) throw new Error(processFailure(state, label));
     try {
       const targets = await readDebugTargets(port);
+      lastEndpointError = null;
       for (const debugTarget of targets.filter(matches)) {
         try {
           const inspection = await inspect(debugTarget);
           if (inspection) return { debugTarget, inspection };
         } catch (error) {
-          lastError = error;
+          lastInspectionError = error;
         }
       }
     } catch (error) {
-      lastError = error;
+      lastEndpointError = error;
     }
     await delay(200);
   }
+  const lastError = lastInspectionError ?? lastEndpointError;
   throw new Error(`${label} did not expose an inspectable runtime target within ${probeTimeoutMs}ms`
     + (lastError ? `\nLast probe error: ${lastError.message}` : '')
     + `\nstdout (tail):\n${state.stdout}\nstderr (tail):\n${state.stderr}`);
@@ -299,7 +302,7 @@ try {
     if (process.platform === 'linux') {
       runCommand('pnpm', ['--filter', './apps/desktop', 'exec', 'electron-builder', '--linux', 'dir', '--publish', 'never'], projectRoot, { env: { CI: '1' } });
       const desktopPackage = JSON.parse(readFileSync(path.join(projectRoot, 'apps/desktop/package.json'), 'utf8'));
-      const executable = findFile(path.join(projectRoot, 'apps/desktop/release'), desktopPackage.build.productName);
+      const executable = findFile(path.join(projectRoot, 'apps/desktop/release'), desktopPackage.build.linux.executableName);
       assert.ok(executable, 'Electron builder should emit the configured Linux executable');
       accessSync(executable, constants.X_OK);
 
@@ -438,7 +441,15 @@ try {
         : path.join(androidRoot, 'gradlew');
       assert.equal(existsSync(gradleWrapper), true, 'Expo prebuild must emit the Gradle wrapper');
       if (process.platform !== 'win32') chmodSync(gradleWrapper, 0o755);
-      runCommand(gradleWrapper, ['--no-daemon', '--stacktrace', 'assembleDebug'], androidRoot, {
+      runCommand(gradleWrapper, [
+        '--no-daemon',
+        '--no-build-cache',
+        '--max-workers=2',
+        '--console=plain',
+        '--stacktrace',
+        '-PreactNativeArchitectures=x86_64',
+        ':app:assembleDebug',
+      ], androidRoot, {
         env: {
           ANDROID_HOME: androidSdk,
           ANDROID_SDK_ROOT: androidSdk,

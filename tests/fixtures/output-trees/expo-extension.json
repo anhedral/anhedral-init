@@ -57,7 +57,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 21198,
-      "sha256": "ddaa34f325d72993e7c48f4d57fb6daeb62897afca58ec16f7eef7ffaf75f5c0"
+      "sha256": "601fef08b0113ae6b913632d0f75429dd9caa89d51e960577cdc37808b16ca77"
     },
     {
       "path": "apps/api/.env.example",
@@ -196,8 +196,8 @@
       "path": "apps/desktop/package.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 1704,
-      "sha256": "378a1e393012428f6680d344070529ffc350f0c94b525096adb283236823e25a"
+      "bytes": 1753,
+      "sha256": "ad0792dc389d91a176c7ba68c1cad3476c3a81aa1c533b6a2b90488183230b7b"
     },
     {
       "path": "apps/desktop/postcss.config.mjs",
@@ -746,5 +746,5 @@
       "sha256": "74a5d8daf3a8071f5e1510caa3c4473600a3ceac50e256bfe7ca942a863a9fb3"
     }
   ],
-  "digest": "06d22ffe33a699d6c5839e3af7b588e0ee1045f7dd3dc1c45550ad0a80c68200"
+  "digest": "82577994787aa81463b0d037923f550af367dee44e3a97b908f665a3b5f63410"
 }

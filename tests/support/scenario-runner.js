@@ -28,6 +28,7 @@ export function runCommand(command, args, cwd, {
   const result = spawnSyncPortable(command, args, {
     cwd,
     encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
     env: {
       ...process.env,
       ANHEDRAL_TOOLCHAIN: toolchainChannel,
@@ -36,6 +37,14 @@ export function runCommand(command, args, cwd, {
   });
   const stdout = String(result.stdout ?? '');
   const stderr = String(result.stderr ?? '');
+
+  if (result.error) {
+    throw new Error(
+      `${command} ${args.join(' ')} could not run in ${cwd}: ${result.error.message}`
+      + `\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+      { cause: result.error },
+    );
+  }
 
   assert.equal(
     result.status,

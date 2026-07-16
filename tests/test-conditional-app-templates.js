@@ -139,6 +139,7 @@ try {
     assert.equal(packageJson(root, 'desktop').devDependencies['@vitejs/plugin-react'], '5.2.0');
     assert.equal(packageJson(root, 'desktop').dependencies.bs58, '6.0.0');
     assert.equal(packageJson(root, 'desktop').scripts.dev, 'tsc -p tsconfig.main.json && node scripts/dev.mjs');
+    assert.equal(packageJson(root, 'desktop').build.linux.executableName, 'conditional-app');
     assert.match(read(root, 'apps/desktop/scripts/dev.mjs'), /electronCommand/);
     assert.match(read(root, 'apps/desktop/scripts/dev.mjs'), /VITE_DEV_SERVER_URL/);
     assert.match(read(root, 'apps/desktop/vite.config.ts'), /base: '\.\/'/);

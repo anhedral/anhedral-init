@@ -66,6 +66,7 @@ function writePackageJson(dir: string, projectName: string, options: ProjectOpti
         target: ['nsis', 'zip'],
       },
       linux: {
+        executableName: identifierSegment(projectName),
         target: ['AppImage', 'deb'],
       },
     },

@@ -200,6 +200,10 @@ jobs:
           test -d "$SDK_ROOT"
           java -version
 
+      - name: Reclaim Android build space
+        if: matrix.target == 'mobile'
+        run: bash scripts/reclaim-android-ci-space.sh
+
       - name: Download exact verified artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -214,15 +218,16 @@ jobs:
           ANHEDRAL_EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
         run: node scripts/verify-release-artifact.mjs release-artifact/metadata.json
 
-      - name: Discover Chrome
+      - name: Discover Chromium
         if: matrix.target == 'extension'
         run: |
-          CHROME_PATH=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
-          if [ -z "$CHROME_PATH" ]; then
-            echo "Chrome is required for extension runtime acceptance"
+          CHROMIUM_PATH=$(command -v chromium || command -v chromium-browser || true)
+          if [ -z "$CHROMIUM_PATH" ]; then
+            echo "Unbranded Chromium is required for extension runtime acceptance"
             exit 1
           fi
-          echo "ANHEDRAL_CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROMIUM_PATH" --version
+          echo "ANHEDRAL_CHROME_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
 
       - name: Require Xvfb
         if: matrix.target == 'desktop'
