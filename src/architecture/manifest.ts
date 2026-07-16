@@ -20,8 +20,18 @@ import {
   type TemplateProvenance,
   type TemplateProvenanceMap,
 } from './templates.js';
+import {
+  isNativeStylingLibrary,
+  isUiProvider,
+  isUiTarget,
+  normalizeUiComponentName,
+  providerForTarget,
+  uiInstallKey,
+  type NativeStylingLibrary,
+  type UiComponentInstall,
+} from '../ui.js';
 
-export const MANIFEST_SCHEMA_VERSION = 4 as const;
+export const MANIFEST_SCHEMA_VERSION = 5 as const;
 
 export type ManifestToolchain = 'stable' | 'latest';
 
@@ -45,6 +55,10 @@ export type ProjectManifest = {
   readonly toolchain: ManifestToolchain;
   /** Immutable template catalog entries used to seed the generated workspace. */
   readonly templates: TemplateProvenanceMap;
+  readonly ui: {
+    readonly nativeStyling: NativeStylingLibrary;
+    readonly components: readonly UiComponentInstall[];
+  };
   readonly files: Readonly<Record<string, ManifestFileRecord>>;
 };
 
@@ -57,6 +71,8 @@ export type CreateManifestInput = {
   readonly plan: GenerationPlan;
   readonly toolchain: ManifestToolchain;
   readonly templates: TemplateProvenanceMap;
+  readonly nativeStyling?: NativeStylingLibrary;
+  readonly components?: readonly UiComponentInstall[];
   readonly registry?: ModuleRegistry;
 };
 
@@ -273,6 +289,69 @@ function readTemplates(value: unknown, modules: readonly ModuleId[]): TemplatePr
   return Object.freeze(Object.fromEntries(entries));
 }
 
+function readUi(value: unknown, modules: readonly ModuleId[]): ProjectManifest['ui'] {
+  if (!isRecord(value)) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'ui must be an object', 'ui');
+  }
+  assertExactKeys(value, ['nativeStyling', 'components'], 'ui');
+  if (!isNativeStylingLibrary(value.nativeStyling)) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'ui.nativeStyling must be nativewind or uniwind', 'ui.nativeStyling');
+  }
+  if (!Array.isArray(value.components)) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'ui.components must be an array', 'ui.components');
+  }
+
+  const selectedModules = new Set(modules);
+  const seen = new Set<string>();
+  const components: UiComponentInstall[] = [];
+  for (let index = 0; index < value.components.length; index += 1) {
+    const itemPath = `ui.components[${index}]`;
+    const item = value.components[index];
+    if (!isRecord(item)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `${itemPath} must be an object`, itemPath);
+    }
+    assertExactKeys(item, ['name', 'target', 'provider', 'source', 'variant'], itemPath);
+    let name: string;
+    try {
+      name = normalizeUiComponentName(readNonEmptyString(item.name, `${itemPath}.name`));
+    } catch (error) {
+      throw new ManifestValidationError(
+        'INVALID_MANIFEST',
+        error instanceof Error ? error.message : `${itemPath}.name is invalid`,
+        `${itemPath}.name`,
+      );
+    }
+    if (!isUiTarget(item.target) || !selectedModules.has(item.target)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `${itemPath}.target is not a selected UI client`, `${itemPath}.target`);
+    }
+    if (!isUiProvider(item.provider) || item.provider !== providerForTarget(item.target)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `${itemPath}.provider does not match its target`, `${itemPath}.provider`);
+    }
+    const source = readNonEmptyString(item.source, `${itemPath}.source`);
+    const variant = item.variant;
+    if (item.target === 'mobile') {
+      if (!isNativeStylingLibrary(variant) || variant !== value.nativeStyling) {
+        throw new ManifestValidationError('INVALID_MANIFEST', `${itemPath}.variant must match ui.nativeStyling`, `${itemPath}.variant`);
+      }
+    } else if (variant !== null) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `${itemPath}.variant must be null for DOM clients`, `${itemPath}.variant`);
+    }
+    const install = Object.freeze({ name, target: item.target, provider: item.provider, source, variant }) as UiComponentInstall;
+    const key = uiInstallKey(install);
+    if (seen.has(key)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `Duplicate UI component installation: ${key}`, itemPath);
+    }
+    seen.add(key);
+    components.push(install);
+  }
+
+  const canonical = [...components].sort((left, right) => uiInstallKey(left).localeCompare(uiInstallKey(right)));
+  if (canonical.some((component, index) => component !== components[index])) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'ui.components must be canonically sorted', 'ui.components');
+  }
+  return Object.freeze({ nativeStyling: value.nativeStyling, components: Object.freeze(components) });
+}
+
 function parseInput(input: string | unknown): unknown {
   if (typeof input !== 'string') return input;
   try {
@@ -320,7 +399,7 @@ export function readManifest(
 
   assertExactKeys(
     value,
-    ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'templates', 'files'],
+    ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'templates', 'ui', 'files'],
     '$',
   );
   if (!isRecord(value.project)) {
@@ -349,6 +428,7 @@ export function readManifest(
     modules,
     toolchain: value.toolchain,
     templates: readTemplates(value.templates, modules),
+    ui: readUi(value.ui, modules),
     files: readFiles(value.files, modules),
   });
 }
@@ -371,6 +451,10 @@ export function createManifest(input: CreateManifestInput): ProjectManifest {
     modules: input.plan.resolvedModules,
     toolchain: input.toolchain,
     templates: input.templates,
+    ui: {
+      nativeStyling: input.nativeStyling ?? 'nativewind',
+      components: input.components ?? [],
+    },
     files,
   }, input.registry ?? DEFAULT_MODULE_REGISTRY);
 }

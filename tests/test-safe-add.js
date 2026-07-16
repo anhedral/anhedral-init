@@ -44,7 +44,7 @@ try {
   run(['init', '--api', '--skip-install'], project);
 
   const initialManifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
-  assert.equal(initialManifest.schemaVersion, 4);
+  assert.equal(initialManifest.schemaVersion, 5);
   assert.deepEqual(Object.keys(initialManifest.templates), ['api-fastify']);
   const manifestPath = path.join(project, 'anhedral.json');
   const currentManifestText = readFileSync(manifestPath, 'utf8');

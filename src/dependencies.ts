@@ -14,7 +14,7 @@ export const VERIFIED_AT = '2026-07-15';
 
 export const TOOLCHAIN_DEPENDENCIES = {
   // renovate: datasource=npm depName=shadcn
-  shadcn: '4.5.0',
+  shadcn: '4.13.0',
   // renovate: datasource=npm depName=wxt
   wxt: '0.20.27',
 } as const;
@@ -187,6 +187,11 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
     '@shared/realtime': 'workspace:*',
+    '@rn-primitives/portal': '1.5.2',
+    '@rn-primitives/slot': '1.5.2',
+    // renovate: datasource=npm depName=class-variance-authority
+    'class-variance-authority': '0.7.1',
+    clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,
     // renovate: datasource=npm depName=expo
     expo: '56.0.16',
     // renovate: datasource=npm depName=expo-constants
@@ -199,6 +204,8 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     'expo-status-bar': '56.0.4',
     // renovate: datasource=npm depName=expo-system-ui
     'expo-system-ui': '56.0.5',
+    // renovate: datasource=npm depName=lucide-react-native
+    'lucide-react-native': '1.21.0',
     react: EXTENSION_DEPENDENCIES.dependencies!.react,
     'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
     // renovate: datasource=npm depName=react-native
@@ -215,8 +222,15 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     'react-native-worklets': '0.8.3',
     // renovate: datasource=npm depName=react-native-web
     'react-native-web': '0.21.0',
+    // renovate: datasource=npm depName=react-native-svg
+    'react-native-svg': '15.15.4',
+    'tailwind-merge': '3.5.0',
+    // renovate: datasource=npm depName=tailwindcss-animate
+    'tailwindcss-animate': '1.0.7',
   },
   devDependencies: {
+    // renovate: datasource=npm depName=@babel/core
+    '@babel/core': '7.29.6',
     // expo-router's web test utilities expose @testing-library/user-event, whose DOM peer is explicit when autoInstallPeers is disabled.
     // renovate: datasource=npm depName=@testing-library/dom
     '@testing-library/dom': '10.4.1',
@@ -226,6 +240,29 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     '@types/react': '19.2.10',
     // renovate: datasource=npm depName=typescript
     typescript: '6.0.3',
+  },
+};
+
+export const MOBILE_NATIVEWIND_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    // renovate: datasource=npm depName=nativewind
+    nativewind: '4.2.6',
+    // NativeWind's Babel transform imports this runtime from application code,
+    // so pnpm's strict linker requires it as a direct dependency.
+    // renovate: datasource=npm depName=react-native-css-interop
+    'react-native-css-interop': '0.2.6',
+    tailwindcss: EXTENSION_DEPENDENCIES.devDependencies!.tailwindcss,
+  },
+};
+
+export const MOBILE_UNIWIND_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    // renovate: datasource=npm depName=uniwind
+    uniwind: '1.9.0',
+    // renovate: datasource=npm depName=tailwindcss
+    tailwindcss: '4.2.1',
+    // renovate: datasource=npm depName=tw-animate-css
+    'tw-animate-css': '1.4.0',
   },
 };
 
@@ -313,6 +350,8 @@ export function dependencyManifest() {
     extension: EXTENSION_DEPENDENCIES,
     frontendAddons: FRONTEND_ADDON_DEPENDENCIES,
     mobileApp: MOBILE_APP_DEPENDENCIES,
+    mobileNativewind: MOBILE_NATIVEWIND_DEPENDENCIES,
+    mobileUniwind: MOBILE_UNIWIND_DEPENDENCIES,
     webApp: WEB_APP_DEPENDENCIES,
     desktop: DESKTOP_DEPENDENCIES,
   };

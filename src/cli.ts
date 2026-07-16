@@ -4,10 +4,19 @@ import type { AddOptions, InitOptions } from './scaffold.js';
 import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
 import { resolveModules } from './architecture/modules.js';
 import { packageNameFromText } from './render.js';
+import {
+  isNativeStylingLibrary,
+  isUiTarget,
+  parseUiComponentList,
+  type NativeStylingLibrary,
+  type UiTarget,
+} from './ui.js';
+import type { UiAddOptions } from './scaffold.js';
 
 export const USAGE = `
-anhedral init [modules...] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral init [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral add <module...> [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral doctor [--json] [--verbose]
 anhedral --version
 
@@ -18,6 +27,8 @@ Commands:
     Generate a web app, Fastify API, shared database package, and auth wiring.
   anhedral add mobile extension
     Add missing modules to an existing Anhedral project.
+  anhedral ui add button dialog --target mobile
+    Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
 `;
 
 export const APP_MODULES = ['web', 'mobile', 'api', 'desktop', 'extension'] as const;
@@ -33,11 +44,13 @@ export type ParsedFlags = {
   dryRun?: boolean;
   json?: boolean;
   verbose?: boolean;
+  uiComponents: string[];
+  nativeStyling?: NativeStylingLibrary;
   modules: Set<SupportedModule>;
 };
 
 export function parseCli(args: string[]): ParsedFlags {
-  const flags: ParsedFlags = { modules: new Set() };
+  const flags: ParsedFlags = { modules: new Set(), uiComponents: [] };
 
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
@@ -68,6 +81,34 @@ export function parseCli(args: string[]): ParsedFlags {
 
     if (token === '--verbose') {
       flags.verbose = true;
+      continue;
+    }
+
+    if (token === '--ui') {
+      const value = args[index + 1];
+      if (!value || value.startsWith('--')) throw new Error('Missing value for --ui');
+      flags.uiComponents.push(...parseUiComponentList(value));
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith('--ui=')) {
+      flags.uiComponents.push(...parseUiComponentList(token.slice('--ui='.length)));
+      continue;
+    }
+
+    if (token === '--native-styling') {
+      const value = args[index + 1];
+      if (!isNativeStylingLibrary(value)) throw new Error('--native-styling must be nativewind or uniwind');
+      flags.nativeStyling = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith('--native-styling=')) {
+      const value = token.slice('--native-styling='.length);
+      if (!isNativeStylingLibrary(value)) throw new Error('--native-styling must be nativewind or uniwind');
+      flags.nativeStyling = value;
       continue;
     }
 
@@ -135,10 +176,62 @@ export function buildOptions(flags: ParsedFlags): InitOptions {
     projectName,
     displayName,
     modules: [...resolution.requestedModules],
+    uiComponents: Array.from(new Set(flags.uiComponents)),
+    nativeStyling: flags.nativeStyling ?? 'nativewind',
     skipInstall: flags.skipInstall === true || env.ANHEDRAL_SKIP_INSTALL === '1',
     dryRun: flags.dryRun === true,
     json: flags.json === true,
     toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN),
+  };
+}
+
+export type ParsedUiFlags = {
+  readonly components: readonly string[];
+  readonly targets: readonly UiTarget[];
+  readonly skipInstall: boolean;
+  readonly dryRun: boolean;
+  readonly json: boolean;
+};
+
+export function parseUiAddOptions(args: readonly string[]): UiAddOptions {
+  const components: string[] = [];
+  const targets: UiTarget[] = [];
+  let skipInstall = env.ANHEDRAL_SKIP_INSTALL === '1';
+  let dryRun = false;
+  let json = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index]!;
+    if (!token.startsWith('--')) {
+      components.push(...parseUiComponentList(token));
+      continue;
+    }
+    if (token === '--target') {
+      const value = args[index + 1];
+      if (!isUiTarget(value)) throw new Error(`--target must be one of: web, mobile, desktop, extension`);
+      targets.push(value);
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('--target=')) {
+      const value = token.slice('--target='.length);
+      if (!isUiTarget(value)) throw new Error(`--target must be one of: web, mobile, desktop, extension`);
+      targets.push(value);
+      continue;
+    }
+    if (token === '--skip-install') { skipInstall = true; continue; }
+    if (token === '--dry-run') { dryRun = true; continue; }
+    if (token === '--json') { json = true; continue; }
+    if (token === '--verbose') { continue; }
+    throw new Error(`Unknown UI option: ${token}`);
+  }
+  if (components.length === 0) throw new Error('anhedral ui add requires at least one component');
+  return {
+    components: Array.from(new Set(components)),
+    targets: Array.from(new Set(targets)),
+    skipInstall,
+    dryRun,
+    json,
   };
 }
 

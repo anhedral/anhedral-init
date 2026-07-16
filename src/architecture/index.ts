@@ -79,3 +79,27 @@ export type {
   ManifestValidationErrorCode,
   ProjectManifest,
 } from './manifest.js';
+
+export {
+  NATIVE_STYLING_LIBRARIES,
+  UI_PROVIDERS,
+  UI_TARGETS,
+  buildUiInstallCommands,
+  isNativeStylingLibrary,
+  isUiProvider,
+  isUiTarget,
+  mergeUiInstalls,
+  normalizeUiComponentName,
+  parseUiComponentList,
+  providerForTarget,
+  registrySourceFor,
+  resolveUiInstalls,
+  uiInstallKey,
+} from '../ui.js';
+export type {
+  NativeStylingLibrary,
+  UiComponentInstall,
+  UiInstallCommand,
+  UiProvider,
+  UiTarget,
+} from '../ui.js';

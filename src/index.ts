@@ -8,6 +8,7 @@ export {
   deriveProjectName,
   normalizeModuleName,
   parseCli,
+  parseUiAddOptions,
 } from './cli.js';
 export type { AppModule, FeatureModule, ParsedFlags, SupportedModule } from './cli.js';
 
@@ -15,6 +16,7 @@ export {
   doctorProject,
   scaffoldAddModules,
   scaffoldProject,
+  scaffoldUiComponents,
 } from './scaffold.js';
 export type {
   AddOptions,
@@ -22,6 +24,7 @@ export type {
   DoctorReport,
   InitOptions,
   ProjectOptions,
+  UiAddOptions,
 } from './scaffold.js';
 
 export * from './architecture/index.js';

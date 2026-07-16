@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Deterministic modular app generator for Next.js, Expo, Fastify, Electron, WXT, Neon, Clerk, RevenueCat, R2, and Vercel.",
   "type": "module",
   "exports": {

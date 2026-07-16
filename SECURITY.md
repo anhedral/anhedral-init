@@ -26,6 +26,8 @@ Generated projects pin their stable dependency manifest, explicitly allow only r
 
 Incremental generation rejects path traversal, symbolic-link targets, unowned collisions, modified managed files, and managed-file permission drift. Transaction journals are validated before recovery, fsynced before filesystem moves, and advanced only around durable rename barriers where the host filesystem supports directory synchronization.
 
+UI component installation is an explicit networked supply-chain operation. Anhedral pins the shadcn installer version, routes Expo only to the official HTTPS React Native Reusables registry, validates component names and target paths, and runs provider mutation inside transaction staging. Provider-generated files and dependency manifests must pass ownership checks before commit. Users should review `--dry-run` output and the resulting source diff; registry content is upstream-maintained and is not part of Anhedral's immutable bundled-template catalog.
+
 ## Secret response
 
 If a secret-shaped finding is real, do not merely remove it from the latest commit. Revoke or rotate the credential first, identify every log, artifact, cache, fork, and package version that may contain it, and coordinate history or artifact cleanup with the security responder. Treat false positives by changing the example to an unmistakable placeholder; do not add broad path exclusions.

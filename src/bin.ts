@@ -2,11 +2,12 @@
 
 import { createInterface } from 'node:readline/promises';
 import { argv, stdin, stdout } from 'node:process';
-import { buildAddOptions, buildOptions, parseCli, USAGE } from './cli.js';
-import { doctorProject, scaffoldAddModules, scaffoldProject } from './scaffold.js';
+import { buildAddOptions, buildOptions, parseCli, parseUiAddOptions, USAGE } from './cli.js';
+import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponents } from './scaffold.js';
 import {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  hasUiSelection,
   parsePromptModules,
   shouldPromptForInitModules,
 } from './prompts.js';
@@ -66,7 +67,18 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
       ...parsePromptModules(appAnswer, DEFAULT_PROMPT_APP_MODULES),
       ...parsePromptModules(featureAnswer, DEFAULT_PROMPT_FEATURE_MODULES),
     ];
-    return [...args, ...selected.map((moduleName) => `--${moduleName}`)];
+    const result = [...args, ...selected.map((moduleName) => `--${moduleName}`)];
+    const hasUiClient = selected.some((moduleName) => ['web', 'mobile', 'desktop', 'extension'].includes(moduleName));
+    if (hasUiClient && !hasUiSelection(args)) {
+      console.log('Optionally add starter UI components to each selected client.');
+      const componentAnswer = await rl.question('Starter components [none]: ');
+      if (componentAnswer.trim()) result.push(`--ui=${componentAnswer}`);
+    }
+    if (selected.includes('mobile') && !args.some((arg) => arg.startsWith('--native-styling'))) {
+      const stylingAnswer = (await rl.question('Expo styling [nativewind]: ')).trim();
+      result.push(`--native-styling=${stylingAnswer || 'nativewind'}`);
+    }
+    return result;
   } finally {
     rl.close();
   }
@@ -93,7 +105,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!['init', 'add', 'doctor'].includes(command)) {
+  if (!['init', 'add', 'ui', 'doctor'].includes(command)) {
     if (json) writeCliError(new Error(`Unknown command: ${command}`), 'UNKNOWN_COMMAND', true);
     else {
       console.error(`Unknown command: ${command}`);
@@ -127,6 +139,11 @@ async function main(): Promise<void> {
       const options = buildAddOptions(moduleNames, parseCli(flagArgs));
       phase = 'execute';
       await scaffoldAddModules(options);
+    } else if (command === 'ui') {
+      if (rawArgs[0] !== 'add') throw new Error('Unknown UI command. Use: anhedral ui add <component...>');
+      const options = parseUiAddOptions(rawArgs.slice(1));
+      phase = 'execute';
+      await scaffoldUiComponents(options);
     } else {
       const options = buildOptions(parseCli(await promptForInitModules(rawArgs)));
       phase = 'execute';

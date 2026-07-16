@@ -110,3 +110,38 @@ export function exec(cmd: string, cwd: string): void {
     rmSync(captureRoot, { recursive: true, force: true });
   }
 }
+
+export function execFile(executable: string, args: readonly string[], cwd: string): void {
+  const quiet = process.env.ANHEDRAL_QUIET === '1';
+  const display = [executable, ...args].join(' ');
+  if (process.env.ANHEDRAL_VERBOSE === '1' && !quiet) {
+    console.log(`  $ ${display}`);
+    const result = spawnSync(executable, [...args], { cwd, stdio: 'inherit', shell: false });
+    if (result.error || result.status !== 0) {
+      throw new Error(`Command failed (exit ${result.status ?? '?'}): ${display}`, result.error ? { cause: result.error } : undefined);
+    }
+    return;
+  }
+
+  const captureRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-exec-'));
+  const stdoutPath = path.join(captureRoot, 'stdout.log');
+  const stderrPath = path.join(captureRoot, 'stderr.log');
+  const stdout = openSync(stdoutPath, 'w');
+  const stderr = openSync(stderrPath, 'w');
+  try {
+    const result = spawnSync(executable, [...args], {
+      cwd,
+      shell: false,
+      stdio: ['ignore', stdout, stderr],
+    });
+    closeSync(stdout);
+    closeSync(stderr);
+    if (result.error || result.status !== 0) {
+      dumpFailure(display, result.status, stdoutPath, stderrPath, result.error);
+    }
+  } finally {
+    try { closeSync(stdout); } catch {}
+    try { closeSync(stderr); } catch {}
+    rmSync(captureRoot, { recursive: true, force: true });
+  }
+}

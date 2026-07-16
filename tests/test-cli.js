@@ -25,6 +25,7 @@ runScript('test-json-stream-flush.js');
 runScript('test-util-exec.js');
 runScript('test-command-builders.js');
 runScript('test-architecture-foundation.js');
+runScript('test-ui.js');
 runScript('test-template-source.js');
 runScript('test-conditional-app-templates.js');
 runScript('test-billing-template.js');

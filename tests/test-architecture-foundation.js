@@ -208,7 +208,7 @@ const manifest = createManifest({
   },
 });
 const roundTrip = readManifest(serializeManifest(manifest));
-assert.equal(roundTrip.schemaVersion, 4);
+assert.equal(roundTrip.schemaVersion, 5);
 assert.deepEqual(roundTrip, manifest);
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].ownership, 'managed');
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].mode, null);
@@ -225,6 +225,35 @@ const missingTemplates = JSON.parse(serializeManifest(manifest));
 delete missingTemplates.templates;
 expectCode(
   () => readManifest(missingTemplates),
+  ManifestValidationError,
+  'INVALID_MANIFEST',
+);
+
+const missingUi = JSON.parse(serializeManifest(manifest));
+delete missingUi.ui;
+expectCode(
+  () => readManifest(missingUi),
+  ManifestValidationError,
+  'INVALID_MANIFEST',
+);
+
+const invalidUiProvider = JSON.parse(serializeManifest(createManifest({
+  generatorVersion: '0.3.0',
+  project: { name: 'ui-app', displayName: 'UI App' },
+  plan: buildGenerationPlan({ operation: 'init', requestedModules: ['mobile'] }),
+  toolchain: 'stable',
+  templates: { 'mobile-expo': { version: 1, sha256: 'd'.repeat(64) } },
+  components: [{
+    name: 'button',
+    target: 'mobile',
+    provider: 'react-native-reusables',
+    source: 'https://reactnativereusables.com/r/nativewind/button.json',
+    variant: 'nativewind',
+  }],
+})));
+invalidUiProvider.ui.components[0].provider = 'shadcn';
+expectCode(
+  () => readManifest(invalidUiProvider),
   ManifestValidationError,
   'INVALID_MANIFEST',
 );
@@ -271,7 +300,7 @@ Object.defineProperty(prototypePath.files, '__proto__', {
   value: { owner: 'root', ownership: 'user', hash: hashContent('prototype'), mode: null },
 });
 const prototypeManifest = readManifest(prototypePath);
-assert.equal(prototypeManifest.schemaVersion, 4);
+assert.equal(prototypeManifest.schemaVersion, 5);
 assert.equal(Object.hasOwn(prototypeManifest.files, '__proto__'), true);
 assert.equal(prototypeManifest.files.__proto__.ownership, 'user');
 

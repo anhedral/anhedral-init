@@ -2,7 +2,7 @@
 
 ## Decision
 
-Anhedral generates projects by materializing immutable framework substrates into its transaction staging directory and then composing the selected modules over those substrates. Stable generation never invokes framework generators or checks out a mutable repository branch at runtime.
+Anhedral generates projects by materializing immutable framework substrates into its transaction staging directory and then composing the selected modules over those substrates. Base generation never invokes framework generators or checks out a mutable repository branch at runtime. Explicit UI-component selections may invoke the pinned shadcn installer against official remote registries, still confined to transaction staging.
 
 The generation pipeline is:
 
@@ -13,19 +13,21 @@ The generation pipeline is:
 5. Collect typed module contributions.
 6. Compose shared configuration once from the complete contribution model.
 7. Render module-owned source files.
-8. Build the file ownership manifest and record template provenance.
-9. Atomically commit the staged result.
-10. Run one root package installation after commit unless installation was skipped.
+8. Optionally run pinned shadcn-compatible component providers inside transaction staging.
+9. Build the file ownership manifest and record template and UI-provider state.
+10. Atomically commit the staged result.
+11. Run one root package installation after commit unless installation was skipped.
 
 ## Invariants
 
-- The same CLI artifact and inputs produce byte-identical source trees.
+- The bundled architectural scaffold is byte-identical for the same CLI artifact and inputs. Optional remote component registry results are hashed and ownership-tracked at installation time.
 - Templates never execute hooks or install dependencies.
 - Template materialization cannot write outside transaction staging.
 - A final path has one generation-plan owner.
 - Shared files are composed from typed data rather than sequential text patches.
 - `add` retains managed, mergeable, and user-owned conflict rules.
 - Template catalog version and digest are part of the `anhedral.json` trust boundary.
+- UI provider, target, source address, native styling variant, and installed file hashes are part of manifest schema v5.
 - The published npm artifact contains everything needed for stable generation.
 
 ## Template maintenance

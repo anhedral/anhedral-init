@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 115 | `5c8fadabc7baad35f14efa660a00e9d060518f067e9bd81fd97e175ecfb6e2ee` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 55 | `6ea532a994771639be499ae10fb248bacb8fbf3a167cb06cb9258249de0bd54f` |
-| `api-only` | api |  | deterministic golden | 26 | `eba76863ae3fdf5d89165bc953c3bea62a815e04b40dc56ccae6fd717f17620a` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 56 | `3faf0b4dab518766c4f97359353219d004b5e210010b7457a95dec96a0de3e3c` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 122 | `6d4bf75127d1393dafb5d1538bc96a6f2444e4215298252b539ff449eb91df3f` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 55 | `66810e7e62472933d1e920440eae7fb387e7d16f7ab00ff50c68b4fa63b80bdb` |
+| `api-only` | api |  | deterministic golden | 26 | `01080a7d35ca62e50f46232e2f6f5aec5b96b65c9769d56e5c63fa62f4d4b039` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 56 | `bb6481539cd52923f7fdd2c9162d9f76cbd392ef96810fc2f3a6295af99730a9` |
 
 ## expo-extension
 
@@ -125,17 +125,24 @@ expo-extension-sample/
 │   │   │   ├── _layout.tsx
 │   │   │   └── index.tsx
 │   │   ├── app.json
+│   │   ├── babel.config.js
 │   │   ├── components/
 │   │   │   └── account-controls.tsx
+│   │   ├── components.json
 │   │   ├── eas.json
 │   │   ├── expo-env.d.ts
+│   │   ├── global.css
 │   │   ├── hooks/
 │   │   │   ├── use-api-client.ts
 │   │   │   └── use-entitlement.ts
 │   │   ├── lib/
 │   │   │   ├── api.ts
-│   │   │   └── subscriptions.ts
+│   │   │   ├── subscriptions.ts
+│   │   │   └── utils.ts
+│   │   ├── metro.config.js
+│   │   ├── nativewind-env.d.ts
 │   │   ├── package.json
+│   │   ├── tailwind.config.js
 │   │   └── tsconfig.json
 │   └── web/
 │       ├── .env.example

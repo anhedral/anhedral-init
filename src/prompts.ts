@@ -8,6 +8,10 @@ export function shouldPromptForInitModules(args: readonly string[], isTTY: boole
   return isTTY && !args.includes('--json') && !hasModuleSelection(args);
 }
 
+export function hasUiSelection(args: readonly string[]): boolean {
+  return args.some((arg) => arg === '--ui' || arg.startsWith('--ui='));
+}
+
 export function parsePromptModules(input: string, fallback: readonly string[]): string[] {
   const tokens = input
     .split(/[\s,]+/)

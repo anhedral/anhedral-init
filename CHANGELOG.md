@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.3.0 - 2026-07-16
+
+### Added
+
+- Add a unified `anhedral ui add` workflow that routes DOM clients to shadcn/ui and Expo clients to React Native Reusables.
+- Add interactive starter-component selection after app surfaces and feature sets, with NativeWind or Uniwind selection for Expo.
+- Add React Native Reusables-ready Expo configuration, theme CSS, aliases, utilities, Metro integration, and portal hosting.
+- Add manifest schema v5 UI configuration and per-client component installation records.
+- Add staged provider execution, dry-run plans, duplicate-install detection, target validation, and provider routing tests.
+
+### Changed
+
+- Pin the component installer to shadcn 4.13.0 and run all provider mutations inside Anhedral transaction staging.
+- Preserve Anhedral's exact Expo SDK dependency while resolving React Native Reusables registry dependencies before the root workspace install.
+
 ## 0.2.1 - 2026-07-16
 
 ### Added

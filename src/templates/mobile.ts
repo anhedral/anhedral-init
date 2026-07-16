@@ -2,11 +2,23 @@ import path from 'node:path';
 import { anhedralPrint } from '../print.js';
 import { appendGitignore, writeFile } from '../util.js';
 import { childPackageName, jsString } from '../render.js';
-import { FRONTEND_ADDON_DEPENDENCIES, MOBILE_APP_DEPENDENCIES } from '../dependencies.js';
+import {
+  FRONTEND_ADDON_DEPENDENCIES,
+  MOBILE_APP_DEPENDENCIES,
+  MOBILE_NATIVEWIND_DEPENDENCIES,
+  MOBILE_UNIWIND_DEPENDENCIES,
+} from '../dependencies.js';
+import type { NativeStylingLibrary } from '../ui.js';
 import type { ProjectOptions } from '../scaffold.js';
 
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(MOBILE_APP_DEPENDENCIES.dependencies ?? {}) };
+  Object.assign(
+    dependencies,
+    (options.nativeStyling ?? 'nativewind') === 'uniwind'
+      ? MOBILE_UNIWIND_DEPENDENCIES.dependencies
+      : MOBILE_NATIVEWIND_DEPENDENCIES.dependencies,
+  );
   if (!options.apps.api) delete dependencies['@shared/api-client'];
   if (!options.features.billing) delete dependencies['@shared/realtime'];
 
@@ -21,6 +33,174 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
     dependencies['react-native-purchases-ui'] = FRONTEND_ADDON_DEPENDENCIES['react-native-purchases-ui'];
   }
   return dependencies;
+}
+
+function writeReactNativeReusablesConfig(dir: string, styling: NativeStylingLibrary): void {
+  writeFile(path.join(dir, 'components.json'), JSON.stringify({
+    $schema: 'https://ui.shadcn.com/schema.json',
+    style: 'new-york',
+    rsc: false,
+    tsx: true,
+    tailwind: {
+      config: styling === 'nativewind' ? 'tailwind.config.js' : '',
+      css: 'global.css',
+      baseColor: 'neutral',
+      cssVariables: true,
+    },
+    aliases: {
+      components: '@/components',
+      utils: '@/lib/utils',
+      ui: '@/components/ui',
+      lib: '@/lib',
+      hooks: '@/hooks',
+    },
+    iconLibrary: 'lucide',
+  }, null, 2) + '\n');
+
+  writeFile(path.join(dir, 'lib/utils.ts'), `import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`);
+
+  if (styling === 'uniwind') {
+    writeFile(path.join(dir, 'metro.config.js'), `const { getDefaultConfig } = require('expo/metro-config');
+const { withUniwindConfig } = require('uniwind/metro');
+
+const config = getDefaultConfig(__dirname);
+
+module.exports = withUniwindConfig(config, {
+  cssEntryFile: './global.css',
+  dtsFile: './uniwind-types.d.ts',
+});
+`);
+    writeFile(path.join(dir, 'uniwind-types.d.ts'), `/// <reference types="uniwind/types" />
+
+declare module 'uniwind' {
+  export interface UniwindConfig {
+    themes: readonly ['light', 'dark'];
+  }
+}
+
+export {};
+`);
+    writeFile(path.join(dir, 'global.css'), `@import "tailwindcss";
+@import "uniwind";
+@import "tw-animate-css";
+
+@theme {
+  --radius: 10px;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --spacing-hairline: hairlineWidth();
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --color-background: oklch(1 0 0); --color-foreground: oklch(0.145 0 0);
+      --color-card: oklch(1 0 0); --color-card-foreground: oklch(0.145 0 0);
+      --color-popover: oklch(1 0 0); --color-popover-foreground: oklch(0.145 0 0);
+      --color-primary: oklch(0.205 0 0); --color-primary-foreground: oklch(0.985 0 0);
+      --color-secondary: oklch(0.97 0 0); --color-secondary-foreground: oklch(0.205 0 0);
+      --color-muted: oklch(0.97 0 0); --color-muted-foreground: oklch(0.556 0 0);
+      --color-accent: oklch(0.97 0 0); --color-accent-foreground: oklch(0.205 0 0);
+      --color-destructive: oklch(0.577 0.245 27.325); --color-border: oklch(0.922 0 0);
+      --color-input: oklch(0.922 0 0); --color-ring: oklch(0.708 0 0);
+    }
+    @variant dark {
+      --color-background: oklch(0.145 0 0); --color-foreground: oklch(0.985 0 0);
+      --color-card: oklch(0.205 0 0); --color-card-foreground: oklch(0.985 0 0);
+      --color-popover: oklch(0.205 0 0); --color-popover-foreground: oklch(0.985 0 0);
+      --color-primary: oklch(0.922 0 0); --color-primary-foreground: oklch(0.205 0 0);
+      --color-secondary: oklch(0.269 0 0); --color-secondary-foreground: oklch(0.985 0 0);
+      --color-muted: oklch(0.269 0 0); --color-muted-foreground: oklch(0.708 0 0);
+      --color-accent: oklch(0.269 0 0); --color-accent-foreground: oklch(0.985 0 0);
+      --color-destructive: oklch(0.704 0.191 22.216); --color-border: oklch(1 0 0 / 10%);
+      --color-input: oklch(1 0 0 / 15%); --color-ring: oklch(0.556 0 0);
+    }
+  }
+}
+`);
+    return;
+  }
+
+  writeFile(path.join(dir, 'babel.config.js'), `module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
+  };
+};
+`);
+  writeFile(path.join(dir, 'metro.config.js'), `const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
+
+const config = getDefaultConfig(__dirname);
+
+module.exports = withNativeWind(config, { input: './global.css', inlineRem: 16 });
+`);
+  writeFile(path.join(dir, 'nativewind-env.d.ts'), '/// <reference types="nativewind/types" />\n');
+  writeFile(path.join(dir, 'tailwind.config.js'), `const { hairlineWidth } = require('nativewind/theme');
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: 'class',
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))', input: 'hsl(var(--input))', ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))', foreground: 'hsl(var(--foreground))',
+        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+      },
+      borderRadius: { lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
+      borderWidth: { hairline: hairlineWidth() },
+    },
+  },
+  future: { hoverOnlyWhenSupported: true },
+  plugins: [require('tailwindcss-animate')],
+};
+`);
+  writeFile(path.join(dir, 'global.css'), `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%; --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%; --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%; --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%; --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%; --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%; --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%; --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%; --input: 0 0% 89.8%; --ring: 0 0% 63%; --radius: 0.625rem;
+  }
+  .dark:root {
+    --background: 0 0% 3.9%; --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%; --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%; --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%; --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%; --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%; --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%; --accent-foreground: 0 0% 98%;
+    --destructive: 0 70.9% 59.4%; --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%; --input: 0 0% 14.9%; --ring: 300 0% 45%;
+  }
+}
+`);
 }
 
 function expoScheme(projectName: string): string {
@@ -38,6 +218,7 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
   const { projectName, displayName } = options;
   const nameLiteral = jsString(displayName);
   const hasSubscriptions = options.features.nativeSubscriptions;
+  const nativeStyling = options.nativeStyling ?? 'nativewind';
 
   anhedralPrint.section('Mobile (Expo)');
   anhedralPrint.step('Writing deterministic Expo application');
@@ -81,8 +262,15 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
       noUncheckedIndexedAccess: true,
       paths: { '@/*': ['./*'] },
     },
-    include: ['**/*.ts', '**/*.tsx', '.expo/types/**/*.ts', 'expo-env.d.ts'],
+    include: [
+      '**/*.ts',
+      '**/*.tsx',
+      '.expo/types/**/*.ts',
+      'expo-env.d.ts',
+      nativeStyling === 'nativewind' ? 'nativewind-env.d.ts' : 'uniwind-types.d.ts',
+    ],
   }, null, 2) + '\n');
+  writeReactNativeReusablesConfig(dir, nativeStyling);
   const layoutImports = options.features.auth
     ? `import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
@@ -150,10 +338,13 @@ const appStack = hasSubscriptions && options.features.auth ? `function AppStack(
       </ScrollView>
     );
   }
-  return <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>${stackElement}</ClerkProvider>;`
-    : `  return ${stackElement};`;
+  return <><ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>${stackElement}</ClerkProvider><PortalHost /></>;`
+    : `  return <>${stackElement}<PortalHost /></>;`;
 
-  writeFile(path.join(dir, 'app/_layout.tsx'), `import { Stack } from 'expo-router';
+  writeFile(path.join(dir, 'app/_layout.tsx'), `import '@/global.css';
+
+import { PortalHost } from '@rn-primitives/portal';
+import { Stack } from 'expo-router';
 ${layoutImports}${subscriptionImports}
 ${appStack}
 export default function RootLayout() {
