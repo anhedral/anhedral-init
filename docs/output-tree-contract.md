@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 122 | `6d4bf75127d1393dafb5d1538bc96a6f2444e4215298252b539ff449eb91df3f` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 55 | `66810e7e62472933d1e920440eae7fb387e7d16f7ab00ff50c68b4fa63b80bdb` |
-| `api-only` | api |  | deterministic golden | 26 | `01080a7d35ca62e50f46232e2f6f5aec5b96b65c9769d56e5c63fa62f4d4b039` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 56 | `bb6481539cd52923f7fdd2c9162d9f76cbd392ef96810fc2f3a6295af99730a9` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 123 | `fda92f19b76de8f7dd52980857f1433583677a0b4db24ce9d3f663a029f7c36c` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 56 | `a0348988876569b83f4f25d13f9f056b322b3bd357ac20f8765d418aea6feee3` |
+| `api-only` | api |  | deterministic golden | 27 | `0afff351ebc56ef88a6638f1f4f6ffd06d12453f82d40533ad56f608291c0c2b` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 57 | `5259e17ab26cb10169b1ced4ab769e8620c7999fd2f66fdc7e61a169f2656188` |
 
 ## expo-extension
 
@@ -41,6 +41,7 @@ expo-extension-sample/
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
+├── SKILL.md
 ├── anhedral.json
 ├── apps/
 │   ├── api/
@@ -218,6 +219,7 @@ web-api-minimal/
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
+├── SKILL.md
 ├── anhedral.json
 ├── apps/
 │   ├── api/
@@ -302,6 +304,7 @@ api-only/
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
+├── SKILL.md
 ├── anhedral.json
 ├── apps/
 │   └── api/
@@ -345,6 +348,7 @@ add-desktop-flow/
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
+├── SKILL.md
 ├── anhedral.json
 ├── apps/
 │   ├── api/

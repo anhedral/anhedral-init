@@ -53,11 +53,18 @@
       "sha256": "47a97cb015d82058a563a27aa097f3e663e0f12a00e02901d32821a7c8091833"
     },
     {
+      "path": "SKILL.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3649,
+      "sha256": "b6ece44ea9e716a4c8bb2b0fb276f070b0d838f817d2306a67066f7325b641c1"
+    },
+    {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 11133,
-      "sha256": "736c5eb499387215d6e487cb8817f0e13346bc00033898e8efed11976e23363f"
+      "bytes": 11311,
+      "sha256": "6ff3e50ea618115afdb20bdceaca3c0df3b691bc265e872e2a65198178da04b3"
     },
     {
       "path": "apps/api/.env.example",
@@ -224,8 +231,8 @@
       "path": "apps/web/next-env.d.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 81,
-      "sha256": "879741880b6ab48da99dcc06dcc674d381c9826137b0496bf7bb368f302de9fc"
+      "bytes": 247,
+      "sha256": "7b550dda9686c16f36a17bf9051d5dbf31e98555b30d114ac49fc49a1e712651"
     },
     {
       "path": "apps/web/next.config.ts",
@@ -389,5 +396,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "66810e7e62472933d1e920440eae7fb387e7d16f7ab00ff50c68b4fa63b80bdb"
+  "digest": "a0348988876569b83f4f25d13f9f056b322b3bd357ac20f8765d418aea6feee3"
 }

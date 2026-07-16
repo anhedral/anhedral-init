@@ -53,11 +53,18 @@
       "sha256": "42ae00cf713595eae191e569ff53f2a2327cf3b55c4bf0276711e2f1ad18abaa"
     },
     {
+      "path": "SKILL.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 4480,
+      "sha256": "10f097f6f49dcb10797959627ce2b1ca98019f720a51f6388105af3496f6e7ce"
+    },
+    {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 25328,
-      "sha256": "20a52c51ca617cb0616ec540a5f79efb8fb8064647a40c5cbe4d6c9ef7a011fd"
+      "bytes": 25506,
+      "sha256": "8bdb14c1627753906b27659e0de24bf454c1b2385e9bbe880006520957f7d518"
     },
     {
       "path": "apps/api/.env.example",
@@ -245,8 +252,8 @@
       "path": "apps/desktop/src/renderer/hooks/use-entitlement.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1902,
-      "sha256": "b7ec4af0780d9cda6c390a3684e5c73cf3f05a2e1eb7b9f4cf0ac6c51696faec"
+      "bytes": 2009,
+      "sha256": "e66457a12b50fcdb6a08f4b24c6c1720eae45e740f8e51ea773b63e1be3083a0"
     },
     {
       "path": "apps/desktop/src/renderer/lib/api.ts",
@@ -259,8 +266,8 @@
       "path": "apps/desktop/src/renderer/lib/auth.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1145,
-      "sha256": "0450272c18ce8316f2d0c18ccd3473169a1776f51a4bf7c7cc733b07197b0963"
+      "bytes": 1294,
+      "sha256": "1ca276c1d3098ba5d87dcb4d2b6438407c838cb17f9bddbfe42285c54c8a4a34"
     },
     {
       "path": "apps/desktop/src/renderer/lib/utils.ts",
@@ -273,8 +280,8 @@
       "path": "apps/desktop/src/renderer/main.tsx",
       "type": "file",
       "mode": "0644",
-      "bytes": 2615,
-      "sha256": "0db8190fda8b43350a92154ea5b66e46de87080615b43d14b0bead34a4fa0ad5"
+      "bytes": 2513,
+      "sha256": "a8021d67079852594f71905b1a38c230ff8a0f49ff932ac844c4677e9763ccc0"
     },
     {
       "path": "apps/desktop/src/renderer/styles.css",
@@ -672,8 +679,8 @@
       "path": "apps/web/next-env.d.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 81,
-      "sha256": "879741880b6ab48da99dcc06dcc674d381c9826137b0496bf7bb368f302de9fc"
+      "bytes": 247,
+      "sha256": "7b550dda9686c16f36a17bf9051d5dbf31e98555b30d114ac49fc49a1e712651"
     },
     {
       "path": "apps/web/next.config.ts",
@@ -858,5 +865,5 @@
       "sha256": "54571e9bf3fb5667c756cfb1b1d105831a1ad3dc8e3050488ebfc216b14d7800"
     }
   ],
-  "digest": "6d4bf75127d1393dafb5d1538bc96a6f2444e4215298252b539ff449eb91df3f"
+  "digest": "fda92f19b76de8f7dd52980857f1433583677a0b4db24ce9d3f663a029f7c36c"
 }

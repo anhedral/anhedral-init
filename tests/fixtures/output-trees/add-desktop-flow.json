@@ -53,11 +53,18 @@
       "sha256": "44e12ed0743a866276c67f61e90a8243dd404ef1c91f71c0d0b28368dbe29e96"
     },
     {
+      "path": "SKILL.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3682,
+      "sha256": "6cdca383523aa5cdab5d71f8fc020350dbcf219e39c382fab34834d119a7afdb"
+    },
+    {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 11518,
-      "sha256": "de72b161aaaee19aa30f1051ab5c67b5a6ac01e30b227cd084a5f2a9487a1c8a"
+      "bytes": 11696,
+      "sha256": "7b5f5edb8f4450a5024b2010a88455c51423d83c73549609ad5612f70a024c58"
     },
     {
       "path": "apps/api/.env.example",
@@ -217,8 +224,8 @@
       "path": "apps/desktop/src/renderer/lib/auth.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1145,
-      "sha256": "0450272c18ce8316f2d0c18ccd3473169a1776f51a4bf7c7cc733b07197b0963"
+      "bytes": 1294,
+      "sha256": "1ca276c1d3098ba5d87dcb4d2b6438407c838cb17f9bddbfe42285c54c8a4a34"
     },
     {
       "path": "apps/desktop/src/renderer/lib/utils.ts",
@@ -231,8 +238,8 @@
       "path": "apps/desktop/src/renderer/main.tsx",
       "type": "file",
       "mode": "0644",
-      "bytes": 2260,
-      "sha256": "a37188a1f84c48bfb5485776af13f23ea76dd8ad0377e674ff15535fe95f9cac"
+      "bytes": 2136,
+      "sha256": "8ec90b43b66dabd82481aabf3b1df8403be6859d47640270b6257bf603752917"
     },
     {
       "path": "apps/desktop/src/renderer/styles.css",
@@ -396,5 +403,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "bb6481539cd52923f7fdd2c9162d9f76cbd392ef96810fc2f3a6295af99730a9"
+  "digest": "5259e17ab26cb10169b1ced4ab769e8620c7999fd2f66fdc7e61a169f2656188"
 }

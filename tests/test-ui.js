@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -40,6 +40,27 @@ assert.deepEqual(cli.parseUiAddOptions(['button', 'dialog', '--target', 'mobile'
   json: false,
 });
 assert.throws(() => cli.parseUiAddOptions(['button', '--target', 'api']), /--target must be one of/);
+
+const dependencyWorkspace = mkdtempSync(path.join(tmpdir(), 'anhedral-ui-dependency-test-'));
+try {
+  const webDirectory = path.join(dependencyWorkspace, 'apps/web');
+  const mobileDirectory = path.join(dependencyWorkspace, 'apps/mobile');
+  mkdirSync(path.join(webDirectory, 'components'), { recursive: true });
+  mkdirSync(mobileDirectory, { recursive: true });
+  writeFileSync(path.join(dependencyWorkspace, 'package.json'), JSON.stringify({ private: true }));
+  writeFileSync(path.join(webDirectory, 'package.json'), JSON.stringify({ dependencies: { react: '19.2.3' } }));
+  writeFileSync(path.join(webDirectory, 'components/button.tsx'), `import { cva } from 'class-variance-authority';\nexport const button = cva('');\n`);
+  writeFileSync(path.join(mobileDirectory, 'package.json'), JSON.stringify({
+    dependencies: { 'class-variance-authority': '0.7.1' },
+  }));
+  ui.reconcileUiWorkspaceDependencies(dependencyWorkspace, webDirectory);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(webDirectory, 'package.json'), 'utf8')).dependencies, {
+    'class-variance-authority': '0.7.1',
+    react: '19.2.3',
+  });
+} finally {
+  rmSync(dependencyWorkspace, { recursive: true, force: true });
+}
 
 const project = mkdtempSync(path.join(tmpdir(), 'anhedral-ui-test-'));
 try {

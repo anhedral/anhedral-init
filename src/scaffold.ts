@@ -899,6 +899,77 @@ Resolved modules: ${modules.join(', ')}
 - \`anhedral doctor\` reports manifest and filesystem drift before incremental changes.
 - README and existing user workflows are never rewritten by \`anhedral add\`.
 `);
+  const surfaceGuidance = [
+    options.apps.web ? '- Web lives in `apps/web`: use Next.js App Router, server-first rendering, and shadcn/ui source components.' : null,
+    options.apps.mobile ? `- Mobile lives in \`apps/mobile\`: use Expo Router and React Native Reusables with ${options.nativeStyling}. Keep native-only APIs behind platform-safe modules.` : null,
+    options.apps.api ? '- HTTP and provider integration lives in `apps/api`: keep Fastify routes thin, validate boundaries, and put secrets only in server environment files.' : null,
+    options.apps.desktop ? '- Desktop lives in `apps/desktop`: keep Electron main/preload privileges minimal and application UI in the sandboxed React renderer.' : null,
+    options.apps.extension ? '- Browser extension code lives in `apps/extension`: use WXT entrypoints and request only permissions required by the feature.' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const featureGuidance = [
+    options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
+    options.features.database ? '- Neon/Drizzle state is authoritative. Change `packages/db/src/schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
+    options.features.auth ? '- Clerk owns identity and sessions. Never trust a client-supplied user ID; derive identity from verified server authentication.' : null,
+    options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
+    options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. Clients receive short-lived URLs and never storage secrets.' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  writeFile(path.join(root, 'SKILL.md'), `---
+name: anhedral-project
+description: Build and extend this Anhedral-generated ${modules.join(', ')} TypeScript application while preserving its framework, ownership, security, and verification conventions.
+---
+
+# Anhedral project
+
+Use this skill whenever you plan, implement, review, or diagnose work in this repository.
+
+## Start safely
+
+1. Read \`anhedral.json\` for the selected modules, native styling provider, installed UI components, and file ownership.
+2. Run \`pnpm dlx anhedral@${GENERATOR_VERSION} doctor\` before generator operations.
+3. Preview structural changes with \`anhedral add <module> --dry-run\` or \`anhedral ui add <component> --dry-run\`.
+4. Never hand-edit \`anhedral.json\`, ownership hashes, or bundled-template provenance.
+
+Resolved modules: ${modules.map((moduleName) => `\`${moduleName}\``).join(', ')}.
+
+## Repository boundaries
+
+${surfaceGuidance}
+
+- Shared source belongs in focused packages under \`packages/\`; do not create a second workspace, lockfile, or nested dependency island.
+${featureGuidance}
+
+## UI conventions
+
+- Add source-owned components with \`pnpm dlx anhedral@${GENERATOR_VERSION} ui add <component>\`; use \`--target\` only when the component should not exist in every selected client.
+- Web, desktop, and extension components come from shadcn/ui. Mobile components come from React Native Reusables using ${options.nativeStyling}.
+- Compose application-specific UI around installed primitives. Preserve accessibility, keyboard behavior, focus handling, and platform conventions.
+- Use lowercase kebab-case filenames, PascalCase component exports, and \`use-\` prefixes for hooks.
+
+## Ownership rules
+
+- \`README.md\` and \`PRODUCTION.md\` are user-owned. Root JSON/YAML configuration is mergeable. Other recorded files are generator-managed unless \`anhedral.json\` says otherwise.
+- Prefer new application files and narrow composition points over editing managed substrate files. If a managed file must change, understand that future \`anhedral add\` operations will stop until the project is reconciled.
+- Never overwrite user changes, bypass a generator conflict, or replace a failed ownership check with fabricated hashes.
+
+## Environment and security
+
+- The root \`.env.example\` is an inventory, not a runtime environment file. Copy package-local examples and keep real environment files uncommitted.
+- Keep server secrets out of browser, Expo, Electron renderer, and extension bundles. Only variables with the framework's explicit public prefix may enter client code.
+- Validate external input at the API boundary, use parameterized Drizzle queries, and keep privileged Electron functionality behind a narrow context-isolated preload bridge.
+
+## Verify changes
+
+Run the strongest applicable checks before handing work back:
+
+\`\`\`sh
+pnpm typecheck
+pnpm verify
+pnpm build
+pnpm dlx anhedral@${GENERATOR_VERSION} doctor
+\`\`\`
+
+Use the package-specific \`verify:*\` scripts while iterating. A database schema change is incomplete until its reviewed migration is Git-tracked. Report exact failing packages and commands; do not weaken checks to make a change pass.
+`);
 }
 
 function collectFiles(root: string, relativeRoot = ''): string[] {

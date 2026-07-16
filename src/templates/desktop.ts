@@ -380,21 +380,26 @@ export const api = new ApiClient({
   }
 
   if (options.features.auth) {
-    writeFile(path.join(dir, 'src/renderer/lib/auth.ts'), `import { Clerk } from '@clerk/clerk-js';
-import { ui } from '@clerk/ui';
+    writeFile(path.join(dir, 'src/renderer/lib/auth.ts'), `import type { Clerk as ClerkInstance } from '@clerk/clerk-js';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-let initialization: Promise<Clerk | null> | null = null;
+let initialization: Promise<ClerkInstance | null> | null = null;
 
 export function isClerkConfigured(): boolean {
   return publishableKey.length > 0;
 }
 
-export function initializeClerk(): Promise<Clerk | null> {
+export function initializeClerk(): Promise<ClerkInstance | null> {
   if (!publishableKey) return Promise.resolve(null);
   if (!initialization) {
-    const clerk = new Clerk(publishableKey);
-    initialization = clerk.load({ ui }).then(() => clerk).catch((error) => {
+    initialization = Promise.all([
+      import('@clerk/clerk-js'),
+      import('@clerk/ui'),
+    ]).then(async ([{ Clerk }, { ui }]) => {
+      const clerk = new Clerk(publishableKey);
+      await clerk.load({ ui });
+      return clerk;
+    }).catch((error) => {
       initialization = null;
       throw error;
     });
@@ -429,7 +434,7 @@ import * as React from 'react';
 import { api } from '../lib/api';
 import { getAuthUserId, initializeClerk } from '../lib/auth';
 
-export function useEntitlement() {
+export function useEntitlement(enabled: boolean) {
   const [userId, setUserId] = React.useState<string | null>(null);
   const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -448,27 +453,29 @@ export function useEntitlement() {
     }
   }, []);
   React.useEffect(() => {
+    if (!enabled) return;
     let unsubscribe: (() => void) | undefined;
     void initializeClerk().then((clerk) => {
       unsubscribe = clerk?.addListener(() => { void refresh(); });
       void refresh();
     });
     return () => unsubscribe?.();
-  }, [refresh]);
+  }, [enabled, refresh]);
   React.useEffect(() => {
+    if (!enabled) return;
     const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [refresh]);
+  }, [enabled, refresh]);
   React.useEffect(() => {
-    if (!userId) return;
+    if (!enabled || !userId) return;
     return subscribeToSubscriptionChanges({
       userId,
       getTokenRequest: () => api.getRealtimeToken(),
       onChange: (nextRevision) => { if (nextRevision > revision.current) void refresh(); },
       onError: (cause) => setError(cause.message),
     });
-  }, [refresh, userId]);
+  }, [enabled, refresh, userId]);
   return { entitlement, error };
 }
 `);
@@ -488,30 +495,21 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
 }
 `);
 
-  const authImport = options.features.auth ? "import { initializeClerk, isClerkConfigured, openAccount } from '@/lib/auth';\n" : '';
+  const authImport = options.features.auth ? "import { isClerkConfigured, openAccount } from '@/lib/auth';\n" : '';
   const entitlementImport = options.features.billing ? "import { useEntitlement } from '@/hooks/use-entitlement';\n" : '';
-  const entitlementState = options.features.billing ? '  const { entitlement, error: entitlementError } = useEntitlement();\n' : '';
+  const entitlementState = options.features.billing ? "  const { entitlement, error: entitlementError } = useEntitlement(clerkState === 'ready');\n" : '';
   const entitlementStatus = options.features.billing ? `      {entitlement ? <p className="text-muted-foreground">Plan: {entitlement.entitlement} ({entitlement.status})</p> : null}
       {entitlementError ? <p role="alert" className="text-red-700">{entitlementError}</p> : null}
 ` : '';
-  const authState = options.features.auth ? `  const [clerkState, setClerkState] = React.useState<'unconfigured' | 'loading' | 'ready' | 'error'>(
-    () => isClerkConfigured() ? 'loading' : 'unconfigured',
+  const authState = options.features.auth ? `  const [clerkState, setClerkState] = React.useState<'unconfigured' | 'idle' | 'loading' | 'ready' | 'error'>(
+    () => isClerkConfigured() ? 'idle' : 'unconfigured',
   );
 
-  React.useEffect(() => {
-    if (!isClerkConfigured()) return;
-    let active = true;
-    void initializeClerk().then(
-      () => { if (active) setClerkState('ready'); },
-      () => { if (active) setClerkState('error'); },
-    );
-    return () => { active = false; };
-  }, []);
-
   const handleAccount = async () => {
+    setClerkState('loading');
     try {
       const opened = await openAccount();
-      if (!opened) setClerkState('unconfigured');
+      setClerkState(opened ? 'ready' : 'unconfigured');
     } catch {
       setClerkState('error');
     }
@@ -524,13 +522,14 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
         className={clerkState === 'error' || clerkState === 'unconfigured' ? 'text-red-700' : 'text-muted-foreground'}
       >
         {clerkState === 'unconfigured' ? 'Set VITE_CLERK_PUBLISHABLE_KEY to enable accounts.' : null}
+        {clerkState === 'idle' ? 'Account services load only when you open your account.' : null}
         {clerkState === 'loading' ? 'Loading account services…' : null}
         {clerkState === 'ready' ? 'Account services are ready.' : null}
         {clerkState === 'error' ? 'Clerk could not initialize. Check the publishable key and network connection.' : null}
       </p>
 ` : '';
   const buttonAction = options.features.auth
-    ? " disabled={clerkState !== 'ready'} onClick={() => void handleAccount()}"
+    ? " disabled={clerkState === 'loading' || clerkState === 'unconfigured'} onClick={() => void handleAccount()}"
     : '';
   writeFile(path.join(dir, 'src/renderer/main.tsx'), `import React from 'react';
 import ReactDOM from 'react-dom/client';

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { TOOLCHAIN_DEPENDENCIES } from './dependencies.js';
 import { execFile } from './util.js';
 
@@ -28,6 +28,84 @@ export type UiInstallCommand = {
 };
 
 const COMPONENT_NAME_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const SOURCE_EXTENSION_PATTERN = /\.(?:[cm]?[jt]sx?)$/;
+const IMPORT_SPECIFIER_PATTERN = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
+
+function collectSourcePackageImports(root: string): Set<string> {
+  const packages = new Set<string>();
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name.startsWith('.next')) continue;
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      if (!entry.isFile() || !SOURCE_EXTENSION_PATTERN.test(entry.name)) continue;
+      const source = readFileSync(absolutePath, 'utf8');
+      for (const match of source.matchAll(IMPORT_SPECIFIER_PATTERN)) {
+        const specifier = match[1]!;
+        if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('#')
+          || specifier.startsWith('@/') || specifier.startsWith('node:') || specifier.startsWith('virtual:')) continue;
+        const segments = specifier.split('/');
+        packages.add(specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]!);
+      }
+    }
+  };
+  visit(root);
+  return packages;
+}
+
+function workspacePackageManifests(workspaceRoot: string): Array<Record<string, unknown>> {
+  const manifests: Array<Record<string, unknown>> = [];
+  for (const directory of [workspaceRoot, path.join(workspaceRoot, 'apps'), path.join(workspaceRoot, 'packages')]) {
+    if (!existsSync(directory)) continue;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const packagePath = entry.isDirectory()
+        ? path.join(directory, entry.name, 'package.json')
+        : entry.name === 'package.json' ? path.join(directory, entry.name) : '';
+      if (!packagePath) continue;
+      try {
+        manifests.push(JSON.parse(readFileSync(packagePath, 'utf8')) as Record<string, unknown>);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+  }
+  return manifests;
+}
+
+export function reconcileUiWorkspaceDependencies(workspaceRoot: string, targetDirectory: string): void {
+  const packagePath = path.join(targetDirectory, 'package.json');
+  const target = JSON.parse(readFileSync(packagePath, 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+  };
+  const declared = new Set([
+    ...Object.keys(target.dependencies ?? {}),
+    ...Object.keys(target.devDependencies ?? {}),
+    ...Object.keys(target.optionalDependencies ?? {}),
+    ...Object.keys(target.peerDependencies ?? {}),
+  ]);
+  const manifests = workspacePackageManifests(workspaceRoot);
+  const dependencies = { ...(target.dependencies ?? {}) };
+  let changed = false;
+  for (const packageName of collectSourcePackageImports(targetDirectory)) {
+    if (declared.has(packageName)) continue;
+    const version = manifests
+      .map((manifest) => (manifest.dependencies as Record<string, string> | undefined)?.[packageName])
+      .find((candidate): candidate is string => typeof candidate === 'string');
+    if (!version) continue;
+    dependencies[packageName] = version;
+    declared.add(packageName);
+    changed = true;
+  }
+  if (!changed) return;
+  target.dependencies = Object.fromEntries(Object.entries(dependencies).sort(([left], [right]) => left.localeCompare(right)));
+  writeFileSync(packagePath, JSON.stringify(target, null, 2) + '\n');
+}
 
 export function isUiTarget(value: unknown): value is UiTarget {
   return typeof value === 'string' && (UI_TARGETS as readonly string[]).includes(value);
@@ -132,6 +210,7 @@ export function installUiComponents(root: string, installs: readonly UiComponent
   for (const command of buildUiInstallCommands(root, installs)) {
     if (command.target !== 'mobile') {
       execFile(command.executable, command.args, command.cwd);
+      reconcileUiWorkspaceDependencies(root, command.cwd);
       continue;
     }
 
@@ -157,6 +236,7 @@ export function installUiComponents(root: string, installs: readonly UiComponent
       updated.dependencies = { ...(updated.dependencies ?? {}), expo: expoVersion };
       updated.dependencies = Object.fromEntries(Object.entries(updated.dependencies).sort(([left], [right]) => left.localeCompare(right)));
       writeFileSync(packagePath, JSON.stringify(updated, null, 2) + '\n');
+      reconcileUiWorkspaceDependencies(root, command.cwd);
     } catch (error) {
       writeFileSync(packagePath, originalText);
       throw error;

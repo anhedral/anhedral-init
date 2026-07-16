@@ -306,16 +306,22 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(read(roots.auth, 'apps/desktop/.env.example'), /VITE_API_URL/);
   assert.match(read(roots.auth, 'apps/desktop/.env.example'), /VITE_CLERK_PUBLISHABLE_KEY/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /Open account/);
-  assert.doesNotMatch(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /await initializeClerk\(\)/);
-  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /void initializeClerk\(\)\.then/);
+  assert.doesNotMatch(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /initializeClerk/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /Account services load only when you open your account/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /useEntitlement\(clerkState === 'ready'\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /onClick=\{\(\) => void handleAccount\(\)\}/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /role=\{clerkState/);
+  assert.doesNotMatch(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /^import \{ Clerk \}/m);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /import\('@clerk\/clerk-js'\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /import\('@clerk\/ui'\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /new Clerk\(publishableKey\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.load\(\{ ui \}\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /session\?\.getToken\(\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.openUserProfile\(\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.openSignIn\(\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/api.ts'), /getToken: getAuthToken/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/hooks/use-entitlement.ts'), /useEntitlement\(enabled: boolean\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/hooks/use-entitlement.ts'), /if \(!enabled\) return/);
 
   const webAccountActions = read(roots.auth, 'apps/web/components/account-actions.tsx');
   assert.match(webAccountActions, /Show when="signed-in"/);

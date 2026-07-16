@@ -123,7 +123,7 @@ Naming follows these rules:
 - Environment examples are package-local. The root `.env.example` is only an inventory; it is never a runtime environment file.
 - Tests live beside the package they verify under `tests/` and use `*.test.ts`. Generator-maintained CI and deployment configuration remain at the root.
 - Only the root owns `pnpm-workspace.yaml` and `pnpm-lock.yaml`; nested workspace files, lockfiles, `.git` directories, and `node_modules` are removed.
-- `README.md` and `PRODUCTION.md` become user-owned after initialization. Root JSON/YAML configuration is mergeable. Other recorded files are managed and may be replaced only while unmodified.
+- `README.md` and `PRODUCTION.md` become user-owned after initialization. Root JSON/YAML configuration is mergeable. `SKILL.md` is refreshed as managed agent guidance when modules are added; other recorded files are managed and may be replaced only while unmodified.
 - Feature files are conditional: `auth` adds Clerk files, `billing` adds RevenueCat and realtime files, `storage` adds R2 files, and `native-subscriptions` adds the native RevenueCat client.
 
 The complete conditional source tree is:
@@ -140,6 +140,7 @@ The complete conditional source tree is:
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
+├── SKILL.md
 ├── anhedral.json
 ├── package.json
 ├── pnpm-workspace.yaml
@@ -158,6 +159,7 @@ The complete conditional source tree is:
 | `ANHEDRAL.md` | Records generator version, resolved modules, and managed-project operating rules. |
 | `PRODUCTION.md` | User-owned production checklist tailored to selected providers and surfaces. |
 | `README.md` | User-owned project introduction, selected module list, and first-run commands. |
+| `SKILL.md` | Managed, selection-aware instructions that teach coding agents the workspace boundaries, framework conventions, UI routing, ownership rules, security model, and verification workflow. |
 | `anhedral.json` | Schema-v5 ownership manifest containing module closure, UI/provider state, toolchain, bundled-template provenance, file hashes, and modes. |
 | `package.json` | Root package metadata and conditional dev, verification, database, packaging, and archive scripts. |
 | `pnpm-workspace.yaml` | Sole workspace definition plus build allowlist, peer policy, and security overrides. |

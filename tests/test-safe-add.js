@@ -46,6 +46,11 @@ try {
   const initialManifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
   assert.equal(initialManifest.schemaVersion, 5);
   assert.deepEqual(Object.keys(initialManifest.templates), ['api-fastify']);
+  const initialSkill = readFileSync(path.join(project, 'SKILL.md'), 'utf8');
+  assert.match(initialSkill, /^---\nname: anhedral-project\n/);
+  assert.match(initialSkill, /Resolved modules: `api`\./);
+  assert.doesNotMatch(initialSkill, /apps\/desktop/);
+  assert.equal(initialManifest.files['SKILL.md'].ownership, 'managed');
   const manifestPath = path.join(project, 'anhedral.json');
   const currentManifestText = readFileSync(manifestPath, 'utf8');
   const incompatibleManifestText = JSON.stringify({
@@ -207,6 +212,7 @@ try {
   assert.ok(
     JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8')).modules.includes('desktop'),
   );
+  assert.match(readFileSync(path.join(project, 'SKILL.md'), 'utf8'), /Desktop lives in `apps\/desktop`/);
 
   const manifestHash = fileHash(path.join(project, 'anhedral.json'));
   run(['add', 'desktop', '--skip-install'], project);
