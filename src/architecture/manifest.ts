@@ -13,8 +13,15 @@ import {
   type FileOwnershipClass,
   type GenerationPlan,
 } from './plan.js';
+import {
+  isTemplateId,
+  templateIdsForModules,
+  type TemplateId,
+  type TemplateProvenance,
+  type TemplateProvenanceMap,
+} from './templates.js';
 
-export const MANIFEST_SCHEMA_VERSION = 3 as const;
+export const MANIFEST_SCHEMA_VERSION = 4 as const;
 
 export type ManifestToolchain = 'stable' | 'latest';
 
@@ -36,6 +43,8 @@ export type ProjectManifest = {
   /** The complete, canonically ordered module dependency closure. */
   readonly modules: readonly ModuleId[];
   readonly toolchain: ManifestToolchain;
+  /** Immutable template catalog entries used to seed the generated workspace. */
+  readonly templates: TemplateProvenanceMap;
   readonly files: Readonly<Record<string, ManifestFileRecord>>;
 };
 
@@ -47,6 +56,7 @@ export type CreateManifestInput = {
   };
   readonly plan: GenerationPlan;
   readonly toolchain: ManifestToolchain;
+  readonly templates: TemplateProvenanceMap;
   readonly registry?: ModuleRegistry;
 };
 
@@ -218,6 +228,51 @@ function readFiles(
   return Object.freeze(Object.fromEntries(entries));
 }
 
+function readTemplates(value: unknown, modules: readonly ModuleId[]): TemplateProvenanceMap {
+  if (!isRecord(value)) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'templates must be an object', 'templates');
+  }
+  const entries: Array<[TemplateId, TemplateProvenance]> = [];
+  const expectedIds = [...templateIdsForModules(modules)].sort();
+  const actualIds = Object.keys(value).sort();
+  if (
+    expectedIds.length !== actualIds.length
+    || expectedIds.some((id, index) => id !== actualIds[index])
+  ) {
+    throw new ManifestValidationError(
+      'INVALID_MANIFEST',
+      `templates must exactly match selected modules: ${expectedIds.join(', ')}`,
+      'templates',
+    );
+  }
+  for (const id of Object.keys(value).sort()) {
+    if (!isTemplateId(id)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `Unknown template: ${id}`, `templates.${id}`);
+    }
+    const entry = value[id];
+    if (!isRecord(entry)) {
+      throw new ManifestValidationError('INVALID_MANIFEST', `templates.${id} must be an object`, `templates.${id}`);
+    }
+    assertExactKeys(entry, ['version', 'sha256'], `templates.${id}`);
+    if (!Number.isInteger(entry.version) || (entry.version as number) < 1) {
+      throw new ManifestValidationError(
+        'INVALID_MANIFEST',
+        `templates.${id}.version must be a positive integer`,
+        `templates.${id}.version`,
+      );
+    }
+    if (!isSha256(entry.sha256)) {
+      throw new ManifestValidationError(
+        'INVALID_MANIFEST',
+        `templates.${id}.sha256 must be a SHA-256 hex digest`,
+        `templates.${id}.sha256`,
+      );
+    }
+    entries.push([id, Object.freeze({ version: entry.version as number, sha256: entry.sha256 })]);
+  }
+  return Object.freeze(Object.fromEntries(entries));
+}
+
 function parseInput(input: string | unknown): unknown {
   if (typeof input !== 'string') return input;
   try {
@@ -265,7 +320,7 @@ export function readManifest(
 
   assertExactKeys(
     value,
-    ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'files'],
+    ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'templates', 'files'],
     '$',
   );
   if (!isRecord(value.project)) {
@@ -293,6 +348,7 @@ export function readManifest(
     project,
     modules,
     toolchain: value.toolchain,
+    templates: readTemplates(value.templates, modules),
     files: readFiles(value.files, modules),
   });
 }
@@ -314,6 +370,7 @@ export function createManifest(input: CreateManifestInput): ProjectManifest {
     project: input.project,
     modules: input.plan.resolvedModules,
     toolchain: input.toolchain,
+    templates: input.templates,
     files,
   }, input.registry ?? DEFAULT_MODULE_REGISTRY);
 }

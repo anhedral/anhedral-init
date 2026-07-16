@@ -49,7 +49,7 @@ db: @neondatabase/serverless 1.0.2, drizzle-orm 0.45.2,
 api: fastify 5.8.5, @fastify/cors 11.1.0, @fastify/compress 8.3.0,
      @fastify/helmet 13.0.2, @fastify/rate-limit 10.3.0,
      @clerk/fastify 3.1.51, @aws-sdk/client-s3 3.1047.0,
-     @aws-sdk/s3-request-presigner 3.1047.0, vitest 4.1.0
+     @aws-sdk/s3-request-presigner 3.1047.0, ably 2.24.0, vitest 4.1.0
 web: next 16.2.10, react/react-dom 19.2.3, @clerk/nextjs 7.5.18,
      @clerk/ui 1.25.3, tailwindcss and @tailwindcss/postcss 4.1.18
 mobile: expo 56.0.16, expo-router 56.2.15, react-native 0.85.3,
@@ -83,6 +83,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   scripts/verify-db-migrations.mjs                         [db]
   packages/contracts/{package.json,tsconfig.json,src/index.ts} [api]
   packages/api-client/{package.json,tsconfig.json,src/index.ts} [api + any client]
+  packages/realtime/{package.json,tsconfig.json,src/index.ts}   [billing + any client]
   packages/db/{package.json,tsconfig.json,drizzle.config.ts,.env.example} [db]
   packages/db/src/{index.ts,migrate.ts,schema.ts}           [db]
   packages/db/migrations/.gitkeep                           [db]
@@ -90,6 +91,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/api/src/{application.ts,env.ts,index.ts,routes.ts}    [api]
   apps/api/src/auth.ts                                      [auth]
   apps/api/src/billing.ts                                   [billing]
+  apps/api/src/realtime.ts                                  [billing]
   apps/api/src/storage.ts                                   [storage]
   apps/api/tests/{health.test.ts,env.test.ts}                [api]
   apps/api/tests/revenuecat-webhook.test.ts                  [billing]
@@ -100,10 +102,12 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/web/lib/utils.ts                                     [web]
   apps/web/{lib/api.ts,hooks/use-api-client.ts}              [web + api]
   apps/web/components/account-actions.tsx                   [web + auth]
+  apps/web/{hooks/use-entitlement.ts,components/subscription-status.tsx} [web + billing]
   apps/mobile/{package.json,app.json,tsconfig.json,expo-env.d.ts,eas.json,.env.example,.gitignore} [mobile]
   apps/mobile/app/{_layout.tsx,index.tsx}                    [mobile]
   apps/mobile/{lib/api.ts,hooks/use-api-client.ts}           [mobile + api]
   apps/mobile/components/account-controls.tsx               [mobile + auth]
+  apps/mobile/hooks/use-entitlement.ts                      [mobile + billing]
   apps/mobile/lib/subscriptions.ts                           [native-subscriptions]
   apps/desktop/{package.json,tsconfig.json,tsconfig.main.json,vite.config.ts,postcss.config.mjs,components.json,index.html,.env.example} [desktop]
   apps/desktop/scripts/dev.mjs                              [desktop]
@@ -112,15 +116,17 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/desktop/src/renderer/components/ui/button.tsx        [desktop]
   apps/desktop/src/renderer/lib/api.ts                       [desktop + api]
   apps/desktop/src/renderer/lib/auth.ts                      [desktop + auth]
+  apps/desktop/src/renderer/hooks/use-entitlement.ts        [desktop + billing]
   apps/extension/{package.json,tsconfig.json,wxt.config.ts,postcss.config.cjs,tailwind.config.cjs,components.json,.env.example,README.md} [extension]
   apps/extension/src/{styles/main.css,lib/utils.ts}          [extension]
   apps/extension/src/components/ui/button.tsx               [extension]
   apps/extension/src/entrypoints/{background.ts,sidepanel/index.html,sidepanel/main.tsx,sidepanel/app.tsx} [extension]
   apps/extension/src/contexts/auth-context.tsx              [extension + auth]
   apps/extension/src/lib/api.ts                              [extension + api]
+  apps/extension/src/hooks/use-entitlement.ts               [extension + billing]
 ```
 
-Do not create `anhedral.json` manually. Its schema-v3 hashes, modes, ownership classes, plan fingerprint, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
+Do not create `anhedral.json` manually. Its schema-v4 hashes, modes, ownership classes, template provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
 
 ## 3. Create root configuration
 
@@ -179,7 +185,7 @@ Create `turbo.json` using `https://turborepo.dev/schema.json` with:
 
 Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, and desktop release output in `.vercelignore`.
 
-Create the single root `vercel.json` using `https://openapi.vercel.sh/vercel.json`. Add service `api` rooted at `apps/api` and service `web` rooted at `apps/web` as selected. Put the `/api/(.*)` rewrite before the web `/(.*)` catch-all. If storage is selected, add a daily `0 3 * * *` cron for `/api/internal/storage/cleanup`.
+Create the single root `vercel.json` using `https://openapi.vercel.sh/vercel.json`. Add service `api` rooted at `apps/api` and service `web` rooted at `apps/web` as selected. Put the `/api/(.*)` rewrite before the web `/(.*)` catch-all. If billing is selected, add `*/5 * * * *` for `/api/internal/realtime/flush`; if storage is selected, add `0 3 * * *` for `/api/internal/storage/cleanup`. Protect both internal routes with the same high-entropy `CRON_SECRET` bearer token.
 
 Create `.github/workflows/anhedral-ci.yml` with read-only contents permission, concurrency cancellation, pinned action commit SHAs, pnpm setup, Node `22.13.0` for mobile or `20.19.0` otherwise, and frozen installation. Run `pnpm typecheck`, API coverage tests when API exists, and `pnpm build`. For database workspaces also run `pnpm verify:db`, run `pnpm db:generate`, fail on any migration diff, and fail on untracked migration artifacts.
 
@@ -191,7 +197,7 @@ Use strict TypeScript with `moduleResolution: Bundler`, `noEmit`, `skipLibCheck`
 
 ### Contracts
 
-Create `@shared/contracts` whenever API is selected. Depend on Zod. Define and export schemas plus inferred types for health and readiness; authenticated user when auth is selected; entitlement when billing is selected; and strict create-upload, confirm-upload, upload-record, and route-param data when storage is selected.
+Create `@shared/contracts` whenever API is selected. Depend on Zod. Define and export schemas plus inferred types for health and readiness; authenticated user when auth is selected; revisioned entitlement, realtime token request, and `subscription.changed` invalidation when billing is selected; and strict create-upload, confirm-upload, upload-record, and route-param data when storage is selected.
 
 Keep the upload content-type allowlist and maximum upload size in contracts so API and clients share one source of truth. Validate API response bodies in the client package before returning them.
 
@@ -208,11 +214,15 @@ Create `@shared/api-client` when API and at least one client surface are selecte
 
 Do not make server-only provider SDKs dependencies of clients.
 
+### Realtime client
+
+Create `@shared/realtime` only when billing and at least one client are selected. Depend on Ably and contracts. Accept an async API-token callback, connect with `authCallback`, subscribe only to `private:users/<userId>/subscriptions`, validate every `subscription.changed` payload, expose connection errors, and return an idempotent cleanup function that unsubscribes and closes the client. Never put `ABLY_API_KEY` or a broad Ably capability in a client package.
+
 ### Database
 
 Create `@shared/db` when `db` is selected. Use Neon serverless, Drizzle ORM, dotenv, Drizzle Kit, and tsx. Provide `db:generate`, `db:migrate`, `db:check`, and `db:studio`. Configure PostgreSQL with `src/schema.ts` and `migrations/`.
 
-Always define an `items` table. Add `subscriptions` and idempotent `webhookEvents` for billing. Add `uploads` for storage, including user ownership, staging/final keys, declared and actual metadata, status/rejection fields, expiry, cleanup, confirmation, and creation timestamps. Export the Drizzle client and schema, and fail immediately when `DATABASE_URL` is absent.
+Always define an `items` table. For billing, add `subscriptions` with a monotonic integer `revision`, idempotent `webhookEvents`, and `realtimeOutbox` with user, topic, revision, attempt/error, delivery, and creation fields. Add `uploads` for storage, including user ownership, staging/final keys, declared and actual metadata, status/rejection fields, expiry, cleanup, confirmation, and creation timestamps. Export the Drizzle client and schema, and fail immediately when `DATABASE_URL` is absent.
 
 Create `scripts/verify-db-migrations.mjs`. It must recursively find committed SQL files, fail when none exist, fail when SQL is untracked inside a Git worktree, and require a Git worktree in CI.
 
@@ -229,36 +239,36 @@ Implement these layers:
 
 Always provide `GET /api/health` and `GET /api/ready`. Readiness returns 503 for dependency failure or shutdown. Do not leak internal errors, stack traces, credentials, or arbitrary details in 5xx responses. Allow safe details only for intentional 4xx errors.
 
-When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation; expose an authenticated entitlement route. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate keys by authenticated user, and provide an authenticated cleanup endpoint for the scheduled cron.
+When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation. In the same database transaction as every accepted subscription mutation, increment its revision and insert an outbox record. Expose authenticated `GET /api/subscriptions/me`, `POST /api/subscriptions/refresh`, and `POST /api/realtime/token`; issue a short-lived Ably token request limited to the authenticated Clerk user's subscribe-only channel. Publish only `{ type, revision }`, mark delivery after publish, retain failures for retry, and expose `GET /api/internal/realtime/flush` behind `CRON_SECRET`. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate keys by authenticated user, and provide an authenticated cleanup endpoint for the scheduled cron.
 
 Test health, readiness, shutdown state, safe errors, and exact CORS behavior. Test environment validation. Add replay/out-of-order/retry tests for billing and size/type/ownership/cleanup tests for storage.
 
 ## 6. Create client surfaces
 
-Every client with API access must use `@shared/api-client`; do not duplicate fetch/error logic. Every authenticated client supplies its Clerk session token to that client. Require HTTPS for configured production API URLs.
+Every client with API access must use `@shared/api-client`; do not duplicate fetch/error logic. Every authenticated client supplies its Clerk session token to that client. Require HTTPS for configured production API URLs. Billing clients load the authoritative entitlement first, subscribe through `@shared/realtime`, ignore invalidation revisions they already hold, and refetch rather than trusting event payloads. They must also refetch after visibility/foreground recovery so missed or delayed events cannot leave stale access.
 
 ### Web
 
-Create a Next.js App Router app with Tailwind and shadcn-style `Button` and `Card` primitives. Use strict TypeScript, the `@/*` alias, a development rewrite from `/api/:path*` to `http://localhost:8787/api/:path*`, and same-origin `/api` in production. Wrap the layout in Clerk only for auth. Add account controls for auth and typed API status UI for API.
+Create a Next.js App Router app with Tailwind and shadcn-style `Button` and `Card` primitives. Use strict TypeScript, the `@/*` alias, a development rewrite from `/api/:path*` to `http://localhost:8787/api/:path*`, and same-origin `/api` in production. Wrap the layout in Clerk only for auth. Add account controls for auth and typed API status UI for API. For billing, render a subscription-status component backed by a realtime entitlement hook and refetch on document visibility.
 
 ### Mobile
 
-Create an Expo Router app with static web export, a normalized URL scheme, strict TypeScript, and EAS production profiles. Add Clerk plus secure token caching only for auth. Add the typed API hook only for API. For native subscriptions, configure RevenueCat independently for iOS and Android public SDK keys, synchronize the RevenueCat app-user ID after Clerk loads, log RevenueCat out when Clerk signs out, expose retryable synchronization errors, and present the configured entitlement paywall.
+Create an Expo Router app with static web export, a normalized URL scheme, strict TypeScript, and EAS production profiles. Add Clerk plus secure token caching only for auth. Add the typed API hook only for API. For billing, subscribe to realtime invalidations and refetch when `AppState` returns active. For native subscriptions, configure RevenueCat independently for iOS and Android public SDK keys, synchronize the RevenueCat app-user ID after Clerk loads, log RevenueCat out when Clerk signs out, expose retryable synchronization errors, register one global customer-info update listener, and present the configured entitlement paywall. After purchase/restore success or a RevenueCat customer-info callback, call the authenticated refresh endpoint so every other surface updates without waiting for webhook delivery.
 
 ### Desktop
 
-Create Electron main/preload and a Vite React renderer. Keep `contextIsolation: true`, `nodeIntegration: false`, sandboxing enabled, and navigation/window-open restricted to trusted targets. Use a preload bridge rather than exposing Node. Add Tailwind/shadcn-style UI. Add typed API and Clerk browser auth only when selected. Provide development orchestration plus current-host and platform-specific electron-builder scripts.
+Create Electron main/preload and a Vite React renderer. Keep `contextIsolation: true`, `nodeIntegration: false`, sandboxing enabled, and navigation/window-open restricted to trusted targets. Use a preload bridge rather than exposing Node. Add Tailwind/shadcn-style UI. Add typed API and Clerk browser auth only when selected. For billing, expose the current Clerk user ID to a realtime entitlement hook and refetch when the renderer becomes visible. Provide development orchestration plus current-host and platform-specific electron-builder scripts.
 
 ### Extension
 
-Create a WXT React side-panel extension with Tailwind/shadcn-style UI. Generate permissions from selected features and host permissions only from validated API/Clerk origins. Require HTTPS in production. Add Clerk's extension provider/context only for auth and typed API only for API. Include `storage` and `cookies` permissions only when Clerk needs them. Provide `dev`, `build`, `zip`, `postinstall`, and `typecheck`.
+Create a WXT React side-panel extension with Tailwind/shadcn-style UI. Generate permissions from selected features and host permissions only from validated API/Clerk origins. Require HTTPS in production. Add Clerk's extension provider/context only for auth and typed API only for API. For billing, consume the authenticated user ID/API client from that context, subscribe to invalidations, and refetch when the side panel becomes visible. Include `storage` and `cookies` permissions only when Clerk needs them. Provide `dev`, `build`, `zip`, `postinstall`, and `typecheck`.
 
 ## 7. Wire optional features
 
 After selected surfaces exist, perform a cross-surface pass:
 
 - `auth`: Clerk server verification; protected API route; provider/account UI in every selected client; token-aware API hooks; client publishable keys and server secret separated.
-- `billing`: database tables; RevenueCat webhook and entitlement route; contracts and API-client methods. Never expose RevenueCat secret keys.
+- `billing`: revisioned database state and transactional outbox; RevenueCat webhook/direct refresh; entitlement, scoped-token, and retry routes; Ably publisher and shared subscriber; contracts/API-client methods; live hooks in every client. Never expose RevenueCat or Ably secret keys.
 - `storage`: upload tables; R2 presign/confirm/cleanup; contracts and client methods; Vercel cron; R2 CORS and lifecycle documentation.
 - `native-subscriptions`: mobile RevenueCat SDKs, platform keys, Clerk identity synchronization, entitlement/paywall behavior, and error recovery.
 
@@ -288,7 +298,8 @@ mobile:    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY, EXPO_PUBLIC_API_URL
 desktop:   VITE_CLERK_PUBLISHABLE_KEY, VITE_API_URL
 extension: VITE_CLERK_PUBLISHABLE_KEY, VITE_CLERK_FRONTEND_API_URL,
            VITE_CLERK_SYNC_HOST, VITE_API_URL, optional VITE_CRX_PUBLIC_KEY
-billing:   RC_WEBHOOK_SECRET, RC_SECRET_API_KEY, RC_ENTITLEMENT_ID
+billing:   RC_WEBHOOK_SECRET, RC_SECRET_API_KEY, RC_ENTITLEMENT_ID,
+           ABLY_API_KEY, CRON_SECRET
 native:    EXPO_PUBLIC_RC_API_KEY_IOS, EXPO_PUBLIC_RC_API_KEY_ANDROID,
            EXPO_PUBLIC_RC_ENTITLEMENT_ID
 storage:   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET,
@@ -324,7 +335,7 @@ pnpm verify
 pnpm build
 ```
 
-Run API coverage when API exists, Expo compatibility checks when mobile exists, a packaged Electron smoke test when desktop exists, and load unpacked WXT output when extension exists. Exercise one authenticated API call per selected client. For billing, replay a webhook and send an older event. For storage, perform browser preflight, presigned upload, confirmation, cross-user rejection, and cleanup.
+Run API coverage when API exists, Expo compatibility checks when mobile exists, a packaged Electron smoke test when desktop exists, and load unpacked WXT output when extension exists. Exercise one authenticated API call per selected client. For billing, replay a webhook, send an older event, verify an outbox record is committed atomically, verify the scoped token cannot publish or subscribe to another user, and observe one native purchase/refresh update web, Android, extension, and desktop sessions. Disconnect one client, mutate the entitlement, reconnect/foreground it, and confirm authoritative recovery. For storage, perform browser preflight, presigned upload, confirmation, cross-user rejection, and cleanup.
 
 Do not weaken types, tests, provider validation, security headers, or migration checks to make verification green. Report the failing package and command, fix the owning layer, and rerun the narrow check before root verification.
 
@@ -340,6 +351,7 @@ Answer yes to every applicable item:
 - Are provider dependencies and environment keys gated by selection?
 - Are secrets absent from clients and committed files?
 - Are optional flows wired end to end rather than represented by placeholders?
+- For billing, are revisions monotonic, outbox writes atomic, Ably capabilities user-scoped, and all clients recovery-safe?
 - Is a reviewed, committed migration present for `db`?
 - Do CI, Vercel services/rewrites, cron, CORS, and local ports agree?
 - Did `pnpm verify` and `pnpm build` pass?

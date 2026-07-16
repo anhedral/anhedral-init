@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deterministic modular app generator for Next.js, Expo, Fastify, Electron, WXT, Neon, Clerk, RevenueCat, R2, and Vercel.",
   "type": "module",
   "exports": {
@@ -16,6 +16,7 @@
   "files": [
     "bin",
     "dist",
+    "templates",
     "CHANGELOG.md",
     "LICENSE",
     "README.md",
@@ -55,6 +56,7 @@
     "test:packlist": "pnpm build && node tests/test-packlist.js",
     "test:release-tooling": "node tests/test-release-tooling.js",
     "test:topologies": "pnpm build && node tests/test-module-topology-invariants.js",
+    "test:templates": "pnpm build && node tests/test-template-source.js",
     "pretest:e2e": "pnpm build",
     "test:e2e": "node tests/test-e2e-public-stacks.js",
     "pretest:e2e:latest": "pnpm build",
@@ -62,7 +64,7 @@
     "test:acceptance:desktop": "pnpm build && node tests/test-runtime-acceptance.js desktop",
     "test:acceptance:extension": "pnpm build && node tests/test-runtime-acceptance.js extension",
     "test:acceptance:mobile": "pnpm build && node tests/test-runtime-acceptance.js mobile",
-    "test:all": "pnpm lint && pnpm check:security && pnpm audit:osv && pnpm test:coverage && pnpm test:deps && pnpm test:vercel-schema && pnpm test:pack && pnpm test:packlist && pnpm test:e2e",
+    "test:all": "pnpm lint && pnpm check:security && pnpm audit:osv && pnpm test:coverage && pnpm test:deps && pnpm test:templates && pnpm test:vercel-schema && pnpm test:pack && pnpm test:packlist && pnpm test:e2e",
     "release:check": "pnpm check:release-policy && pnpm test:all && npm pack --dry-run --ignore-scripts",
     "release:pack": "pnpm build && node scripts/create-release-artifact.mjs && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
     "release:artifact:verify": "node scripts/verify-release-artifact.mjs release-artifact/metadata.json && node scripts/check-release-secrets.mjs release-artifact/metadata.json",

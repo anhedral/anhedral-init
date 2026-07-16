@@ -36,7 +36,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 328,
-      "sha256": "de693001e4bf928de9729accc69146b8de7ab4da5ff124302d88bc4362ad1ec5"
+      "sha256": "f69a2bc09f79eaaf9661464d85ed4fbebe93a7dba1172ee3318f423674536929"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,14 +50,14 @@
       "type": "file",
       "mode": "0644",
       "bytes": 369,
-      "sha256": "0658a823656a9d5869c38e368648830042c8ff83f3ccc235902109feb7e2ae89"
+      "sha256": "099109541e57727eddce9941cedb24fd73580359c8253d7cceb9ed6e78644a74"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 11029,
-      "sha256": "55c382b232c6e2358528ddf2ccd1a42d0a71fb2aa16896250f1d6c2a7aa0a8b6"
+      "bytes": 11447,
+      "sha256": "e19ce75ce6a9c08a8986554a34b653083f358d191dab984ef3c15caa5020b4ae"
     },
     {
       "path": "apps/api/.env.example",
@@ -98,8 +98,8 @@
       "path": "apps/api/src/env.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 4745,
-      "sha256": "fc42bfd2414691bdb0550993893bbaddbbe4f526690ded59489e80f34c27bf53"
+      "bytes": 4752,
+      "sha256": "694ba5cc19512c0653c6d97bf00b20fc8545db869a027bf164b0114fdf18ee37"
     },
     {
       "path": "apps/api/src/index.ts",
@@ -217,8 +217,8 @@
       "path": "apps/desktop/src/renderer/lib/auth.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1003,
-      "sha256": "bcc8c871ecf45a3bb7cb388de4eccb6f77f7b8aff1fe4103ffe79ec031090865"
+      "bytes": 1145,
+      "sha256": "0450272c18ce8316f2d0c18ccd3473169a1776f51a4bf7c7cc733b07197b0963"
     },
     {
       "path": "apps/desktop/src/renderer/lib/utils.ts",
@@ -231,8 +231,8 @@
       "path": "apps/desktop/src/renderer/main.tsx",
       "type": "file",
       "mode": "0644",
-      "bytes": 2259,
-      "sha256": "99d525c1ce3af84ee2fcb4d70358cf7a629dd7b2ae77c56fdf4108df88eff571"
+      "bytes": 2260,
+      "sha256": "a37188a1f84c48bfb5485776af13f23ea76dd8ad0377e674ff15535fe95f9cac"
     },
     {
       "path": "apps/desktop/src/renderer/styles.css",
@@ -396,5 +396,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "761673312c78c75e05c80951deea182e9bf8c97b6d8103760cf48a786e660c80"
+  "digest": "3faf0b4dab518766c4f97359353219d004b5e210010b7457a95dec96a0de3e3c"
 }

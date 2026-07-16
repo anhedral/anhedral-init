@@ -26,7 +26,8 @@ try {
   assert.match(env, /assertProductionClerkKey/);
   assert.match(env, /'pk_live_'/);
   assert.match(env, /'sk_live_'/);
-  assert.match(env, /assertStrongRevenueCatSecret/);
+  assert.match(env, /assertStrongBillingSecret/);
+  assert.match(env, /ABLY_API_KEY/);
   assert.match(env, /R2_ACCOUNT_ID must be a 32-character/);
   assert.match(env, /R2_SECRET_ACCESS_KEY must be a 64-character/);
   assert.match(env, /R2_BUCKET must be 3-63 lowercase/);
@@ -47,6 +48,7 @@ try {
   assert.match(example, /pk_live_ \/ sk_live_/);
   assert.match(example, /32-hex account ID/);
   assert.match(example, /at least 32 characters/);
+  assert.match(example, /Server-only Ably API key/);
 
   await scaffoldApi(apiOnlyRoot, {
     ...options,

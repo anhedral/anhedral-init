@@ -1,15 +1,15 @@
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { writeFile, exec } from '../util.js';
+import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
-import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
 import { childPackageName, htmlText, jsString, markdownHeading } from '../render.js';
 
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(EXTENSION_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.billing) delete dependencies['@shared/realtime'];
   if (!options.features.auth) delete dependencies['@clerk/chrome-extension'];
   return dependencies;
 }
@@ -17,19 +17,12 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
 export async function scaffoldExtension(root: string, options: ProjectOptions): Promise<void> {
   const { projectName, displayName, skipInstall } = options;
   const dir = path.join(root, 'apps/extension');
-  const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
-  const useUpstreamScaffolder = toolchain.wxt === 'latest' && !skipInstall;
 
   anhedralPrint.section('Chrome extension (WXT)');
 
-  anhedralPrint.step('Scaffolding WXT extension');
-  if (useUpstreamScaffolder) {
-    exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init apps/extension -t react --pm pnpm`, root);
-  } else {
-    anhedralPrint.info(`Using the deterministic local extension template (wxt@${toolchain.wxt}).`);
-  }
+  anhedralPrint.step('Materializing bundled WXT substrate');
   writePackageJson(dir, projectName, options);
-  anhedralPrint.done('WXT extension scaffolded');
+  anhedralPrint.done('WXT extension substrate materialized');
 
   anhedralPrint.step(`Recording ${options.features.auth ? 'Clerk + ' : ''}React + Tailwind dependencies`);
   if (skipInstall) {
@@ -40,7 +33,6 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
 
   cleanWxtStarterFiles(dir);
   writeWxtConfig(dir, displayName, options);
-  writeTsConfig(dir);
   writeEnvExample(dir, options);
   writePostcssConfig(dir);
   writeTailwindConfig(dir);
@@ -50,10 +42,11 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
   writeButtonComponent(dir);
   if (options.features.auth) writeAuthContext(dir);
   if (options.apps.api) writeApiClient(dir);
+  if (options.features.billing) writeEntitlementHook(dir);
   writeBackground(dir, options.features.auth);
   writeSidepanelEntry(dir, options.features.auth);
   writeSidepanelHtml(dir, displayName);
-  writeSidepanelApp(dir, options.features.auth);
+  writeSidepanelApp(dir, options.features.auth, options.features.billing);
   writeStyles(dir);
 
   anhedralPrint.done('Extension source files written');
@@ -171,30 +164,6 @@ ${hostPermissionsSetup}
   }),
 });
 `);
-}
-
-function writeTsConfig(dir: string): void {
-  writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: {
-      target: 'ESNext',
-      module: 'ESNext',
-      moduleResolution: 'Bundler',
-      strict: true,
-      esModuleInterop: true,
-      skipLibCheck: true,
-      forceConsistentCasingInFileNames: true,
-      resolveJsonModule: true,
-      isolatedModules: true,
-      allowImportingTsExtensions: true,
-      noEmit: true,
-      jsx: 'react-jsx',
-      lib: ['DOM', 'DOM.Iterable', 'ESNext'],
-      types: ['wxt/browser', '@wxt-dev/module-react', 'chrome'],
-      paths: { '@/*': ['./src/*'] },
-    },
-    include: ['**/*.ts', '**/*.tsx', '.wxt/wxt.d.ts'],
-    exclude: ['node_modules', '.output', 'dist'],
-  }, null, 2) + '\n');
 }
 
 function extensionEnvContents(options: ProjectOptions): string {
@@ -533,6 +502,47 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 `);
 }
 
+function writeEntitlementHook(dir: string): void {
+  writeFile(path.join(dir, 'src/hooks/use-entitlement.ts'), `import { subscribeToSubscriptionChanges } from '@shared/realtime';
+import * as React from 'react';
+import { useAuth } from '../contexts/auth-context';
+
+export function useEntitlement() {
+  const { api, isSignedIn, userId } = useAuth();
+  const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const revision = React.useRef(0);
+  const refresh = React.useCallback(async () => {
+    if (!isSignedIn) return;
+    try {
+      const next = await api.getEntitlement();
+      revision.current = Math.max(revision.current, next.revision);
+      setEntitlement(next);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
+    }
+  }, [api, isSignedIn]);
+  React.useEffect(() => { void refresh(); }, [refresh]);
+  React.useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [refresh]);
+  React.useEffect(() => {
+    if (!userId || !isSignedIn) return;
+    return subscribeToSubscriptionChanges({
+      userId,
+      getTokenRequest: () => api.getRealtimeToken(),
+      onChange: (nextRevision) => { if (nextRevision > revision.current) void refresh(); },
+      onError: (cause) => setError(cause.message),
+    });
+  }, [api, isSignedIn, refresh, userId]);
+  return { entitlement, error };
+}
+`);
+}
+
 function writeBackground(dir: string, hasAuth: boolean): void {
   const clerkImport = hasAuth
     ? "import { createClerkClient } from '@clerk/chrome-extension/background';\n\n"
@@ -617,7 +627,7 @@ function writeSidepanelHtml(dir: string, displayName: string): void {
 `);
 }
 
-function writeSidepanelApp(dir: string, hasAuth: boolean): void {
+function writeSidepanelApp(dir: string, hasAuth: boolean, hasBilling: boolean): void {
   const authImports = hasAuth
     ? "import { useAuth } from '../../contexts/auth-context';\nimport { SignIn } from '@clerk/chrome-extension';\n"
     : '';
@@ -642,9 +652,16 @@ function writeSidepanelApp(dir: string, hasAuth: boolean): void {
   const signOutButton = hasAuth
     ? '      <Button type="button" variant="outline" onClick={() => void signOut()}>Sign Out</Button>\n'
     : '';
+  const entitlementImport = hasBilling ? "import { useEntitlement } from '../../hooks/use-entitlement';\n" : '';
+  const entitlementState = hasBilling ? '  const { entitlement, error: entitlementError } = useEntitlement();\n' : '';
+  const entitlementStatus = hasBilling
+    ? `      {entitlement ? <p role="status">Plan: {entitlement.entitlement} ({entitlement.status})</p> : null}
+      {entitlementError ? <p role="alert" style={{ color: 'hsl(var(--destructive))' }}>{entitlementError}</p> : null}
+`
+    : '';
 
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/app.tsx'), `import * as React from 'react';
-${authImports}import { Button } from '../../components/ui/button';
+${authImports}${entitlementImport}import { Button } from '../../components/ui/button';
 
 type PageSnapshot = {
   title: string;
@@ -652,7 +669,7 @@ type PageSnapshot = {
 };
 
 export function SidePanelApp() {
-${authState}  const [page, setPage] = React.useState<PageSnapshot | null>(null);
+${authState}${entitlementState}  const [page, setPage] = React.useState<PageSnapshot | null>(null);
   const [pageError, setPageError] = React.useState<string | null>(null);
 
   const readActivePage = React.useCallback(async () => {
@@ -687,7 +704,7 @@ ${authGuards}
         </div>
       ) : null}
       {pageError ? <p role="alert" aria-live="assertive" style={{ color: 'hsl(var(--destructive))' }}>{pageError}</p> : null}
-${signOutButton}    </div>
+${entitlementStatus}${signOutButton}    </div>
   );
 }
 `);

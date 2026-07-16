@@ -1,29 +1,16 @@
 import path from 'node:path';
-import { mkdirSync, rmSync } from 'node:fs';
-import { exec, writeFile } from '../util.js';
+import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { WEB_APP_DEPENDENCIES } from '../dependencies.js';
-import { resolveToolchain, resolveToolchainChannel, toolPackageRef } from '../toolchain.js';
 import { childPackageName, jsString } from '../render.js';
 
 export async function scaffoldWeb(root: string, options: ProjectOptions): Promise<void> {
-  const { skipInstall } = options;
   const dir = path.join(root, 'apps/web');
-  const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
-  const shadcnRef = toolPackageRef('shadcn', toolchain.shadcn);
-  const useUpstreamScaffolder = toolchain.shadcn === 'latest' && !skipInstall;
 
   anhedralPrint.section('Web (Next.js + shadcn/ui)');
-  anhedralPrint.step('Scaffolding Next.js app with shadcn');
-  if (useUpstreamScaffolder) {
-    mkdirSync(path.join(root, 'apps'), { recursive: true });
-    exec(`pnpm dlx ${shadcnRef} init -d --template next --name web`, path.join(root, 'apps'));
-    rmSync(path.join(dir, '.git'), { recursive: true, force: true });
-  } else {
-    anhedralPrint.info(`Using the deterministic local web template (${shadcnRef}).`);
-  }
-  anhedralPrint.done(useUpstreamScaffolder ? 'Next.js + shadcn app scaffolded' : 'Next.js + shadcn manifests written');
+  anhedralPrint.step('Materializing bundled Next.js + shadcn substrate');
+  anhedralPrint.done('Next.js + shadcn substrate materialized');
 
   anhedralPrint.step('Writing web app customizations');
   writePackageJson(dir, options);
@@ -40,6 +27,7 @@ export async function scaffoldWeb(root: string, options: ProjectOptions): Promis
 function writePackageJson(dir: string, options: ProjectOptions): void {
   const dependencies = { ...(WEB_APP_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.billing) delete dependencies['@shared/realtime'];
   if (!options.features.auth) {
     delete dependencies['@clerk/nextjs'];
     delete dependencies['@clerk/ui'];
@@ -82,9 +70,6 @@ function writeTsConfig(dir: string): void {
     include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts', '.next/dev/types/**/*.ts'],
     exclude: ['node_modules'],
   }, null, 2) + '\n');
-  writeFile(path.join(dir, 'next-env.d.ts'), `/// <reference types="next" />
-/// <reference types="next/image-types/global" />
-`);
 }
 
 function writeNextConfig(dir: string): void {
@@ -196,6 +181,65 @@ import { createApiClient } from '@/lib/api';
 export function useApiClient() {
   const { getToken } = useAuth();
   return useMemo(() => createApiClient(() => getToken()), [getToken]);
+}
+`);
+  }
+
+  if (options.features.billing) {
+    writeFile(path.join(dir, 'hooks/use-entitlement.ts'), `'use client';
+
+import { subscribeToSubscriptionChanges } from '@shared/realtime';
+import { useAuth } from '@clerk/nextjs';
+import * as React from 'react';
+import { useApiClient } from './use-api-client';
+
+export function useEntitlement() {
+  const api = useApiClient();
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  const [state, setState] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const revision = React.useRef(0);
+  const refresh = React.useCallback(async () => {
+    if (!isLoaded || !isSignedIn) return;
+    try {
+      const next = await api.getEntitlement();
+      revision.current = Math.max(revision.current, next.revision);
+      setState(next);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
+    }
+  }, [api, isLoaded, isSignedIn]);
+
+  React.useEffect(() => { void refresh(); }, [refresh]);
+  React.useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [refresh]);
+  React.useEffect(() => {
+    if (!userId || !isSignedIn) return;
+    return subscribeToSubscriptionChanges({
+      userId,
+      getTokenRequest: () => api.getRealtimeToken(),
+      onChange: (nextRevision) => {
+        if (nextRevision > revision.current) void refresh();
+      },
+      onError: (cause) => setError(cause.message),
+    });
+  }, [api, isSignedIn, refresh, userId]);
+  return { entitlement: state, error, refresh };
+}
+`);
+    writeFile(path.join(dir, 'components/subscription-status.tsx'), `'use client';
+
+import { useEntitlement } from '@/hooks/use-entitlement';
+
+export function SubscriptionStatus() {
+  const { entitlement, error } = useEntitlement();
+  if (error) return <p role="alert" className="text-sm text-red-700">{error}</p>;
+  if (!entitlement) return <p className="text-sm text-muted-foreground">Loading subscription…</p>;
+  return <p className="text-sm text-muted-foreground">Plan: {entitlement.entitlement} ({entitlement.status})</p>;
 }
 `);
   }
@@ -350,7 +394,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 }
 `);
 
-  writeFile(path.join(dir, 'app/page.tsx'), `${accountActionsImport}import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  const subscriptionImport = options.features.billing ? "import { SubscriptionStatus } from '@/components/subscription-status';\n" : '';
+  const subscriptionStatus = options.features.billing
+    ? '        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? <SubscriptionStatus /> : null}\n'
+    : '';
+  writeFile(path.join(dir, 'app/page.tsx'), `${accountActionsImport}${subscriptionImport}import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
@@ -365,7 +413,7 @@ export default function Home() {
           <Button>Open app</Button>
           ${accountAction}
         </div>
-      </section>
+${subscriptionStatus}      </section>
       <Card>
         <CardHeader>
           <CardTitle>Shared modules</CardTitle>

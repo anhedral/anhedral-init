@@ -4,6 +4,7 @@ import type { ProjectOptions } from '../scaffold.js';
 import {
   API_CLIENT_DEPENDENCIES,
   CONTRACTS_DEPENDENCIES,
+  REALTIME_DEPENDENCIES,
   SHARED_DB_DEPENDENCIES,
   SHARED_PACKAGE_DEPENDENCIES,
 } from '../dependencies.js';
@@ -43,7 +44,6 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
     dependencies: SHARED_DB_DEPENDENCIES.dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
-  writeTsConfig(dir);
   writeFile(path.join(dir, '.env.example'), 'DATABASE_URL=postgresql://user:pass@localhost:5432/app\n');
   writeFile(path.join(dir, 'drizzle.config.ts'), `import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
@@ -83,6 +83,7 @@ export const subscriptions = pgTable('subscriptions', {
   status: text('status').notNull().default('active'),
   expiresAt: timestamp('expires_at'),
   eventTimestamp: timestamp('event_timestamp').notNull(),
+  revision: integer('revision').notNull().default(1),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
@@ -95,6 +96,17 @@ export const webhookEvents = pgTable('webhook_events', {
   claimToken: text('claim_token'),
   claimedAt: timestamp('claimed_at'),
   processedAt: timestamp('processed_at'),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const realtimeOutbox = pgTable('realtime_outbox', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  topic: text('topic').notNull(),
+  revision: integer('revision').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  deliveredAt: timestamp('delivered_at'),
   lastError: text('last_error'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -147,8 +159,26 @@ export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;` : null,
   entitlement: z.string(),
   status: z.enum(['active', 'expired', 'free']),
   expiresAt: z.string().datetime().nullable(),
+  revision: z.number().int().nonnegative(),
 });
-export type EntitlementResponse = z.infer<typeof EntitlementResponseSchema>;` : null,
+export type EntitlementResponse = z.infer<typeof EntitlementResponseSchema>;
+
+export const SubscriptionChangedEventSchema = z.object({
+  type: z.literal('subscription.changed'),
+  revision: z.number().int().nonnegative(),
+});
+export type SubscriptionChangedEvent = z.infer<typeof SubscriptionChangedEventSchema>;
+
+export const RealtimeTokenRequestSchema = z.object({
+  keyName: z.string().min(1),
+  ttl: z.number().int().positive(),
+  timestamp: z.number().int().nonnegative(),
+  capability: z.string().min(1),
+  clientId: z.string().min(1),
+  nonce: z.string().min(1),
+  mac: z.string().min(1),
+});
+export type RealtimeTokenRequest = z.infer<typeof RealtimeTokenRequestSchema>;` : null,
     options.features.storage ? `export const UPLOAD_ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
 export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -195,6 +225,7 @@ function apiClientSource(options: ProjectOptions): string {
     'ReadinessResponseSchema',
     options.features.auth ? 'AuthMeResponseSchema' : null,
     options.features.billing ? 'EntitlementResponseSchema' : null,
+    options.features.billing ? 'RealtimeTokenRequestSchema' : null,
     options.features.storage ? 'CreateUploadResponseSchema' : null,
     options.features.storage ? 'ConfirmUploadResponseSchema' : null,
     options.features.storage ? 'GetUploadResponseSchema' : null,
@@ -206,7 +237,15 @@ function apiClientSource(options: ProjectOptions): string {
     `health(init: RequestInit = {}) { return this.request('/health', init, HealthResponseSchema); }`,
     `readiness(init: RequestInit = {}) { return this.request('/ready', init, ReadinessResponseSchema); }`,
     options.features.auth ? `getMe(init: RequestInit = {}) { return this.request('/auth/me', init, AuthMeResponseSchema); }` : null,
-    options.features.billing ? `getEntitlement(init: RequestInit = {}) { return this.request('/subscriptions/me', init, EntitlementResponseSchema); }` : null,
+    options.features.billing ? `getEntitlement(init: RequestInit = {}) { return this.request('/subscriptions/me', init, EntitlementResponseSchema); }
+
+  refreshEntitlement(init: RequestInit = {}) {
+    return this.request('/subscriptions/refresh', { ...init, method: 'POST' }, EntitlementResponseSchema);
+  }
+
+  getRealtimeToken(init: RequestInit = {}) {
+    return this.request('/realtime/token', { ...init, method: 'POST' }, RealtimeTokenRequestSchema);
+  }` : null,
   options.features.storage ? `createUpload(input: CreateUploadRequest, init: RequestInit = {}) {
     return this.request('/storage/uploads', { ...init, method: 'POST', body: JSON.stringify(input) }, CreateUploadResponseSchema);
   }
@@ -400,7 +439,68 @@ function writeApiPackages(root: string, options: ProjectOptions): void {
   }
 }
 
+function writeRealtimePackage(root: string, options: ProjectOptions): void {
+  const hasClientConsumer = options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension;
+  if (!options.features.billing || !hasClientConsumer) return;
+  const dir = path.join(root, 'packages/realtime');
+  writeFile(path.join(dir, 'package.json'), JSON.stringify({
+    name: '@shared/realtime',
+    version: '0.1.0',
+    private: true,
+    type: 'module',
+    exports: { '.': './src/index.ts' },
+    scripts: { build: 'pnpm typecheck', typecheck: 'tsc --noEmit' },
+    dependencies: REALTIME_DEPENDENCIES.dependencies,
+    devDependencies: REALTIME_DEPENDENCIES.devDependencies,
+  }, null, 2) + '\n');
+  writeTsConfig(dir);
+  writeFile(path.join(dir, 'src/index.ts'), `import * as Ably from 'ably';
+import { SubscriptionChangedEventSchema, type RealtimeTokenRequest } from '@shared/contracts';
+
+export type SubscriptionRealtimeOptions = {
+  userId: string;
+  getTokenRequest: () => Promise<RealtimeTokenRequest>;
+  onChange: (revision: number) => void;
+  onError?: (error: Error) => void;
+};
+
+export function subscriptionChannelName(userId: string): string {
+  return 'private:users:' + userId + ':subscriptions';
+}
+
+export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOptions): () => void {
+  const client = new Ably.Realtime({
+    clientId: options.userId,
+    authCallback: (_params, callback) => {
+      void options.getTokenRequest().then(
+        (tokenRequest) => callback(null, tokenRequest),
+        (error: unknown) => callback(error instanceof Error ? error.message : 'Realtime authorization failed', null),
+      );
+    },
+  });
+  const channel = client.channels.get(subscriptionChannelName(options.userId));
+  const listener = (message: Ably.Message) => {
+    const parsed = SubscriptionChangedEventSchema.safeParse(message.data);
+    if (parsed.success) options.onChange(parsed.data.revision);
+  };
+  const stateListener = (change: Ably.ConnectionStateChange) => {
+    if (change.current === 'failed' && change.reason) options.onError?.(change.reason);
+  };
+  client.connection.on(stateListener);
+  void channel.subscribe('subscription.changed', listener).catch((error: unknown) => {
+    options.onError?.(error instanceof Error ? error : new Error('Realtime subscription failed'));
+  });
+  return () => {
+    channel.unsubscribe('subscription.changed', listener);
+    client.connection.off(stateListener);
+    client.close();
+  };
+}
+`);
+}
+
 export function scaffoldSharedPackages(root: string, options: ProjectOptions): void {
   writeSharedDatabase(root, options);
   writeApiPackages(root, options);
+  writeRealtimePackage(root, options);
 }

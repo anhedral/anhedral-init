@@ -25,4 +25,15 @@ export type {
 } from './scaffold.js';
 
 export * from './architecture/index.js';
+export {
+  BundledTemplateSource,
+  assertTemplateProvenance,
+  hashTemplateDirectory,
+  materializeTemplates,
+  templateIdsForModules,
+} from './template-source.js';
+export type {
+  TemplateMaterializeRequest,
+  TemplateSource,
+} from './template-source.js';
 export { GENERATOR_VERSION } from './version.js';

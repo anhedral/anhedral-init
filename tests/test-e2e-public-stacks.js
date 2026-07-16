@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
 const TOOLCHAIN_CHANNELS = new Set(['stable', 'latest']);
-const manifestKeys = ['files', 'generatorVersion', 'modules', 'project', 'schemaVersion', 'toolchain'];
+const manifestKeys = ['files', 'generatorVersion', 'modules', 'project', 'schemaVersion', 'templates', 'toolchain'];
 
 function resolveToolchainChannel(rawArgs) {
   const args = [...rawArgs];
@@ -70,7 +70,7 @@ function assertNoNestedGit(projectRoot, apps) {
 function assertProjectManifest(projectRoot, scenario) {
   const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
 
-  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.schemaVersion, 4);
   assert.deepEqual(Object.keys(manifest).sort(), manifestKeys);
   assert.deepEqual(manifest.modules, scenario.modules);
   assert.equal(manifest.toolchain, toolchainChannel);
@@ -78,6 +78,8 @@ function assertProjectManifest(projectRoot, scenario) {
   assert.ok(manifest.generatorVersion.length > 0);
   assert.equal(typeof manifest.files, 'object');
   assert.ok(Object.keys(manifest.files).length > 0);
+  assert.equal(typeof manifest.templates, 'object');
+  assert.ok(Object.keys(manifest.templates).length > 0);
 }
 
 function representativeFile(directory, relativeDirectory = '') {

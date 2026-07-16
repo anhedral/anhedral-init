@@ -25,6 +25,7 @@ function dependenciesFor(options: ProjectOptions): {
     'zod',
     ...(options.features.database ? ['@shared/db', 'drizzle-orm'] : []),
     ...(options.features.auth ? ['@clerk/fastify'] : []),
+    ...(options.features.billing ? ['ably'] : []),
     ...(options.features.storage ? ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'] : []),
   ]);
   return {
@@ -57,17 +58,18 @@ function envSource(options: ProjectOptions): string {
     options.features.billing ? 'RC_WEBHOOK_SECRET: OptionalSecretSchema' : null,
     options.features.billing ? 'RC_SECRET_API_KEY: OptionalSecretSchema' : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: z.string().default('pro')" : null,
+    options.features.billing ? 'ABLY_API_KEY: OptionalSecretSchema' : null,
     options.features.storage ? 'R2_ACCOUNT_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_ACCESS_KEY_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_SECRET_ACCESS_KEY: z.string().optional()' : null,
     options.features.storage ? 'R2_BUCKET: z.string().optional()' : null,
-    options.features.storage ? 'CRON_SECRET: z.string().optional()' : null,
+    options.features.billing || options.features.storage ? 'CRON_SECRET: OptionalSecretSchema' : null,
   ].filter((value): value is string => value !== null);
-  const productionKeys = [
+  const productionKeys = [...new Set([
     ...(options.features.auth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
-    ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY'] : []),
+    ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY', 'ABLY_API_KEY', 'CRON_SECRET'] : []),
     ...(options.features.storage ? ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'CRON_SECRET'] : []),
-  ];
+  ])];
   return `import { z } from 'zod';
 
 ${hasSemanticProviderValidation ? `function isPlaceholder(value: string): boolean {
@@ -148,9 +150,6 @@ ${options.features.storage ? `function assertProductionR2Configuration(env: AppE
   if (!env.R2_BUCKET || !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(env.R2_BUCKET) || isPlaceholder(env.R2_BUCKET)) {
     throw new Error('R2_BUCKET must be 3-63 lowercase letters, numbers, or hyphens and start and end with an alphanumeric character');
   }
-  if (!env.CRON_SECRET || env.CRON_SECRET.length < 32 || isPlaceholder(env.CRON_SECRET) || hasLowSecretDiversity(env.CRON_SECRET)) {
-    throw new Error('CRON_SECRET must be at least 32 characters, non-placeholder, and sufficiently diverse in production');
-  }
 }
 ` : ''}
 ${options.features.billing ? `const OptionalSecretSchema = z.preprocess(
@@ -158,13 +157,24 @@ ${options.features.billing ? `const OptionalSecretSchema = z.preprocess(
   z.string().optional(),
 );
 
-function assertStrongRevenueCatSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY', value: string | undefined): void {
+function assertStrongBillingSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY' | 'ABLY_API_KEY' | 'CRON_SECRET', value: string | undefined): void {
   const normalized = value?.trim().toLowerCase() ?? '';
   const placeholder = normalized.includes('***')
     || /^(?:change[-_ ]?me|replace[-_ ]?me|your[-_ ]|example|placeholder|test|secret|webhook[-_ ]?secret)/.test(normalized)
     || /^(?:x|\\*)+$/.test(normalized);
   if (!value || value.length < 32 || placeholder || hasLowSecretDiversity(value)) {
     throw new Error(\`\${key} must be at least 32 characters, non-placeholder, and sufficiently diverse in production\`);
+  }
+}
+` : ''}
+${options.features.storage && !options.features.billing ? `const OptionalSecretSchema = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().optional(),
+);
+` : ''}
+${options.features.billing || options.features.storage ? `function assertStrongCronSecret(value: string | undefined): void {
+  if (!value || value.length < 32 || isPlaceholder(value) || hasLowSecretDiversity(value)) {
+    throw new Error('CRON_SECRET must be at least 32 characters, non-placeholder, and sufficiently diverse in production');
   }
 }
 ` : ''}
@@ -211,8 +221,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     ${options.features.database ? 'assertProductionDatabaseUrl(env.DATABASE_URL);' : ''}
     ${options.features.auth ? `assertProductionClerkKey('CLERK_PUBLISHABLE_KEY', env.CLERK_PUBLISHABLE_KEY, 'pk_live_');
     assertProductionClerkKey('CLERK_SECRET_KEY', env.CLERK_SECRET_KEY, 'sk_live_');` : ''}
-    ${options.features.billing ? `assertStrongRevenueCatSecret('RC_WEBHOOK_SECRET', env.RC_WEBHOOK_SECRET);
-    assertStrongRevenueCatSecret('RC_SECRET_API_KEY', env.RC_SECRET_API_KEY);` : ''}
+    ${options.features.billing ? `assertStrongBillingSecret('RC_WEBHOOK_SECRET', env.RC_WEBHOOK_SECRET);
+    assertStrongBillingSecret('RC_SECRET_API_KEY', env.RC_SECRET_API_KEY);
+    assertStrongBillingSecret('ABLY_API_KEY', env.ABLY_API_KEY);` : ''}
+    ${options.features.billing || options.features.storage ? 'assertStrongCronSecret(env.CRON_SECRET);' : ''}
     ${options.features.storage ? 'assertProductionR2Configuration(env);' : ''}
   }
   return env;
@@ -234,11 +246,12 @@ function envTestSource(options: ProjectOptions): string {
     options.features.billing ? "RC_WEBHOOK_SECRET: syntheticSecret('webhook')" : null,
     options.features.billing ? "RC_SECRET_API_KEY: syntheticSecret('revenuecat')" : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: 'pro'" : null,
+    options.features.billing ? "ABLY_API_KEY: syntheticSecret('ably')" : null,
     options.features.storage ? "R2_ACCOUNT_ID: 'a'.repeat(32)" : null,
     options.features.storage ? "R2_ACCESS_KEY_ID: 'b'.repeat(32)" : null,
     options.features.storage ? "R2_SECRET_ACCESS_KEY: 'c'.repeat(64)" : null,
     options.features.storage ? "R2_BUCKET: 'production-uploads'" : null,
-    options.features.storage ? "CRON_SECRET: syntheticSecret('cron')" : null,
+    options.features.billing || options.features.storage ? "CRON_SECRET: syntheticSecret('cron')" : null,
   ].filter((value): value is string => value !== null);
   const cases = [
     `  it('rejects demo mode in production', () => {
@@ -951,10 +964,54 @@ export function createStorageService(
 `;
 }
 
+function realtimeSource(): string {
+  return `import * as Ably from 'ably';
+import type { RealtimeTokenRequest, SubscriptionChangedEvent } from '@shared/contracts';
+
+export type SubscriptionMutation = { userId: string; revision: number };
+
+export interface RealtimeService {
+  createTokenRequest(userId: string): Promise<RealtimeTokenRequest>;
+  publishSubscriptionChanged(change: SubscriptionMutation): Promise<void>;
+}
+
+export function subscriptionChannelName(userId: string): string {
+  return 'private:users:' + userId + ':subscriptions';
+}
+
+export function createRealtimeService(apiKey: string | undefined): RealtimeService {
+  if (!apiKey) {
+    return {
+      async createTokenRequest() { throw new Error('Realtime is not configured'); },
+      async publishSubscriptionChanged() {},
+    };
+  }
+  const client = new Ably.Rest({ key: apiKey });
+  return {
+    async createTokenRequest(userId) {
+      return client.auth.createTokenRequest({
+        clientId: userId,
+        capability: JSON.stringify({ [subscriptionChannelName(userId)]: ['subscribe'] }),
+        ttl: 60 * 60 * 1000,
+      }) as Promise<RealtimeTokenRequest>;
+    },
+    async publishSubscriptionChanged(change) {
+      const event: SubscriptionChangedEvent = {
+        type: 'subscription.changed',
+        revision: change.revision,
+      };
+      await client.channels.get(subscriptionChannelName(change.userId)).publish('subscription.changed', event);
+    },
+  };
+}
+`;
+}
+
 function billingSource(): string {
   return `import crypto from 'node:crypto';
-import { and, eq, lt, or, sql } from 'drizzle-orm';
-import { db, sqlClient, subscriptions, webhookEvents } from '@shared/db';
+import { and, asc, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { db, realtimeOutbox, sqlClient, subscriptions, webhookEvents } from '@shared/db';
+import type { SubscriptionMutation } from './realtime';
 
 const CLAIM_LEASE_MS = 5 * 60 * 1000;
 const REVENUECAT_REQUEST_TIMEOUT_MS = 5_000;
@@ -986,12 +1043,17 @@ export interface RevenueCatWebhookStore {
     providerEventId: string,
     claimToken: string,
     updates: readonly RevenueCatSubscriptionUpdate[],
-  ): Promise<boolean>;
+  ): Promise<readonly SubscriptionMutation[]>;
+  refresh(update: RevenueCatSubscriptionUpdate): Promise<SubscriptionMutation | null>;
   getEntitlement(userId: string): Promise<{
     entitlement: string;
     status: 'active' | 'expired';
     expiresAt: Date | null;
+    revision: number;
   } | null>;
+  pendingRealtime(limit?: number): Promise<readonly SubscriptionMutation[]>;
+  markRealtimeDelivered(change: SubscriptionMutation): Promise<void>;
+  markRealtimeFailed(change: SubscriptionMutation, message: string): Promise<void>;
   fail(providerEventId: string, claimToken: string, message: string): Promise<void>;
 }
 
@@ -1137,21 +1199,29 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
           AND "status" = 'processing'
         FOR UPDATE
       )
-      INSERT INTO "subscriptions" (
-        "id", "user_id", "entitlement", "status", "expires_at", "event_timestamp", "updated_at"
+      , "updated_subscription" AS (
+        INSERT INTO "subscriptions" (
+          "id", "user_id", "entitlement", "status", "expires_at", "event_timestamp", "revision", "updated_at"
+        )
+        SELECT
+          \${input.userId}, \${input.userId}, \${input.entitlement}, \${input.status},
+          \${input.expiresAt}, \${input.eventTimestamp}, 1, now()
+        FROM "owned_claim"
+        ON CONFLICT ("user_id") DO UPDATE SET
+          "id" = excluded."id",
+          "entitlement" = excluded."entitlement",
+          "status" = excluded."status",
+          "expires_at" = excluded."expires_at",
+          "event_timestamp" = excluded."event_timestamp",
+          "revision" = "subscriptions"."revision" + 1,
+          "updated_at" = now()
+        WHERE "subscriptions"."event_timestamp" <= excluded."event_timestamp"
+        RETURNING "user_id", "revision"
       )
-      SELECT
-        \${input.userId}, \${input.userId}, \${input.entitlement}, \${input.status},
-        \${input.expiresAt}, \${input.eventTimestamp}, now()
-      FROM "owned_claim"
-      ON CONFLICT ("user_id") DO UPDATE SET
-        "id" = excluded."id",
-        "entitlement" = excluded."entitlement",
-        "status" = excluded."status",
-        "expires_at" = excluded."expires_at",
-        "event_timestamp" = excluded."event_timestamp",
-        "updated_at" = now()
-      WHERE "subscriptions"."event_timestamp" <= excluded."event_timestamp"
+      INSERT INTO "realtime_outbox" ("id", "user_id", "topic", "revision", "created_at")
+      SELECT \${crypto.randomUUID()}, "user_id", 'subscription.changed', "revision", now()
+      FROM "updated_subscription"
+      RETURNING "user_id" AS "userId", "revision"
     \`);
     const results = await sqlClient.transaction([
       ...subscriptionQueries,
@@ -1169,7 +1239,35 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
       \`,
     ], { isolationLevel: 'ReadCommitted' });
     const completed = results.at(-1) as Array<{ providerEventId: string }> | undefined;
-    return Boolean(completed?.[0]);
+    if (!completed?.[0]) throw new Error('RevenueCat webhook claim lease was lost');
+    return (results.slice(0, -1) as Array<Array<SubscriptionMutation>>).flat();
+  },
+
+  async refresh(input) {
+    const rows = await sqlClient\`
+      WITH "updated_subscription" AS (
+        INSERT INTO "subscriptions" (
+          "id", "user_id", "entitlement", "status", "expires_at", "event_timestamp", "revision", "updated_at"
+        ) VALUES (
+          \${input.userId}, \${input.userId}, \${input.entitlement}, \${input.status},
+          \${input.expiresAt}, \${input.eventTimestamp}, 1, now()
+        )
+        ON CONFLICT ("user_id") DO UPDATE SET
+          "entitlement" = excluded."entitlement",
+          "status" = excluded."status",
+          "expires_at" = excluded."expires_at",
+          "event_timestamp" = excluded."event_timestamp",
+          "revision" = "subscriptions"."revision" + 1,
+          "updated_at" = now()
+        WHERE "subscriptions"."event_timestamp" <= excluded."event_timestamp"
+        RETURNING "user_id", "revision"
+      )
+      INSERT INTO "realtime_outbox" ("id", "user_id", "topic", "revision", "created_at")
+      SELECT \${crypto.randomUUID()}, "user_id", 'subscription.changed', "revision", now()
+      FROM "updated_subscription"
+      RETURNING "user_id" AS "userId", "revision"
+    \` as Array<SubscriptionMutation>;
+    return rows[0] ?? null;
   },
 
   async getEntitlement(userId) {
@@ -1177,13 +1275,43 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
       entitlement: subscriptions.entitlement,
       status: subscriptions.status,
       expiresAt: subscriptions.expiresAt,
+      revision: subscriptions.revision,
     }).from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
     if (!subscription) return null;
     return {
       entitlement: subscription.entitlement,
       status: effectiveEntitlementStatus(subscription.status, subscription.expiresAt),
       expiresAt: subscription.expiresAt,
+      revision: subscription.revision,
     };
+  },
+
+  async pendingRealtime(limit = 100) {
+    return db.select({ userId: realtimeOutbox.userId, revision: realtimeOutbox.revision })
+      .from(realtimeOutbox)
+      .where(isNull(realtimeOutbox.deliveredAt))
+      .orderBy(asc(realtimeOutbox.createdAt))
+      .limit(Math.max(1, Math.min(limit, 500)));
+  },
+
+  async markRealtimeDelivered(change) {
+    await db.update(realtimeOutbox).set({ deliveredAt: new Date(), lastError: null })
+      .where(and(
+        eq(realtimeOutbox.userId, change.userId),
+        eq(realtimeOutbox.revision, change.revision),
+        isNull(realtimeOutbox.deliveredAt),
+      ));
+  },
+
+  async markRealtimeFailed(change, message) {
+    await db.update(realtimeOutbox).set({
+      attempts: sql\`\${realtimeOutbox.attempts} + 1\`,
+      lastError: message.slice(0, 1000),
+    }).where(and(
+      eq(realtimeOutbox.userId, change.userId),
+      eq(realtimeOutbox.revision, change.revision),
+      isNull(realtimeOutbox.deliveredAt),
+    ));
   },
 
   async fail(providerEventId, claimToken, message) {
@@ -1210,6 +1338,7 @@ function routesSource(options: ProjectOptions): string {
     options.features.storage ? "import { ConfirmUploadRequestSchema, CreateUploadRequestSchema, UploadParamsSchema } from '@shared/contracts';" : null,
     options.features.storage ? "import { createStorageService, type StorageService } from './storage';" : null,
     options.features.billing ? "import { createRevenueCatClient, projectRevenueCatSubscriber, revenueCatWebhookStore, type RevenueCatClient, type RevenueCatSubscriptionUpdate, type RevenueCatWebhookStore } from './billing';" : null,
+    options.features.billing ? "import { createRealtimeService, type RealtimeService, type SubscriptionMutation } from './realtime';" : null,
   ].filter((value): value is string => value !== null);
   const routes = [
     `app.get('/health', async () => ({ ok: true as const, service: 'api' }));`,
@@ -1230,8 +1359,46 @@ function routesSource(options: ProjectOptions): string {
           entitlement: subscription.entitlement,
           status: subscription.status,
           expiresAt: subscription.expiresAt?.toISOString() ?? null,
+          revision: subscription.revision,
         }
-      : { entitlement: 'free', status: 'free' as const, expiresAt: null };
+      : { entitlement: 'free', status: 'free' as const, expiresAt: null, revision: 0 };
+  });
+
+  app.post('/subscriptions/refresh', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+        keyGenerator: (request) => authenticatedUserId(request, env),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = authenticatedUserId(request, env);
+    if (!revenueCatClient) return reply.code(503).send({ error: 'billing_not_configured', message: 'Billing is not configured' });
+    const now = new Date();
+    const update = projectRevenueCatSubscriber(
+      await revenueCatClient.getSubscriber(userId),
+      userId,
+      env.RC_ENTITLEMENT_ID,
+      now,
+      now,
+    );
+    const change = await billingStore.refresh(update);
+    if (change) await publishSubscriptionChanges([change]);
+    const subscription = await billingStore.getEntitlement(userId);
+    return subscription
+      ? {
+          entitlement: subscription.entitlement,
+          status: subscription.status,
+          expiresAt: subscription.expiresAt?.toISOString() ?? null,
+          revision: subscription.revision,
+        }
+      : { entitlement: 'free', status: 'free' as const, expiresAt: null, revision: 0 };
+  });
+
+  app.post('/realtime/token', async (request, reply) => {
+    if (!env.ABLY_API_KEY) return reply.code(503).send({ error: 'realtime_not_configured', message: 'Realtime is not configured' });
+    return realtimeService.createTokenRequest(authenticatedUserId(request, env));
   });
 
   app.post('/webhooks/revenuecat', {
@@ -1329,8 +1496,8 @@ function routesSource(options: ProjectOptions): string {
       } else {
         throw new Error('RevenueCat reconciliation did not resolve a target identity');
       }
-      const completed = await billingStore.reconcile(providerEventId, claim.token, subscriptionUpdates);
-      if (!completed) throw new Error('RevenueCat webhook claim lease was lost');
+      const changes = await billingStore.reconcile(providerEventId, claim.token, subscriptionUpdates);
+      await publishSubscriptionChanges(changes);
       return reply.send({ ok: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown RevenueCat webhook failure';
@@ -1345,6 +1512,14 @@ function routesSource(options: ProjectOptions): string {
       request.log.error({ msg: 'revenuecat_webhook_failed', error: message });
       return reply.code(503).send({ ok: false, error: 'webhook_processing_failed' });
     }
+  });` : null,
+    options.features.billing ? `app.get('/internal/realtime/flush', async (request, reply) => {
+    if (!env.CRON_SECRET || !matchesBearerSecret(request.headers.authorization, env.CRON_SECRET)) {
+      return reply.code(401).send({ ok: false, error: 'invalid_authorization' });
+    }
+    const pending = await billingStore.pendingRealtime(100);
+    await publishSubscriptionChanges(pending);
+    return { ok: true, processed: pending.length };
   });` : null,
     options.features.storage ? `app.post('/storage/uploads', {
     bodyLimit: 16 * 1024,
@@ -1394,11 +1569,28 @@ function routesSource(options: ProjectOptions): string {
   const dependencyFields = [
     options.features.billing ? '  revenueCatWebhookStore?: RevenueCatWebhookStore;' : null,
     options.features.billing ? '  revenueCatClient?: RevenueCatClient;' : null,
+    options.features.billing ? '  realtimeService?: RealtimeService;' : null,
     options.features.storage ? '  storageService?: StorageService;' : null,
     "  serviceState?: { readiness(): Promise<'ready' | 'unavailable' | 'shutting_down'> };",
   ].filter((value): value is string => value !== null);
   const billingStore = options.features.billing
-    ? '    const billingStore = dependencies.revenueCatWebhookStore ?? revenueCatWebhookStore;\n    const revenueCatClient = dependencies.revenueCatClient ?? (env.RC_SECRET_API_KEY ? createRevenueCatClient(env.RC_SECRET_API_KEY) : null);\n'
+    ? `    const billingStore = dependencies.revenueCatWebhookStore ?? revenueCatWebhookStore;
+    const revenueCatClient = dependencies.revenueCatClient ?? (env.RC_SECRET_API_KEY ? createRevenueCatClient(env.RC_SECRET_API_KEY) : null);
+    const realtimeService = dependencies.realtimeService ?? createRealtimeService(env.ABLY_API_KEY);
+    const publishSubscriptionChanges = async (changes: readonly SubscriptionMutation[]) => {
+      for (const change of changes) {
+        try {
+          await realtimeService.publishSubscriptionChanged(change);
+          await billingStore.markRealtimeDelivered(change);
+        } catch (error) {
+          await billingStore.markRealtimeFailed(
+            change,
+            error instanceof Error ? error.message : 'Realtime publish failed',
+          );
+        }
+      }
+    };
+`
     : '';
   const storageService = options.features.storage
     ? '    const storageService = dependencies.storageService ?? createStorageService(env);\n'
@@ -1469,6 +1661,8 @@ const env: AppEnv = {
   RC_WEBHOOK_SECRET: webhookSecret,
   RC_SECRET_API_KEY: syntheticSecret('revenuecat'),
   RC_ENTITLEMENT_ID: 'pro',
+  ABLY_API_KEY: undefined,
+  CRON_SECRET: syntheticSecret('cron'),
 };
 
 const payload = {
@@ -1498,8 +1692,12 @@ beforeAll(() => {
 function createStore(overrides: Partial<RevenueCatWebhookStore> = {}): RevenueCatWebhookStore {
   return {
     claim: vi.fn(async () => ({ status: 'claimed' as const, token: 'claim-token' })),
-    reconcile: vi.fn(async () => true),
+    reconcile: vi.fn(async () => []),
+    refresh: vi.fn(async () => null),
     getEntitlement: vi.fn(async () => null),
+    pendingRealtime: vi.fn(async () => []),
+    markRealtimeDelivered: vi.fn(async () => undefined),
+    markRealtimeFailed: vi.fn(async () => undefined),
     fail: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -1562,6 +1760,7 @@ describe('RevenueCat webhook', () => {
       CLERK_PUBLISHABLE_KEY: syntheticClerkKey('pk'),
       CLERK_SECRET_KEY: syntheticClerkKey('sk'),
       RC_ENTITLEMENT_ID: 'pro',
+      ABLY_API_KEY: syntheticSecret('ably'),
       R2_ACCOUNT_ID: 'a'.repeat(32),
       R2_ACCESS_KEY_ID: 'b'.repeat(32),
       R2_SECRET_ACCESS_KEY: 'c'.repeat(64),
@@ -1712,7 +1911,7 @@ describe('RevenueCat webhook', () => {
         for (const update of updates) {
           if (!current || update.eventTimestamp.getTime() >= current.eventTimestamp.getTime()) current = update;
         }
-        return true;
+        return [];
       }),
     });
     const client = createClient(vi.fn()
@@ -1760,7 +1959,7 @@ describe('RevenueCat webhook', () => {
   it('retries the complete reconciliation after an atomic database write failure', async () => {
     const reconcile = vi.fn()
       .mockRejectedValueOnce(new Error('database transaction aborted'))
-      .mockResolvedValueOnce(true);
+      .mockResolvedValueOnce([]);
     const store = createStore({ reconcile });
     const first = await postWebhook(store);
     const retry = await postWebhook(store);
@@ -1778,14 +1977,21 @@ describe('RevenueCat webhook', () => {
       transaction(queries: readonly unknown[], options: { isolationLevel: string }): Promise<unknown[]>;
     };
     const transaction = vi.spyOn(sqlClient as unknown as TransactionOwner, 'transaction')
-      .mockResolvedValue([[], [], [{ providerEventId: 'event-transfer' }]]);
+      .mockResolvedValue([
+        [{ userId: 'source-user', revision: 2 }],
+        [{ userId: 'destination-user', revision: 3 }],
+        [{ providerEventId: 'event-transfer' }],
+      ]);
     const eventTimestamp = new Date('2027-01-01T00:00:00.000Z');
     try {
       const completed = await revenueCatWebhookStore.reconcile('event-transfer', 'claim-token', [
         { userId: 'source-user', entitlement: 'free', status: 'expired', expiresAt: null, eventTimestamp },
         { userId: 'destination-user', entitlement: 'pro', status: 'active', expiresAt: null, eventTimestamp },
       ]);
-      expect(completed).toBe(true);
+      expect(completed).toEqual([
+        { userId: 'source-user', revision: 2 },
+        { userId: 'destination-user', revision: 3 },
+      ]);
       expect(transaction).toHaveBeenCalledOnce();
       expect(transaction.mock.calls[0]?.[0]).toHaveLength(3);
       expect(transaction.mock.calls[0]?.[1]).toEqual({ isolationLevel: 'ReadCommitted' });
@@ -1849,7 +2055,7 @@ const env: AppEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/test',
   CLERK_PUBLISHABLE_KEY: undefined,
   CLERK_SECRET_KEY: undefined,
-${options.features.billing ? "  RC_WEBHOOK_SECRET: undefined,\n  RC_SECRET_API_KEY: undefined,\n  RC_ENTITLEMENT_ID: 'pro',\n" : ''}  R2_ACCOUNT_ID: 'account',
+${options.features.billing ? "  RC_WEBHOOK_SECRET: undefined,\n  RC_SECRET_API_KEY: undefined,\n  RC_ENTITLEMENT_ID: 'pro',\n  ABLY_API_KEY: undefined,\n" : ''}  R2_ACCOUNT_ID: 'account',
   R2_ACCESS_KEY_ID: 'access',
   R2_SECRET_ACCESS_KEY: 'secret',
   R2_BUCKET: 'bucket',
@@ -2593,14 +2799,6 @@ export async function scaffoldApi(root: string, options: ProjectOptions): Promis
     dependencies: selected.dependencies,
     devDependencies: selected.devDependencies,
   }, null, 2) + '\n');
-  writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: {
-      target: 'ESNext', module: 'ESNext', moduleResolution: 'Bundler', strict: true,
-      noUncheckedIndexedAccess: true, skipLibCheck: true, noEmit: true, types: ['node'],
-      verbatimModuleSyntax: true, isolatedModules: true,
-    },
-    include: ['src/**/*', 'tests/**/*'],
-  }, null, 2) + '\n');
   writeFile(path.join(dir, 'vitest.config.ts'), `import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -2622,6 +2820,7 @@ export default defineConfig({
 `);
   writeFile(path.join(dir, 'src/env.ts'), envSource(options));
   if (options.features.auth) writeFile(path.join(dir, 'src/auth.ts'), authSource());
+  if (options.features.billing) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
   if (options.features.storage) writeFile(path.join(dir, 'src/storage.ts'), storageSource());
   if (options.features.billing) writeFile(path.join(dir, 'src/billing.ts'), billingSource());
   writeFile(path.join(dir, 'src/routes.ts'), routesSource(options));
@@ -2786,8 +2985,9 @@ describe('health', () => {
     'ANHEDRAL_DEMO=false',
     options.features.database ? '# Production requires a postgres/postgresql URL with real credentials and a non-local host.\nDATABASE_URL=postgresql://user:pass@localhost:5432/app' : null,
     options.features.auth ? '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
-    options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro' : null,
-    options.features.storage ? '# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\n# Add an R2 lifecycle rule for the staging/ prefix as a last-resort cleanup backstop.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET=\n# Vercel sends this as Authorization: Bearer <CRON_SECRET>; use a non-placeholder value of at least 32 characters.\nCRON_SECRET=' : null,
+    options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro\n# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
+    options.features.storage ? '# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\n# Add an R2 lifecycle rule for the staging/ prefix as a last-resort cleanup backstop.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET=' : null,
+    options.features.billing || options.features.storage ? '# Vercel sends this as Authorization: Bearer <CRON_SECRET>; use a non-placeholder value of at least 32 characters.\nCRON_SECRET=' : null,
   ].filter((value): value is string => value !== null);
   writeFile(path.join(dir, '.env.example'), envLines.join('\n') + '\n');
   appendGitignore(dir, ['.env', '.env.*', '!.env.example', 'node_modules', 'coverage', 'dist', '*.tsbuildinfo']);

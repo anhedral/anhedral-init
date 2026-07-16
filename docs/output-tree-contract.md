@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 106 | `82577994787aa81463b0d037923f550af367dee44e3a97b908f665a3b5f63410` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 55 | `0b631f7ad8b4b306210cd936b1667a7722ebe5d742c6377a5a8d528fc30d83b1` |
-| `api-only` | api |  | deterministic golden | 26 | `2912a100a316dece117e6ef9008af20f05bcd0e8f4111fe4466d062149a48a29` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 56 | `761673312c78c75e05c80951deea182e9bf8c97b6d8103760cf48a786e660c80` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 115 | `5c8fadabc7baad35f14efa660a00e9d060518f067e9bd81fd97e175ecfb6e2ee` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 55 | `6ea532a994771639be499ae10fb248bacb8fbf3a167cb06cb9258249de0bd54f` |
+| `api-only` | api |  | deterministic golden | 26 | `eba76863ae3fdf5d89165bc953c3bea62a815e04b40dc56ccae6fd717f17620a` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 56 | `3faf0b4dab518766c4f97359353219d004b5e210010b7457a95dec96a0de3e3c` |
 
 ## expo-extension
 
@@ -53,6 +53,7 @@ expo-extension-sample/
 │   │   │   ├── billing.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
+│   │   │   ├── realtime.ts
 │   │   │   ├── routes.ts
 │   │   │   └── storage.ts
 │   │   ├── tests/
@@ -78,6 +79,8 @@ expo-extension-sample/
 │   │   │       ├── components/
 │   │   │       │   └── ui/
 │   │   │       │       └── button.tsx
+│   │   │       ├── hooks/
+│   │   │       │   └── use-entitlement.ts
 │   │   │       ├── lib/
 │   │   │       │   ├── api.ts
 │   │   │       │   ├── auth.ts
@@ -105,6 +108,8 @@ expo-extension-sample/
 │   │   │   │       ├── app.tsx
 │   │   │   │       ├── index.html
 │   │   │   │       └── main.tsx
+│   │   │   ├── hooks/
+│   │   │   │   └── use-entitlement.ts
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts
 │   │   │   │   └── utils.ts
@@ -125,7 +130,8 @@ expo-extension-sample/
 │   │   ├── eas.json
 │   │   ├── expo-env.d.ts
 │   │   ├── hooks/
-│   │   │   └── use-api-client.ts
+│   │   │   ├── use-api-client.ts
+│   │   │   └── use-entitlement.ts
 │   │   ├── lib/
 │   │   │   ├── api.ts
 │   │   │   └── subscriptions.ts
@@ -139,12 +145,14 @@ expo-extension-sample/
 │       │   └── page.tsx
 │       ├── components/
 │       │   ├── account-actions.tsx
+│       │   ├── subscription-status.tsx
 │       │   └── ui/
 │       │       ├── button.tsx
 │       │       └── card.tsx
 │       ├── components.json
 │       ├── hooks/
-│       │   └── use-api-client.ts
+│       │   ├── use-api-client.ts
+│       │   └── use-entitlement.ts
 │       ├── lib/
 │       │   ├── api.ts
 │       │   └── utils.ts
@@ -165,16 +173,21 @@ expo-extension-sample/
 │   │   ├── src/
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
-│   └── db/
-│       ├── .env.example
-│       ├── drizzle.config.ts
-│       ├── migrations/
-│       │   └── .gitkeep
+│   ├── db/
+│   │   ├── .env.example
+│   │   ├── drizzle.config.ts
+│   │   ├── migrations/
+│   │   │   └── .gitkeep
+│   │   ├── package.json
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   ├── migrate.ts
+│   │   │   └── schema.ts
+│   │   └── tsconfig.json
+│   └── realtime/
 │       ├── package.json
 │       ├── src/
-│       │   ├── index.ts
-│       │   ├── migrate.ts
-│       │   └── schema.ts
+│       │   └── index.ts
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
 ├── scripts/

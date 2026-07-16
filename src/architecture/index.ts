@@ -49,6 +49,29 @@ export {
   readManifest,
   serializeManifest,
 } from './manifest.js';
+
+export {
+  TEMPLATE_IDS,
+  isTemplateId,
+  templateIdsForModules,
+} from './templates.js';
+export type {
+  TemplateId,
+  TemplateProvenance,
+  TemplateProvenanceMap,
+} from './templates.js';
+
+export {
+  CompositionError,
+  collectModuleContributions,
+} from './contributions.js';
+export type {
+  CompositionErrorCode,
+  CompositionModel,
+  CronContribution,
+  EnvironmentContribution,
+  ModuleCompositionContribution,
+} from './contributions.js';
 export type {
   CreateManifestInput,
   ManifestFileRecord,

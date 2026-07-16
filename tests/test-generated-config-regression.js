@@ -42,6 +42,7 @@ assert.match(scaffold, /services\.web = \{ root: 'apps\/web', framework: 'nextjs
 assert.match(scaffold, /source: '\/api\/\(\.\*\)', destination: \{ service: 'api' \}/);
 assert.match(scaffold, /source: '\/\(\.\*\)', destination: \{ service: 'web' \}/);
 assert.match(scaffold, /\/api\/internal\/storage\/cleanup/);
+assert.match(scaffold, /\/api\/internal\/realtime\/flush/);
 assert.match(scaffold, /MOBILE_NODE_ENGINE/);
 assert.match(scaffold, /from '\.\/workspace-config\.js'/);
 assert.match(workspaceConfig, /overrides: \{ \.\.\.SECURITY_OVERRIDES \}/);
@@ -53,12 +54,15 @@ assert.doesNotMatch(
 );
 
 assert.match(shared, /providerEventId: text\('provider_event_id'\)\.primaryKey\(\)/);
+assert.match(shared, /realtimeOutbox/);
+assert.match(shared, /writeRealtimePackage/);
 assert.match(shared, /if \(!options\.features\.database\) return/);
 assert.match(shared, /if \(!options\.apps\.api\) return/);
 
 assert.match(mobile, /Writing deterministic Expo application/);
 assert.match(mobile, /if \(!options\.apps\.api\) delete dependencies\['@shared\/api-client'\]/);
-assert.match(web, /Using the deterministic local web template/);
+assert.match(web, /Materializing bundled Next\.js \+ shadcn substrate/);
+assert.doesNotMatch(web, /pnpm dlx|exec\(/);
 assert.match(web, /if \(!options\.features\.auth\)/);
 assert.match(web, /@theme inline/);
 assert.match(web, /http:\/\/localhost:8787\/api/);
@@ -66,7 +70,8 @@ assert.match(web, /new URL\(candidate, window\.location\.origin\)/);
 assert.match(web, /candidate\.startsWith\('\/\/'\)/);
 assert.match(mobile, /http:\/\/localhost:8787\/api/);
 assert.match(extension, /http:\/\/localhost:8787\/api/);
-assert.match(extension, /Using the deterministic local extension template/);
+assert.match(extension, /Materializing bundled WXT substrate/);
+assert.doesNotMatch(extension, /pnpm dlx|exec\(/);
 
 assert.doesNotMatch(dependencies, /@latest\b/);
 assert.doesNotMatch(dependencyVersionDeclarations, /'\^[^']+'/);
@@ -76,5 +81,6 @@ assert.match(dependencies, /'esbuild@>=0\.27\.3 <0\.28\.1': '0\.28\.1'/);
 assert.match(dependencies, /'shell-quote@<=1\.8\.3': '1\.8\.4'/);
 assert.match(dependencies, /'tmp@<0\.2\.6': '0\.2\.7'/);
 assert.match(dependencies, /'uuid@<11\.1\.1': '11\.1\.1'/);
+assert.match(dependencies, /ably: '2\.24\.0'/);
 
 console.log('Generated config regression tests passed');

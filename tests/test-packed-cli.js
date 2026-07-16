@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +41,18 @@ function runInstalledCli(cwd) {
   return run(binPath, ['--help'], cwd);
 }
 
+function runInstalledScaffold(installRoot) {
+  const binRoot = path.join(installRoot, 'node_modules', '.bin');
+  const binPath = path.join(binRoot, process.platform === 'win32' ? 'anhedral.cmd' : 'anhedral');
+  const projectRoot = path.join(installRoot, 'packed-project');
+  mkdirSync(projectRoot);
+  run(binPath, ['init', '--api', '--skip-install'], projectRoot);
+  const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
+  assert.equal(manifest.schemaVersion, 4);
+  assert.deepEqual(Object.keys(manifest.templates), ['api-fastify']);
+  assert.equal(existsSync(path.join(projectRoot, 'apps/api/tsconfig.json')), true);
+}
+
 function resolveProvidedTarball(argument) {
   const providedPath = path.resolve(argument);
   if (!providedPath.endsWith('.json')) return providedPath;
@@ -73,6 +85,7 @@ try {
   assert.equal(packageJson.bin.anhedral, 'bin/anhedral.js');
   assert.equal(packageJson.types, './dist/index.d.ts');
   assert.match(runInstalledCli(installRoot).stdout, /anhedral init/);
+  runInstalledScaffold(installRoot);
   const imported = run(process.execPath, ['--input-type=module', '--eval', [
     "const packageApi = await import('anhedral');",
     "if (typeof packageApi.scaffoldProject !== 'function') throw new Error('missing scaffoldProject export');",

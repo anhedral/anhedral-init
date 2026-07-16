@@ -1,2 +1,2 @@
 /** Kept in sync with package.json by tests/release checks. */
-export const GENERATOR_VERSION = '0.2.0';
+export const GENERATOR_VERSION = '0.2.1';

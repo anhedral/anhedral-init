@@ -48,7 +48,7 @@ Backend features:
 
 - `db`: Neon and Drizzle
 - `auth`: Clerk
-- `billing`: RevenueCat webhook and entitlement persistence
+- `billing`: RevenueCat reconciliation, entitlement persistence, and Ably realtime synchronization
 - `storage`: Cloudflare R2 signed uploads
 - `native-subscriptions`: RevenueCat native bootstrap for the Expo app (web target no-op)
 
@@ -78,25 +78,35 @@ pnpm dlx anhedral@latest add storage --dry-run
 
 `--dry-run` builds the complete plan in a temporary staging directory and leaves the project unchanged. If an interrupted transaction is pending, a dry-run refuses to recover it; rerun the original command without `--dry-run` first. `--json` emits one machine-readable JSON document without decorative CLI output; failures include a stable `code` alongside the human-readable `error`. `--verbose` streams child-command output for interactive diagnostics (JSON mode remains quiet so its output stays parseable).
 
-The default `stable` toolchain uses verified, exact versions and deterministic local templates. `--toolchain latest` is intended for upstream drift testing.
+The default `stable` toolchain uses verified, exact versions and integrity-checked bundled templates. `--toolchain latest` is retained as a metadata-only compatibility channel for maintainer investigations: it records intent in `anhedral.json` but deliberately produces the same pinned dependencies and trusted bundled substrates as `stable`. Upstream refreshes happen outside user projects and enter the CLI only after review, checksum updates, and release verification.
 
-## Generated structure
+## Generated tree conventions
 
-A full selection currently produces this high-level structure:
+Anhedral creates one pnpm/Turborepo workspace. Deployable programs live under `apps/`; source-shared libraries live under `packages/`; root files coordinate the workspace as a whole. A full selection produces every path documented below, while smaller selections omit whole surfaces and feature-gated files rather than leaving dead placeholders.
+
+Naming follows these rules:
+
+- Directories and ordinary source files use lowercase kebab-case, for example `api-client` and `use-entitlement.ts`.
+- React components use kebab-case filenames and PascalCase exports, for example `subscription-status.tsx` exports `SubscriptionStatus`.
+- React hooks begin with `use-`; framework entrypoints retain their required names such as `_layout.tsx`, `page.tsx`, `main.tsx`, and `background.ts`.
+- Shared packages use the `@shared/<name>` workspace namespace and export source TypeScript directly.
+- Environment examples are package-local. The root `.env.example` is only an inventory; it is never a runtime environment file.
+- Tests live beside the package they verify under `tests/` and use `*.test.ts`. Generator-maintained CI and deployment configuration remain at the root.
+- Only the root owns `pnpm-workspace.yaml` and `pnpm-lock.yaml`; nested workspace files, lockfiles, `.git` directories, and `node_modules` are removed.
+- `README.md` and `PRODUCTION.md` become user-owned after initialization. Root JSON/YAML configuration is mergeable. Other recorded files are managed and may be replaced only while unmodified.
+- Feature files are conditional: `auth` adds Clerk files, `billing` adds RevenueCat and realtime files, `storage` adds R2 files, and `native-subscriptions` adds the native RevenueCat client.
+
+The complete conditional source tree is:
 
 ```text
 .
 ├── .github/workflows/anhedral-ci.yml
-├── apps/
-│   ├── api/
-│   ├── desktop/
-│   ├── extension/
-│   ├── mobile/
-│   └── web/
-├── packages/
-│   ├── api-client/
-│   ├── contracts/
-│   └── db/
+├── apps/{api,desktop,extension,mobile,web}/
+├── packages/{api-client,contracts,db,realtime}/
+├── scripts/verify-db-migrations.mjs
+├── .env.example
+├── .gitignore
+├── .vercelignore
 ├── ANHEDRAL.md
 ├── PRODUCTION.md
 ├── README.md
@@ -107,14 +117,166 @@ A full selection currently produces this high-level structure:
 └── vercel.json
 ```
 
-The tree is conditional. For example, `--api` creates the Fastify app and contracts package, but no database, Clerk, storage, billing, or client packages. The source distribution maintains exact golden-tree contracts for representative stacks, including modes, sizes, and SHA-256 digests.
+### Root files
+
+| Path | Purpose |
+| --- | --- |
+| `.env.example` | Inventory of every server and client environment key required by the selected modules. |
+| `.github/workflows/anhedral-ci.yml` | Pinned GitHub Actions workflow for install, types, tests, builds, and migration drift. |
+| `.gitignore` | Ignores dependencies, caches, build products, real environments, coverage, and releases. |
+| `.vercelignore` | Excludes extension, mobile-export, and desktop-package artifacts from Vercel uploads. |
+| `ANHEDRAL.md` | Records generator version, resolved modules, and managed-project operating rules. |
+| `PRODUCTION.md` | User-owned production checklist tailored to selected providers and surfaces. |
+| `README.md` | User-owned project introduction, selected module list, and first-run commands. |
+| `anhedral.json` | Schema-v4 ownership manifest containing module closure, toolchain, bundled-template provenance, file hashes, and modes. |
+| `package.json` | Root package metadata and conditional dev, verification, database, packaging, and archive scripts. |
+| `pnpm-workspace.yaml` | Sole workspace definition plus build allowlist, peer policy, and security overrides. |
+| `pnpm-lock.yaml` | Sole resolved dependency lockfile; created by installation, not source-only generation. |
+| `scripts/verify-db-migrations.mjs` | Database gate requiring reviewed, Git-tracked migration SQL when `db` is selected. |
+| `turbo.json` | Turborepo build, typecheck, development, cache, dependency, and output configuration. |
+| `vercel.json` | Vercel Services roots, ordered API/web rewrites, and selected storage/realtime crons. |
+
+### API app (`apps/api`, selected by `api`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/api/.env.example` | Runtime server environment template with only selected provider credentials. |
+| `apps/api/.gitignore` | Prevents API environments, dependencies, output, coverage, and compiler state from being committed. |
+| `apps/api/package.json` | Fastify package scripts and feature-gated server dependencies. |
+| `apps/api/tsconfig.json` | Strict bundler-resolution TypeScript configuration for API source and tests. |
+| `apps/api/vitest.config.ts` | V8 coverage scope, reporters, exclusions, and quantitative thresholds. |
+| `apps/api/src/application.ts` | Builds Fastify with proxy trust, security plugins, safe errors, readiness, and route registration. |
+| `apps/api/src/auth.ts` | Verifies Clerk authentication and extracts the authoritative user ID when `auth` is selected. |
+| `apps/api/src/billing.ts` | Reconciles RevenueCat, persists ordered entitlements, claims webhooks, and manages the realtime outbox. |
+| `apps/api/src/env.ts` | Parses environment variables and enforces semantic production configuration. |
+| `apps/api/src/index.ts` | Starts the server and performs bounded graceful shutdown on process signals. |
+| `apps/api/src/realtime.ts` | Issues scoped Ably token requests and publishes per-user subscription invalidations. |
+| `apps/api/src/routes.ts` | Defines health, readiness, auth, billing, realtime, storage, webhook, and internal cron routes. |
+| `apps/api/src/storage.ts` | Implements authenticated R2 presign, confirmation, ownership, validation, and cleanup. |
+| `apps/api/tests/env.test.ts` | Exercises defaults and rejects unsafe or malformed production environments. |
+| `apps/api/tests/health.test.ts` | Verifies health, readiness, draining, safe errors, and exact-origin CORS. |
+| `apps/api/tests/revenuecat-webhook.test.ts` | Verifies RevenueCat authorization, reconciliation, replay, transfer, ordering, retry, and transactions. |
+| `apps/api/tests/storage.test.ts` | Verifies upload metadata, ownership, concurrency, confirmation, and cleanup limits. |
+
+### Web app (`apps/web`, selected by `web`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/web/.env.example` | Next.js client-safe API and Clerk environment template. |
+| `apps/web/package.json` | Next.js package scripts and conditional API, Clerk, and realtime dependencies. |
+| `apps/web/tsconfig.json` | Strict Next.js TypeScript configuration with the `@/*` application alias. |
+| `apps/web/next-env.d.ts` | Framework-generated type references required by Next.js tooling. |
+| `apps/web/next.config.ts` | Adds the development `/api` proxy while preserving same-origin production routing. |
+| `apps/web/postcss.config.mjs` | Connects Tailwind CSS v4 to PostCSS. |
+| `apps/web/components.json` | shadcn/ui style, alias, Tailwind, and icon-library configuration. |
+| `apps/web/app/globals.css` | Tailwind import and shared design-token/theme definitions. |
+| `apps/web/app/layout.tsx` | Root metadata, HTML shell, and conditional Clerk provider. |
+| `apps/web/app/page.tsx` | Generated home screen and selected-module status surface. |
+| `apps/web/components/account-actions.tsx` | Signed-out sign-in and signed-in user controls for Clerk. |
+| `apps/web/components/subscription-status.tsx` | Displays the live authoritative entitlement when `billing` is selected. |
+| `apps/web/components/ui/button.tsx` | Reusable shadcn-style button primitive. |
+| `apps/web/components/ui/card.tsx` | Reusable shadcn-style card primitives. |
+| `apps/web/hooks/use-api-client.ts` | Binds the current Clerk session token to the shared API client. |
+| `apps/web/hooks/use-entitlement.ts` | Loads entitlements, subscribes to Ably invalidations, and refetches on visibility. |
+| `apps/web/lib/api.ts` | Validates and resolves local, same-origin, or absolute API base URLs. |
+| `apps/web/lib/utils.ts` | Merges conditional class names and Tailwind classes. |
+
+### Mobile app (`apps/mobile`, selected by `mobile`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/mobile/.env.example` | Expo client-safe API, Clerk, entitlement, and platform RevenueCat key template. |
+| `apps/mobile/.gitignore` | Ignores real environments, Expo state, exports, dependencies, and build output. |
+| `apps/mobile/package.json` | Expo Router scripts and conditional API, Clerk, RevenueCat, and realtime dependencies. |
+| `apps/mobile/app.json` | Expo identity, URL scheme, web export, typed routes, and selected plugins. |
+| `apps/mobile/eas.json` | Development, preview, production, and submission profiles for EAS. |
+| `apps/mobile/expo-env.d.ts` | Expo framework type reference. |
+| `apps/mobile/tsconfig.json` | Strict Expo TypeScript configuration and `@/*` alias. |
+| `apps/mobile/app/_layout.tsx` | Root Expo Router stack, Clerk provider, secure token cache, and RevenueCat identity synchronization. |
+| `apps/mobile/app/index.tsx` | Home screen, account controls, native paywall action, and live entitlement status. |
+| `apps/mobile/components/account-controls.tsx` | Clerk sign-in, sign-out, and current-user controls. |
+| `apps/mobile/hooks/use-api-client.ts` | Binds Clerk's Expo token getter to the shared API client. |
+| `apps/mobile/hooks/use-entitlement.ts` | Handles initial load, Ably updates, RevenueCat updates, and foreground/network recovery. |
+| `apps/mobile/lib/api.ts` | Validates the Expo API URL and constructs the typed client. |
+| `apps/mobile/lib/subscriptions.ts` | Configures RevenueCat, synchronizes Clerk identity, listens for customer updates, and presents paywalls. |
+
+### Desktop app (`apps/desktop`, selected by `desktop`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/desktop/.env.example` | Vite client-safe API and Clerk environment template. |
+| `apps/desktop/package.json` | Electron/Vite scripts, electron-builder targets, and conditional integrations. |
+| `apps/desktop/tsconfig.json` | Strict renderer and Vite TypeScript configuration. |
+| `apps/desktop/tsconfig.main.json` | NodeNext build configuration for Electron main and preload code. |
+| `apps/desktop/vite.config.ts` | Builds the renderer with React, relative assets, and the `@` alias. |
+| `apps/desktop/postcss.config.mjs` | Connects Tailwind CSS v4 to the renderer. |
+| `apps/desktop/components.json` | shadcn/ui style and alias configuration for the renderer. |
+| `apps/desktop/index.html` | Vite renderer HTML entry document. |
+| `apps/desktop/scripts/dev.mjs` | Coordinates Vite readiness, Electron launch, signals, and child cleanup. |
+| `apps/desktop/src/main/main.ts` | Creates hardened windows and restricts navigation, permissions, and external links. |
+| `apps/desktop/src/main/preload.cts` | Exposes the minimal context-isolated preload bridge. |
+| `apps/desktop/src/renderer/main.tsx` | Mounts the renderer and displays account, entitlement, and application state. |
+| `apps/desktop/src/renderer/styles.css` | Tailwind import and desktop design tokens. |
+| `apps/desktop/src/renderer/components/ui/button.tsx` | Reusable desktop button primitive. |
+| `apps/desktop/src/renderer/hooks/use-entitlement.ts` | Tracks Clerk identity, Ably invalidations, visibility, and authoritative entitlement state. |
+| `apps/desktop/src/renderer/lib/api.ts` | Validates the Vite API URL and constructs the authenticated client. |
+| `apps/desktop/src/renderer/lib/auth.ts` | Initializes Clerk, exposes session/user identity, and opens account UI. |
+| `apps/desktop/src/renderer/lib/utils.ts` | Merges renderer class names and Tailwind classes. |
+
+### Chrome extension (`apps/extension`, selected by `extension`)
+
+| Path | Purpose |
+| --- | --- |
+| `apps/extension/.env.example` | Vite API, Clerk host/sync, publishable key, and optional CRX key template. |
+| `apps/extension/README.md` | Extension-specific setup, permission, environment, and loading instructions. |
+| `apps/extension/package.json` | WXT build/archive scripts and conditional Clerk, API, and realtime dependencies. |
+| `apps/extension/tsconfig.json` | Strict WXT, DOM, React, and Chrome TypeScript configuration. |
+| `apps/extension/wxt.config.ts` | Generates the manifest, side panel, permissions, and validated host permissions. |
+| `apps/extension/postcss.config.cjs` | Connects Tailwind v3 and Autoprefixer to WXT. |
+| `apps/extension/tailwind.config.cjs` | Declares extension source scanning and design tokens. |
+| `apps/extension/components.json` | shadcn/ui style and alias configuration. |
+| `apps/extension/src/components/ui/button.tsx` | Reusable side-panel button primitive. |
+| `apps/extension/src/contexts/auth-context.tsx` | Hosts Clerk, background errors, session identity, sign-out, and authenticated API access. |
+| `apps/extension/src/entrypoints/background.ts` | Initializes Clerk background auth and configures browser-action side-panel behavior. |
+| `apps/extension/src/entrypoints/sidepanel/app.tsx` | Renders account, active-page, error, and live entitlement UI. |
+| `apps/extension/src/entrypoints/sidepanel/index.html` | Side-panel HTML entry document. |
+| `apps/extension/src/entrypoints/sidepanel/main.tsx` | Mounts React and the conditional extension auth provider. |
+| `apps/extension/src/hooks/use-entitlement.ts` | Subscribes to per-user Ably events and refetches on panel visibility. |
+| `apps/extension/src/lib/api.ts` | Validates the extension API origin and constructs the typed client. |
+| `apps/extension/src/lib/utils.ts` | Merges component class names and Tailwind classes. |
+| `apps/extension/src/styles/main.css` | Tailwind layers and extension theme variables. |
+
+### Shared packages (`packages`)
+
+| Path | Purpose |
+| --- | --- |
+| `packages/contracts/package.json` | Declares the source-exported Zod contract package. |
+| `packages/contracts/tsconfig.json` | Strict shared-package TypeScript configuration. |
+| `packages/contracts/src/index.ts` | Defines health, auth, entitlement, realtime-token, realtime-event, and storage schemas/types. |
+| `packages/api-client/package.json` | Declares the typed API client and its contract dependency. |
+| `packages/api-client/tsconfig.json` | Strict shared-package TypeScript configuration. |
+| `packages/api-client/src/index.ts` | Implements URL validation, auth, timeout/abort handling, errors, response parsing, and typed methods. |
+| `packages/realtime/package.json` | Declares the cross-surface Ably realtime client. |
+| `packages/realtime/tsconfig.json` | Strict shared-package TypeScript configuration. |
+| `packages/realtime/src/index.ts` | Opens scoped Ably subscriptions, validates events, reports connection errors, and cleans up. |
+| `packages/db/.env.example` | Drizzle/Neon database URL template. |
+| `packages/db/package.json` | Declares database dependencies and generation, migration, check, and studio scripts. |
+| `packages/db/tsconfig.json` | Strict database package TypeScript configuration. |
+| `packages/db/drizzle.config.ts` | Points Drizzle Kit at the schema, migration directory, dialect, and environment URL. |
+| `packages/db/migrations/.gitkeep` | Keeps the migration directory present before the first reviewed SQL migration. |
+| `packages/db/src/index.ts` | Creates and exports the Neon HTTP/Drizzle client and schema. |
+| `packages/db/src/migrate.ts` | Applies committed migrations from the package directory. |
+| `packages/db/src/schema.ts` | Defines items plus selected subscription, webhook, realtime-outbox, and upload tables. |
+
+The tree is conditional. For example, `--api` creates Fastify and contracts but no database, Clerk, billing, realtime, storage, or client package. `billing` creates the realtime server/outbox and creates `packages/realtime` only when at least one client surface can consume it. The source distribution maintains exact golden-tree contracts for representative stacks, including modes, sizes, and SHA-256 digests.
 
 ## Safe incremental generation
 
-`anhedral.json` schema v3 records:
+`anhedral.json` schema v4 records:
 
 - the canonical resolved module closure;
 - the exact generator version and selected toolchain channel;
+- every bundled substrate's catalog version and verified SHA-256 digest;
 - every generated file's owner, ownership class, SHA-256 hash, and portable mode.
 
 Files are classified as managed, mergeable, or user-owned. `anhedral add` refuses to overwrite modified managed files, user-owned files, symlinks, or unowned path collisions. Root package fields and supported root configuration are merged structurally, while existing user workflows and documentation remain untouched. pnpm-only install and security policy lives in `pnpm-workspace.yaml`; safe-add preserves custom list entries and refuses conflicting generated mapping values.
@@ -173,6 +335,7 @@ Only selected integrations add dependencies, code, tables, and environment keys.
 - Clerk clients: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - Clerk extension networking: `VITE_CLERK_FRONTEND_API_URL` and optional `VITE_CLERK_SYNC_HOST`
 - RevenueCat: server-only `RC_WEBHOOK_SECRET` and `RC_SECRET_API_KEY`, `RC_ENTITLEMENT_ID`, and client-safe `EXPO_PUBLIC_RC_*`
+- Ably realtime: server-only `ABLY_API_KEY`; clients obtain user-scoped, short-lived token requests from the API
 - R2: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `CRON_SECRET`
 
 Never commit real `.env` files. Production startup fails when a selected provider is missing or malformed: database URLs must use `postgres:`/`postgresql:` with real credentials and a non-local host; Clerk keys must use their `pk_live_`/`sk_live_` forms; RevenueCat and cron secrets must be high entropy and non-placeholder; and R2 credentials and bucket names must match Cloudflare's issued formats. Browser `CORS_ORIGINS` must be listed explicitly as exact HTTPS origins in production; literal `null` remains supported for the desktop file origin. `ANHEDRAL_DEMO=true` is also rejected in production.
@@ -182,11 +345,13 @@ When `auth` and `api` are selected together, generated web and mobile apps inclu
 
 Billing webhooks are treated as retryable triggers rather than authoritative entitlement snapshots. The API reconciles the affected customer against RevenueCat's server API, handles transfer source revocation and destination reconciliation, honors grace-period expiration, and completes the durable webhook claim only after reconciliation succeeds. Use a dedicated server-only RevenueCat key with customer-read access and a separate high-entropy webhook authorization secret.
 
+Billing projects also synchronize active clients in realtime. Every accepted entitlement mutation increments a monotonic revision and inserts an Ably notification into `realtime_outbox` in the same database transaction. The API publishes only a revision invalidation on a Clerk-user-scoped channel; web, mobile, desktop, and extension clients then refetch `/api/subscriptions/me`, keeping Neon authoritative. Native purchase/restoration success and RevenueCat customer-info callbacks trigger `/api/subscriptions/refresh` immediately instead of waiting for a webhook. Visibility/foreground recovery covers disconnected and backgrounded clients, while `/api/internal/realtime/flush` retries undelivered outbox records every five minutes.
+
 Generated Chrome extension manifests derive validated, deduplicated host permissions from `VITE_API_URL`, `VITE_CLERK_FRONTEND_API_URL`, and optional `VITE_CLERK_SYNC_HOST`. Configure those values in the extension's production environment; no manifest source edit is required.
 
 ## Deployment
 
-The root `vercel.json` uses Vercel's current `services` schema. It declares `apps/api` and `apps/web` as independent service roots, then routes `/api/(.*)` to the API before the web catch-all. Vercel preserves the original request path, so Fastify mounts its routes under `/api` locally and in deployment. The generated web client uses same-origin `/api` by default in production so preview and custom domains stay deployment-relative; local client examples use `http://localhost:8787/api`, while mobile, desktop, and extension production URLs remain absolute. Storage projects also schedule the authenticated staging cleanup route once per day; set a strong `CRON_SECRET` in Vercel and configure an R2 lifecycle rule for `staging/` as a longer-lived backstop. Select the Services framework preset in Vercel before deploying.
+The root `vercel.json` uses Vercel's current `services` schema. It declares `apps/api` and `apps/web` as independent service roots, then routes `/api/(.*)` to the API before the web catch-all. Vercel preserves the original request path, so Fastify mounts its routes under `/api` locally and in deployment. The generated web client uses same-origin `/api` by default in production so preview and custom domains stay deployment-relative; local client examples use `http://localhost:8787/api`, while mobile, desktop, and extension production URLs remain absolute. Billing projects schedule the authenticated realtime-outbox retry every five minutes, and storage projects schedule staging cleanup once per day; set a strong `CRON_SECRET` in Vercel. Configure an R2 lifecycle rule for `staging/` as a longer-lived storage backstop. Select the Services framework preset in Vercel before deploying.
 
 Browser uploads to R2 presigned URLs also require a bucket CORS policy. Replace the example origin with every exact browser origin that may upload (origins contain no path or trailing slash), then verify the browser preflight and signed `PUT`:
 

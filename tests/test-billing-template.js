@@ -9,7 +9,7 @@ const root = mkdtempSync(path.join(tmpdir(), 'anhedral-billing-template-'));
 const options = {
   projectName: 'billing-template',
   displayName: 'Billing Template',
-  apps: { web: false, mobile: false, api: true, desktop: false, extension: false },
+  apps: { web: true, mobile: false, api: true, desktop: false, extension: false },
   features: { database: true, auth: true, billing: true, storage: false, nativeSubscriptions: false },
   skipInstall: true,
 };
@@ -36,6 +36,9 @@ try {
   assert.match(subscriptionSchema, /userId: text\('user_id'\)\.notNull\(\)\.unique\(\)/);
   assert.doesNotMatch(subscriptionSchema, /references\(\(\) => users\.id/);
   assert.match(subscriptionSchema, /eventTimestamp: timestamp\('event_timestamp'\)\.notNull\(\)/);
+  assert.match(subscriptionSchema, /revision: integer\('revision'\)\.notNull\(\)\.default\(1\)/);
+  assert.match(schema, /export const realtimeOutbox/);
+  assert.match(schema, /topic: text\('topic'\)\.notNull\(\)/);
   assert.match(schema, /status: text\('status'\)\.notNull\(\)\.default\('pending'\)/);
   assert.match(schema, /claimToken: text\('claim_token'\)/);
   assert.match(schema, /attempts: integer\('attempts'\)\.notNull\(\)\.default\(0\)/);
@@ -49,6 +52,9 @@ try {
   assert.match(billing, /WITH "owned_claim" AS/);
   assert.match(billing, /FOR UPDATE/);
   assert.match(billing, /"subscriptions"\."event_timestamp" <= excluded\."event_timestamp"/);
+  assert.match(billing, /INSERT INTO "realtime_outbox"/);
+  assert.match(billing, /"subscriptions"\."revision" \+ 1/);
+  assert.match(billing, /async pendingRealtime/);
   assert.match(billing, /RETURNING "provider_event_id" AS "providerEventId"/);
   assert.match(billing, /effectiveEntitlementStatus\(subscription\.status, subscription\.expiresAt\)/);
   assert.match(billing, /expiresAt\.getTime\(\) > now\.getTime\(\)/);
@@ -58,6 +64,10 @@ try {
   assert.match(routes, /claim\.status === 'in_progress'/);
   assert.match(routes, /header\('retry-after', '5'\)\.code\(503\)/);
   assert.match(routes, /billingStore\.reconcile\(providerEventId, claim\.token, subscriptionUpdates\)/);
+  assert.match(routes, /app\.post\('\/subscriptions\/refresh'/);
+  assert.match(routes, /app\.post\('\/realtime\/token'/);
+  assert.match(routes, /app\.get\('\/internal\/realtime\/flush'/);
+  assert.match(routes, /publishSubscriptionChanges/);
   assert.match(routes, /await billingStore\.fail\(providerEventId, claim\.token, message\)/);
 
   const app = read('apps/api/src/application.ts');
@@ -76,6 +86,11 @@ try {
   assert.match(routeTests, /atomic database write failure/);
   assert.match(routeTests, /one database transaction/);
   assert.match(routeTests, /persisted active entitlement as expired/);
+  assert.match(read('apps/api/src/realtime.ts'), /createTokenRequest/);
+  assert.match(read('apps/api/src/realtime.ts'), /private:users:/);
+  assert.match(read('packages/contracts/src/index.ts'), /SubscriptionChangedEventSchema/);
+  assert.match(read('packages/api-client/src/index.ts'), /refreshEntitlement/);
+  assert.match(read('packages/realtime/src/index.ts'), /subscribeToSubscriptionChanges/);
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

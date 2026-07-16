@@ -20,6 +20,8 @@ const requiredFiles = new Set([
   'dist/index.js',
   'favicon.ico',
   'package.json',
+  'templates/catalog.json',
+  'templates/web-next/apps/web/next-env.d.ts',
 ]);
 const allowedRootFiles = new Set([
   'CHANGELOG.md',
@@ -93,9 +95,11 @@ try {
   for (const file of packed.files) {
     const allowedBin = file.path === 'bin/anhedral.js';
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
-    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist;
+    const allowedTemplate = file.path.startsWith('templates/')
+      && /(?:\.json|\.d\.ts)$/.test(file.path);
+    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
-    assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|docs?|\.github)(?:\/|$)/);
+    assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|docs?|\.github|node_modules|\.git)(?:\/|$)/);
     assert.doesNotMatch(file.path, /\.(?:map|tgz|tsbuildinfo)$/);
   }
 

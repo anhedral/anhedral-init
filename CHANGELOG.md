@@ -6,14 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.2.1 - 2026-07-16
+
 ### Added
 
+- Add integrity-checked bundled framework substrates, typed module contributions, deterministic root composers, and manifest schema v4 template provenance.
+- Add template tamper, symbolic-link, package-content, and contribution-composition regression tests.
 - Add exact-artifact portability checks at the minimum Node.js 20 and 22 releases and the pinned Node.js 24 release on macOS and Windows.
 - Add scheduled and release-gated Electron, WXT, and Expo native runtime acceptance lanes.
 - Add deterministic workflow, Renovate extraction, release declaration, registry recovery, and module-topology policy tests.
 
 ### Security
 
+- Reject altered template catalogs, mismatched substrate digests, symbolic links, forbidden generated artifacts, and oversized template trees before transactional commit.
 - Scan all tracked text, built output, and final package tarballs for high-confidence secret formats before publication.
 - Clarify that public package availability grants no installation, execution, or generated-output rights without a separate written agreement.
 

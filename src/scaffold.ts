@@ -27,6 +27,13 @@ import {
   type ModulePlanContribution,
 } from './architecture/index.js';
 import { GENERATOR_VERSION } from './version.js';
+import { collectModuleContributions } from './architecture/contributions.js';
+import { composeRootEnvironment, composeVercelCrons } from './composers/root.js';
+import {
+  assertTemplateProvenance,
+  materializeTemplates,
+  type TemplateProvenanceMap,
+} from './template-source.js';
 import {
   desiredWorkspacePolicy,
   mergeWorkspaceFile,
@@ -576,23 +583,10 @@ function writeRootEnv(root: string, options: ResolvedInitOptions): void {
     options.apps.desktop ? 'http://127.0.0.1:5173' : null,
     options.apps.desktop ? 'null' : null,
   ].filter((value): value is string => value !== null);
-  const lines = [
-    options.apps.api ? 'ANHEDRAL_DEMO=false' : null,
-    options.apps.api ? 'PORT=8787' : null,
-    options.apps.api ? 'TRUST_PROXY_HOPS=0' : null,
-    options.apps.api ? `CORS_ORIGINS=${corsOrigins.join(',')}` : null,
-    options.features.database ? 'DATABASE_URL=postgresql://user:pass@localhost:5432/app' : null,
-    options.features.auth ? 'CLERK_PUBLISHABLE_KEY=pk_test_***' : null,
-    options.features.auth ? 'CLERK_SECRET_KEY=sk_test_***' : null,
-    options.features.billing ? 'RC_WEBHOOK_SECRET=' : null,
-    options.features.billing ? 'RC_SECRET_API_KEY=' : null,
-    options.features.billing ? 'RC_ENTITLEMENT_ID=pro' : null,
-    options.features.storage ? 'R2_ACCOUNT_ID=' : null,
-    options.features.storage ? 'R2_ACCESS_KEY_ID=' : null,
-    options.features.storage ? 'R2_SECRET_ACCESS_KEY=' : null,
-    options.features.storage ? 'R2_BUCKET=' : null,
-    options.features.storage ? 'CRON_SECRET=' : null,
-  ].filter((value): value is string => value !== null);
+  const lines = composeRootEnvironment(
+    collectModuleContributions(options.modules),
+    { corsOrigins },
+  );
   const filePath = path.join(root, '.env.example');
   const current = pathEntryExists(filePath) ? readFileSync(filePath, 'utf8') : '';
   const existingKeys = new Set([...current.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
@@ -627,13 +621,12 @@ function desiredVercelConfig(options: ResolvedInitOptions): Record<string, unkno
     options.apps.api ? { source: '/api/(.*)', destination: { service: 'api' } } : null,
     options.apps.web ? { source: '/(.*)', destination: { service: 'web' } } : null,
   ].filter((rewrite): rewrite is NonNullable<typeof rewrite> => rewrite !== null);
+  const crons = composeVercelCrons(collectModuleContributions(options.modules));
   return {
     $schema: 'https://openapi.vercel.sh/vercel.json',
     ...(Object.keys(services).length > 0 ? { services } : {}),
     ...(rewrites.length > 0 ? { rewrites } : {}),
-    ...(options.features.storage
-      ? { crons: [{ path: '/api/internal/storage/cleanup', schedule: '0 3 * * *' }] }
-      : {}),
+    ...(crons.length > 0 ? { crons } : {}),
   };
 }
 
@@ -847,6 +840,7 @@ Generated-file ownership and exact tool versions are recorded in \`anhedral.json
       options.apps.api && options.apps.web ? '- Keep the top-level `/api/(.*)` service rewrite before the web catch-all rewrite.' : null,
       options.apps.api && options.apps.web ? '- The web client defaults to same-origin `/api` in production; override `NEXT_PUBLIC_API_URL` only when the API uses another origin.' : null,
       options.features.storage ? '- Set a strong `CRON_SECRET` and verify Vercel invokes `/api/internal/storage/cleanup` on schedule.' : null,
+      options.features.billing ? '- Configure `ABLY_API_KEY`, set a strong `CRON_SECRET`, and verify Vercel invokes `/api/internal/realtime/flush` every five minutes to retry the transactional outbox.' : null,
       options.features.billing ? '- Use a dedicated RevenueCat secret REST API key with customer-read access; keep it server-only and rotate it independently from the 32+ character webhook authorization secret.' : null,
       options.features.storage ? '- Configure R2 CORS for every browser origin with `AllowedMethods: ["PUT"]`, `AllowedHeaders: ["Content-Type"]`, optional `ExposeHeaders: ["ETag"]` and `MaxAgeSeconds`, then verify both the preflight and a signed PUT in a browser.' : null,
       options.features.storage ? '- Configure an R2 lifecycle rule for the `staging/` prefix as a backstop, with an age longer than the application cleanup grace period.' : null,
@@ -903,6 +897,7 @@ function createProjectManifest(
   root: string,
   options: ResolvedInitOptions,
   operation: 'init' | 'add',
+  templates: TemplateProvenanceMap,
   previous?: ProjectManifest,
 ): ProjectManifest {
   const contributions = new Map<ModuleId | 'root', ModulePlanContribution['files'][number][]>();
@@ -928,6 +923,7 @@ function createProjectManifest(
     project: { name: options.projectName, displayName: options.displayName },
     plan,
     toolchain: options.toolchainChannel,
+    templates,
   });
   const files = Object.freeze(Object.fromEntries(Object.entries(manifest.files).map(([relativePath, record]) => [
     relativePath,
@@ -954,6 +950,7 @@ function readProjectManifest(root: string): ProjectManifest {
       + 'Regenerate the project with the current CLI before adding modules.',
     );
   }
+  assertTemplateProvenance(manifest.modules, manifest.templates);
   return manifest;
 }
 
@@ -969,7 +966,11 @@ function cleanNestedArtifacts(root: string): void {
   }
 }
 
-async function writeSelectedModules(root: string, options: ResolvedInitOptions): Promise<void> {
+async function writeSelectedModules(
+  root: string,
+  options: ResolvedInitOptions,
+): Promise<TemplateProvenanceMap> {
+  const templates = materializeTemplates(root, resolveModules(options.modules).resolvedModules);
   const shared = projectOptions(options);
   scaffoldSharedPackages(root, shared);
   if (options.apps.api) await scaffoldApi(root, shared);
@@ -977,6 +978,7 @@ async function writeSelectedModules(root: string, options: ResolvedInitOptions):
   if (options.apps.web) await scaffoldWeb(root, shared);
   if (options.apps.desktop) await scaffoldDesktop(root, shared);
   if (options.apps.extension) await scaffoldExtension(root, shared);
+  return templates;
 }
 
 function printPlan(operation: 'init' | 'add', paths: readonly string[], json: boolean): void {
@@ -1057,10 +1059,10 @@ export async function scaffoldProject(inputOptions: InitOptions): Promise<void> 
       },
       build: async (stageRoot) => {
         writeRootFiles(stageRoot, options, 'init', root);
-        await writeSelectedModules(stageRoot, options);
+        const templates = await writeSelectedModules(stageRoot, options);
         writeProjectDocs(stageRoot, options, true);
         cleanNestedArtifacts(stageRoot);
-        writeManifest(stageRoot, createProjectManifest(stageRoot, options, 'init'));
+        writeManifest(stageRoot, createProjectManifest(stageRoot, options, 'init', templates));
         commitPaths.push(...readdirSync(stageRoot));
       },
       afterCommit: () => {
@@ -1118,10 +1120,10 @@ export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> 
       build: async (stageRoot) => {
         if (!manifest || !options) throw new Error('Internal add plan was not prepared.');
         writeRootFiles(stageRoot, options, 'add', root, manifest);
-        await writeSelectedModules(stageRoot, options);
+        const templates = await writeSelectedModules(stageRoot, options);
         writeProjectDocs(stageRoot, options, false);
         cleanNestedArtifacts(stageRoot);
-        writeManifest(stageRoot, createProjectManifest(stageRoot, options, 'add', manifest));
+        writeManifest(stageRoot, createProjectManifest(stageRoot, options, 'add', templates, manifest));
         const diff = stagedFileDiff(root, stageRoot, manifest);
         assertSafeChangedPaths(root, stageRoot, manifest, [...diff.changed, ...diff.deleted], new Set(diff.deleted));
         commitPaths.push(...diff.changed);
@@ -1165,6 +1167,15 @@ export function doctorProject(): DoctorReport {
       path: 'anhedral.json',
       severity: 'error',
       message: `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; regenerate with the current CLI.`,
+    });
+  }
+  try {
+    assertTemplateProvenance(manifest.modules, manifest.templates);
+  } catch (error) {
+    issues.push({
+      path: 'anhedral.json',
+      severity: 'error',
+      message: error instanceof Error ? error.message : 'Template provenance is invalid.',
     });
   }
   for (const [relativePath, record] of Object.entries(manifest.files)) {

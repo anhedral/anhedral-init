@@ -8,6 +8,7 @@ import type { ProjectOptions } from '../scaffold.js';
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(MOBILE_APP_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.billing) delete dependencies['@shared/realtime'];
 
   if (options.features.auth) {
     for (const name of [
@@ -82,8 +83,6 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
     },
     include: ['**/*.ts', '**/*.tsx', '.expo/types/**/*.ts', 'expo-env.d.ts'],
   }, null, 2) + '\n');
-  writeFile(path.join(dir, 'expo-env.d.ts'), '/// <reference types="expo/types" />\n');
-
   const layoutImports = options.features.auth
     ? `import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
@@ -173,6 +172,7 @@ ${layoutBody}
       ? "import { useState } from 'react';\nimport { getRevenueCatAvailability, presentPaywallIfNeeded, type SubscriptionState } from '../lib/subscriptions';"
       : null,
     options.features.auth ? "import { AccountControls } from '../components/account-controls';" : null,
+    options.features.billing ? "import { useEntitlement } from '../hooks/use-entitlement';" : null,
   ].filter((value): value is string => value !== null).join('\n');
   const reactNativeImports = options.features.nativeSubscriptions
     ? 'Button, ScrollView, StyleSheet, Text, View'
@@ -181,11 +181,14 @@ ${layoutBody}
     ? `function SubscriptionControls() {
   const [state, setState] = useState<SubscriptionState>(() => getRevenueCatAvailability());
   const [isBusy, setIsBusy] = useState(false);
+  const { entitlement, error, refresh } = useEntitlement();
 
   const openPaywall = async () => {
     setIsBusy(true);
     setState({ status: 'ready', message: 'Opening subscription options…' });
-    setState(await presentPaywallIfNeeded());
+    const result = await presentPaywallIfNeeded();
+    setState(result);
+    if (result.status === 'success') await refresh(true);
     setIsBusy(false);
   };
 
@@ -199,6 +202,8 @@ ${layoutBody}
       >
         {state.message}
       </Text>
+      {entitlement ? <Text selectable style={styles.status}>Plan: {entitlement.entitlement} ({entitlement.status})</Text> : null}
+      {error ? <Text selectable accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
@@ -326,6 +331,56 @@ export function useApiClient() {
 `);
   }
 
+  if (options.features.billing) {
+    writeFile(path.join(dir, 'hooks/use-entitlement.ts'), `import { subscribeToSubscriptionChanges } from '@shared/realtime';
+import { useAuth } from '@clerk/expo';
+import * as React from 'react';
+import { AppState } from 'react-native';
+import { useApiClient } from './use-api-client';
+${options.features.nativeSubscriptions ? "import { subscribeToRevenueCatUpdates } from '../lib/subscriptions';" : ''}
+
+export function useEntitlement() {
+  const api = useApiClient();
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const revision = React.useRef(0);
+  const refresh = React.useCallback(async (reconcile = false) => {
+    if (!isLoaded || !isSignedIn) return;
+    try {
+      const next = reconcile ? await api.refreshEntitlement() : await api.getEntitlement();
+      revision.current = Math.max(revision.current, next.revision);
+      setEntitlement(next);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
+    }
+  }, [api, isLoaded, isSignedIn]);
+
+  React.useEffect(() => { void refresh(); }, [refresh]);
+  ${options.features.nativeSubscriptions ? 'React.useEffect(() => subscribeToRevenueCatUpdates(() => { void refresh(true); }), [refresh]);' : ''}
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => subscription.remove();
+  }, [refresh]);
+  React.useEffect(() => {
+    if (!userId || !isSignedIn) return;
+    return subscribeToSubscriptionChanges({
+      userId,
+      getTokenRequest: () => api.getRealtimeToken(),
+      onChange: (nextRevision) => {
+        if (nextRevision > revision.current) void refresh();
+      },
+      onError: (cause) => setError(cause.message),
+    });
+  }, [api, isSignedIn, refresh, userId]);
+  return { entitlement, error, refresh };
+}
+`);
+  }
+
   if (hasSubscriptions) {
     writeFile(path.join(dir, 'lib/subscriptions.ts'), `import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
@@ -346,6 +401,21 @@ let currentAppUserId: string | null = null;
 let desiredAppUserId: string | null | undefined;
 let identitySynchronized = false;
 let syncQueue: Promise<void> = Promise.resolve();
+const customerInfoListeners = new Set<() => void>();
+let customerInfoListenerRegistered = false;
+
+function ensureCustomerInfoListener(): void {
+  if (customerInfoListenerRegistered || Platform.OS === 'web') return;
+  Purchases.addCustomerInfoUpdateListener(() => {
+    for (const listener of customerInfoListeners) listener();
+  });
+  customerInfoListenerRegistered = true;
+}
+
+export function subscribeToRevenueCatUpdates(listener: () => void): () => void {
+  customerInfoListeners.add(listener);
+  return () => customerInfoListeners.delete(listener);
+}
 
 function apiKeyForPlatform(): string | undefined {
   return Platform.OS === 'ios'
@@ -375,6 +445,7 @@ export async function initializeRevenueCat(appUserId: string | null = null): Pro
       apiKey: apiKeyForPlatform()!,
       ...(appUserId ? { appUserID: appUserId } : {}),
     });
+    ensureCustomerInfoListener();
     configured = true;
     currentAppUserId = appUserId;
     if (desiredAppUserId === undefined) desiredAppUserId = appUserId;

@@ -8,6 +8,7 @@ import { childPackageName, htmlText, identifierSegment, jsString } from '../rend
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(DESKTOP_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.billing) delete dependencies['@shared/realtime'];
   if (!options.features.auth) {
     delete dependencies['@clerk/clerk-js'];
     delete dependencies['@clerk/ui'];
@@ -76,30 +77,6 @@ function writePackageJson(dir: string, projectName: string, options: ProjectOpti
 }
 
 function writeTsConfig(dir: string): void {
-  writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022',
-      useDefineForClassFields: true,
-      lib: ['DOM', 'DOM.Iterable', 'ES2022'],
-      allowJs: false,
-      skipLibCheck: true,
-      esModuleInterop: true,
-      allowSyntheticDefaultImports: true,
-      strict: true,
-      forceConsistentCasingInFileNames: true,
-      module: 'ESNext',
-      moduleResolution: 'Bundler',
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmit: true,
-      jsx: 'react-jsx',
-      types: ['node', 'vite/client'],
-      paths: { '@/*': ['./src/renderer/*'] },
-    },
-    include: ['src/**/*', 'vite.config.ts'],
-    references: [],
-  }, null, 2) + '\n');
-
   writeFile(path.join(dir, 'tsconfig.main.json'), JSON.stringify({
     compilerOptions: {
       target: 'ES2022',
@@ -430,6 +407,11 @@ export async function getAuthToken(): Promise<string | null> {
   return clerk?.session?.getToken() ?? null;
 }
 
+export async function getAuthUserId(): Promise<string | null> {
+  const clerk = await initializeClerk();
+  return clerk?.user?.id ?? null;
+}
+
 export async function openAccount(): Promise<boolean> {
   const clerk = await initializeClerk();
   if (!clerk) return false;
@@ -437,6 +419,57 @@ export async function openAccount(): Promise<boolean> {
   if (clerk.user) clerk.openUserProfile();
   else clerk.openSignIn();
   return true;
+}
+`);
+  }
+
+  if (options.features.billing) {
+    writeFile(path.join(dir, 'src/renderer/hooks/use-entitlement.ts'), `import { subscribeToSubscriptionChanges } from '@shared/realtime';
+import * as React from 'react';
+import { api } from '../lib/api';
+import { getAuthUserId, initializeClerk } from '../lib/auth';
+
+export function useEntitlement() {
+  const [userId, setUserId] = React.useState<string | null>(null);
+  const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const revision = React.useRef(0);
+  const refresh = React.useCallback(async () => {
+    const currentUserId = await getAuthUserId();
+    setUserId(currentUserId);
+    if (!currentUserId) return;
+    try {
+      const next = await api.getEntitlement();
+      revision.current = Math.max(revision.current, next.revision);
+      setEntitlement(next);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
+    }
+  }, []);
+  React.useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    void initializeClerk().then((clerk) => {
+      unsubscribe = clerk?.addListener(() => { void refresh(); });
+      void refresh();
+    });
+    return () => unsubscribe?.();
+  }, [refresh]);
+  React.useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [refresh]);
+  React.useEffect(() => {
+    if (!userId) return;
+    return subscribeToSubscriptionChanges({
+      userId,
+      getTokenRequest: () => api.getRealtimeToken(),
+      onChange: (nextRevision) => { if (nextRevision > revision.current) void refresh(); },
+      onError: (cause) => setError(cause.message),
+    });
+  }, [refresh, userId]);
+  return { entitlement, error };
 }
 `);
   }
@@ -456,6 +489,11 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
 `);
 
   const authImport = options.features.auth ? "import { initializeClerk, isClerkConfigured, openAccount } from '@/lib/auth';\n" : '';
+  const entitlementImport = options.features.billing ? "import { useEntitlement } from '@/hooks/use-entitlement';\n" : '';
+  const entitlementState = options.features.billing ? '  const { entitlement, error: entitlementError } = useEntitlement();\n' : '';
+  const entitlementStatus = options.features.billing ? `      {entitlement ? <p className="text-muted-foreground">Plan: {entitlement.entitlement} ({entitlement.status})</p> : null}
+      {entitlementError ? <p role="alert" className="text-red-700">{entitlementError}</p> : null}
+` : '';
   const authState = options.features.auth ? `  const [clerkState, setClerkState] = React.useState<'unconfigured' | 'loading' | 'ready' | 'error'>(
     () => isClerkConfigured() ? 'loading' : 'unconfigured',
   );
@@ -497,10 +535,10 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
   writeFile(path.join(dir, 'src/renderer/main.tsx'), `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Button } from '@/components/ui/button';
-${authImport}import './styles.css';
+${authImport}${entitlementImport}import './styles.css';
 
 function App() {
-${authState}  return (
+${authState}${entitlementState}  return (
     <main className="flex min-h-screen flex-col gap-6 bg-background p-8 text-foreground">
       <section className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold">{${displayNameLiteral}}</h1>
@@ -509,6 +547,7 @@ ${authState}  return (
         </p>
       </section>
 ${authStatus}
+${entitlementStatus}
       <Button${buttonAction}>${buttonLabel}</Button>
     </main>
   );

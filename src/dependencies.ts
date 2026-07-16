@@ -87,6 +87,15 @@ export const API_CLIENT_DEPENDENCIES: DependencyGroup = {
   ...SHARED_PACKAGE_DEPENDENCIES,
 };
 
+export const REALTIME_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    '@shared/contracts': 'workspace:*',
+    // renovate: datasource=npm depName=ably
+    ably: '2.24.0',
+  },
+  ...SHARED_PACKAGE_DEPENDENCIES,
+};
+
 export const BACKEND_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/contracts': 'workspace:*',
@@ -103,6 +112,8 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
     '@fastify/rate-limit': '10.3.0',
     // renovate: datasource=npm depName=@clerk/fastify
     '@clerk/fastify': '3.1.51',
+    // renovate: datasource=npm depName=ably
+    ably: REALTIME_DEPENDENCIES.dependencies!.ably,
     '@neondatabase/serverless': SHARED_DB_DEPENDENCIES.dependencies!['@neondatabase/serverless'],
     'drizzle-orm': SHARED_DB_DEPENDENCIES.dependencies!['drizzle-orm'],
     // renovate: datasource=npm depName=@aws-sdk/client-s3
@@ -126,6 +137,7 @@ export const BACKEND_DEPENDENCIES: DependencyGroup = {
 export const EXTENSION_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
+    '@shared/realtime': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/chrome-extension
     '@clerk/chrome-extension': '3.1.52',
     // renovate: datasource=npm depName=react
@@ -174,6 +186,7 @@ export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
 export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
+    '@shared/realtime': 'workspace:*',
     // renovate: datasource=npm depName=expo
     expo: '56.0.16',
     // renovate: datasource=npm depName=expo-constants
@@ -219,6 +232,7 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
 export const WEB_APP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
+    '@shared/realtime': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/nextjs
     '@clerk/nextjs': '7.5.18',
     // renovate: datasource=npm depName=@clerk/ui
@@ -247,6 +261,7 @@ export const WEB_APP_DEPENDENCIES: DependencyGroup = {
 export const DESKTOP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
+    '@shared/realtime': 'workspace:*',
     // renovate: datasource=npm depName=@clerk/clerk-js
     '@clerk/clerk-js': '6.25.3',
     '@clerk/ui': WEB_APP_DEPENDENCIES.dependencies!['@clerk/ui'],
@@ -293,6 +308,7 @@ export function dependencyManifest() {
     contracts: CONTRACTS_DEPENDENCIES,
     sharedDb: SHARED_DB_DEPENDENCIES,
     sharedPackages: SHARED_PACKAGE_DEPENDENCIES,
+    realtime: REALTIME_DEPENDENCIES,
     backend: BACKEND_DEPENDENCIES,
     extension: EXTENSION_DEPENDENCIES,
     frontendAddons: FRONTEND_ADDON_DEPENDENCIES,

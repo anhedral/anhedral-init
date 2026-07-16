@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_MODULE_DEFINITIONS,
   DEFAULT_MODULE_REGISTRY,
+  CompositionError,
   ManifestValidationError,
   ModuleRegistryError,
   ModuleResolutionError,
   PlanBuildError,
   buildGenerationPlan,
+  collectModuleContributions,
   createManifest,
   createModuleRegistry,
   hashContent,
@@ -51,6 +53,32 @@ assert.deepEqual(nativeResolution.resolvedModules, [
   'billing',
   'native-subscriptions',
 ]);
+const composed = collectModuleContributions(['storage', 'billing']);
+assert.equal(composed.environment.filter((entry) => entry.name === 'CRON_SECRET').length, 1);
+assert.deepEqual(composed.crons.map((entry) => entry.id), ['realtime-outbox', 'storage-cleanup']);
+assert.equal(Object.isFrozen(composed), true);
+expectCode(
+  () => collectModuleContributions(['billing', 'storage'], {
+    storage: {
+      module: 'storage',
+      environment: [{ name: 'CRON_SECRET', defaultValue: 'incompatible' }],
+      crons: [],
+    },
+  }),
+  CompositionError,
+  'DUPLICATE_ENVIRONMENT_CONTRIBUTION',
+);
+expectCode(
+  () => collectModuleContributions(['billing', 'storage'], {
+    storage: {
+      module: 'storage',
+      environment: [],
+      crons: [{ id: 'realtime-outbox', path: '/wrong', schedule: '0 0 * * *' }],
+    },
+  }),
+  CompositionError,
+  'DUPLICATE_CRON_CONTRIBUTION',
+);
 assert.deepEqual(nativeResolution.dependencyAddedModules, ['mobile', 'api', 'db', 'auth', 'billing']);
 assert.equal(Object.isFrozen(nativeResolution), true);
 assert.equal(Object.isFrozen(nativeResolution.resolvedModules), true);
@@ -173,9 +201,14 @@ const manifest = createManifest({
   project: { name: 'new-app', displayName: 'New App' },
   plan,
   toolchain: 'stable',
+  templates: {
+    'api-fastify': { version: 1, sha256: 'a'.repeat(64) },
+    'db-drizzle': { version: 1, sha256: 'b'.repeat(64) },
+    'web-next': { version: 1, sha256: 'c'.repeat(64) },
+  },
 });
 const roundTrip = readManifest(serializeManifest(manifest));
-assert.equal(roundTrip.schemaVersion, 3);
+assert.equal(roundTrip.schemaVersion, 4);
 assert.deepEqual(roundTrip, manifest);
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].ownership, 'managed');
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].mode, null);
@@ -186,6 +219,14 @@ expectCode(
   () => readManifest(missingMode),
   ManifestValidationError,
   'INVALID_FILE_RECORD',
+);
+
+const missingTemplates = JSON.parse(serializeManifest(manifest));
+delete missingTemplates.templates;
+expectCode(
+  () => readManifest(missingTemplates),
+  ManifestValidationError,
+  'INVALID_MANIFEST',
 );
 
 const invalidMode = JSON.parse(serializeManifest(manifest));
@@ -230,7 +271,7 @@ Object.defineProperty(prototypePath.files, '__proto__', {
   value: { owner: 'root', ownership: 'user', hash: hashContent('prototype'), mode: null },
 });
 const prototypeManifest = readManifest(prototypePath);
-assert.equal(prototypeManifest.schemaVersion, 3);
+assert.equal(prototypeManifest.schemaVersion, 4);
 assert.equal(Object.hasOwn(prototypeManifest.files, '__proto__'), true);
 assert.equal(prototypeManifest.files.__proto__.ownership, 'user');
 

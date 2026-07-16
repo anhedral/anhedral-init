@@ -325,6 +325,7 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(read(roots.auth, 'apps/web/app/page.tsx'), /<AccountActions \/>/);
   assert.match(read(roots.auth, 'apps/web/app/layout.tsx'), /appearance=\{\{ theme: shadcn \}\}/);
   assert.match(read(roots.auth, 'apps/web/app/globals.css'), /@clerk\/ui\/themes\/shadcn\.css/);
+  assert.match(read(roots.auth, 'apps/web/app/page.tsx'), /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
   assert.match(read(roots.auth, 'apps/web/app/globals.css'), /--color-card: var\(--card\)/);
   assert.match(read(roots.auth, 'apps/web/hooks/use-api-client.ts'), /useAuth/);
   assert.match(read(roots.auth, 'apps/web/hooks/use-api-client.ts'), /createApiClient\(\(\) => getToken\(\)\)/);
@@ -350,6 +351,7 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(mobileSubscriptions, /status: 'error'/);
   assert.match(mobileSubscriptions, /desiredAppUserId/);
   assert.match(mobileSubscriptions, /identitySynchronized/);
+  assert.match(mobileSubscriptions, /addCustomerInfoUpdateListener/);
   assert.match(mobileSubscriptions, /Subscription account synchronization is required before opening the paywall/);
   const nativeLayout = read(roots.native, 'apps/mobile/app/_layout.tsx');
   assert.match(nativeLayout, /useAuth\(\)/);
@@ -360,6 +362,9 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(read(roots.native, 'apps/mobile/app/index.tsx'), /View subscription options/);
   assert.match(read(roots.native, 'apps/mobile/app/index.tsx'), /presentPaywallIfNeeded\(\)/);
   assert.match(read(roots.native, 'apps/mobile/hooks/use-api-client.ts'), /createApiClient\(\(\) => getToken\(\)\)/);
+  assert.match(read(roots.native, 'apps/mobile/hooks/use-entitlement.ts'), /subscribeToSubscriptionChanges/);
+  assert.match(read(roots.native, 'apps/mobile/hooks/use-entitlement.ts'), /AppState\.addEventListener/);
+  assert.match(read(roots.native, 'apps/mobile/app/index.tsx'), /refresh\(true\)/);
   assert.match(read(roots.native, 'apps/mobile/.env.example'), /EXPO_PUBLIC_RC_API_KEY_IOS/);
   assert.doesNotMatch(read(roots.native, 'apps/mobile/.env.example'), /EXPO_PUBLIC_RC_WEB_API_KEY/);
 

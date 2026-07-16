@@ -41,6 +41,7 @@ function collectDependencyPins() {
     { name: 'contracts', group: manifest.contracts },
     { name: 'sharedDb', group: manifest.sharedDb },
     { name: 'sharedPackages', group: manifest.sharedPackages },
+    { name: 'realtime', group: manifest.realtime },
     { name: 'backend', group: manifest.backend },
     { name: 'extension', group: manifest.extension },
     { name: 'frontendAddons', group: { dependencies: manifest.frontendAddons } },

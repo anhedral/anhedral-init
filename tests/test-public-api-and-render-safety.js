@@ -65,7 +65,15 @@ try {
   assert.equal(result.stderr, '');
 
   const manifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.schemaVersion, 4);
+  assert.deepEqual(Object.keys(manifest.templates).sort(), [
+    'api-fastify',
+    'db-drizzle',
+    'desktop-electron',
+    'extension-wxt',
+    'mobile-expo',
+    'web-next',
+  ]);
   assert.deepEqual(manifest.modules, [
     'web',
     'mobile',
