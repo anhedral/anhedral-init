@@ -1,41 +1,51 @@
 import path from 'node:path';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { exec, writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { WEB_APP_DEPENDENCIES } from '../dependencies.js';
+import { resolveToolchain, resolveToolchainChannel, toolPackageRef } from '../toolchain.js';
+import { childPackageName, jsString } from '../render.js';
 
-export async function scaffoldWeb(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
+export async function scaffoldWeb(root: string, options: ProjectOptions): Promise<void> {
+  const { skipInstall } = options;
   const dir = path.join(root, 'apps/web');
+  const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
+  const shadcnRef = toolPackageRef('shadcn', toolchain.shadcn);
+  const useUpstreamScaffolder = toolchain.shadcn === 'latest' && !skipInstall;
 
   anhedralPrint.section('Web (Next.js + shadcn/ui)');
   anhedralPrint.step('Scaffolding Next.js app with shadcn');
-  if (skipInstall) {
-    anhedralPrint.info('Skipping shadcn init (--skip-install). Run after init: pnpm dlx shadcn@latest init -d --template next --name web');
-  } else {
-    exec(`pnpm dlx shadcn@latest init -d --template next --name web`, path.join(root, 'apps'));
+  if (useUpstreamScaffolder) {
+    mkdirSync(path.join(root, 'apps'), { recursive: true });
+    exec(`pnpm dlx ${shadcnRef} init -d --template next --name web`, path.join(root, 'apps'));
     rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+  } else {
+    anhedralPrint.info(`Using the deterministic local web template (${shadcnRef}).`);
   }
-  anhedralPrint.done(skipInstall ? 'Next.js + shadcn manifests written' : 'Next.js + shadcn app scaffolded');
+  anhedralPrint.done(useUpstreamScaffolder ? 'Next.js + shadcn app scaffolded' : 'Next.js + shadcn manifests written');
 
   anhedralPrint.step('Writing web app customizations');
-  writePackageJson(dir, projectName);
+  writePackageJson(dir, options);
   writeTsConfig(dir);
   writeNextConfig(dir);
   writePostcssConfig(dir);
   writeShadcnConfig(dir);
-  writeEnvExample(dir);
-  writeUiFiles(dir);
-  writeAppFiles(dir, displayName);
-  if (!skipInstall) {
-    exec('pnpm install --no-frozen-lockfile', root);
-  }
-  anhedralPrint.done(skipInstall ? 'Next.js web app written' : 'Next.js web dependencies installed');
+  writeEnvExample(dir, options);
+  writeUiFiles(dir, options);
+  writeAppFiles(dir, options);
+  anhedralPrint.done('Next.js web app written');
 }
 
-function writePackageJson(dir: string, projectName: string): void {
+function writePackageJson(dir: string, options: ProjectOptions): void {
+  const dependencies = { ...(WEB_APP_DEPENDENCIES.dependencies ?? {}) };
+  if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.auth) {
+    delete dependencies['@clerk/nextjs'];
+    delete dependencies['@clerk/ui'];
+  }
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
-    name: `${projectName}-web`,
+    name: childPackageName(options.projectName, 'web'),
     version: '0.1.0',
     private: true,
     type: 'module',
@@ -45,7 +55,7 @@ function writePackageJson(dir: string, projectName: string): void {
       start: 'next start',
       typecheck: 'tsc --noEmit',
     },
-    dependencies: WEB_APP_DEPENDENCIES.dependencies,
+    dependencies,
     devDependencies: WEB_APP_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
 }
@@ -64,12 +74,12 @@ function writeTsConfig(dir: string): void {
       moduleResolution: 'bundler',
       resolveJsonModule: true,
       isolatedModules: true,
-      jsx: 'preserve',
+      jsx: 'react-jsx',
       incremental: true,
       plugins: [{ name: 'next' }],
       paths: { '@/*': ['./*'] },
     },
-    include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
+    include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts', '.next/dev/types/**/*.ts'],
     exclude: ['node_modules'],
   }, null, 2) + '\n');
   writeFile(path.join(dir, 'next-env.d.ts'), `/// <reference types="next" />
@@ -80,7 +90,12 @@ function writeTsConfig(dir: string): void {
 function writeNextConfig(dir: string): void {
   writeFile(path.join(dir, 'next.config.ts'), `import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  async rewrites() {
+    if (process.env.NODE_ENV !== 'development') return [];
+    return [{ source: '/api/:path*', destination: 'http://localhost:8787/api/:path*' }];
+  },
+};
 
 export default nextConfig;
 `);
@@ -121,14 +136,15 @@ function writeShadcnConfig(dir: string): void {
   }, null, 2) + '\n');
 }
 
-function writeEnvExample(dir: string): void {
-  writeFile(path.join(dir, '.env.example'), `NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***
-NEXT_PUBLIC_RC_ENTITLEMENT_ID=pro
-`);
+function writeEnvExample(dir: string, options: ProjectOptions): void {
+  const lines = [
+    options.apps.api ? 'NEXT_PUBLIC_API_URL=http://localhost:8787/api' : null,
+    options.features.auth ? 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_***' : null,
+  ].filter((value): value is string => value !== null);
+  writeFile(path.join(dir, '.env.example'), lines.join('\n') + (lines.length > 0 ? '\n' : ''));
 }
 
-function writeUiFiles(dir: string): void {
+function writeUiFiles(dir: string, options: ProjectOptions): void {
   writeFile(path.join(dir, 'lib/utils.ts'), `import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -137,16 +153,75 @@ export function cn(...inputs: ClassValue[]) {
 }
 `);
 
-  writeFile(path.join(dir, 'lib/api.ts'), `import { ApiClient } from '@shared/api-client';
+  if (options.apps.api) writeFile(path.join(dir, 'lib/api.ts'), `import { ApiClient, normalizeApiBaseUrl } from '@shared/api-client';
+
+function normalizeWebApiBaseUrl(value: string): string {
+  const candidate = value.trim();
+  if (!candidate.startsWith('/')) return normalizeApiBaseUrl(candidate, 'NEXT_PUBLIC_API_URL');
+  if (candidate.startsWith('//') || candidate.includes('\\\\')) {
+    throw new Error('NEXT_PUBLIC_API_URL must be a single-slash root-relative path or an absolute URL');
+  }
+  if (typeof window === 'undefined') {
+    throw new Error('A root-relative NEXT_PUBLIC_API_URL can only be resolved in the browser');
+  }
+  return normalizeApiBaseUrl(new URL(candidate, window.location.origin).toString(), 'NEXT_PUBLIC_API_URL');
+}
+
+function apiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const candidate = configured || (process.env.NODE_ENV === 'development' ? 'http://localhost:8787/api' : '/api');
+  const normalized = normalizeWebApiBaseUrl(candidate);
+  const url = new URL(normalized);
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error('NEXT_PUBLIC_API_URL must use https: in production');
+  }
+  return normalized;
+}
 
 export function createApiClient(getToken?: () => Promise<string | null>) {
   return new ApiClient({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL || '/api',
+    baseUrl: apiBaseUrl(),
     getToken: getToken ?? (async () => null),
-    platform: 'frontend',
   });
 }
 `);
+
+  if (options.apps.api && options.features.auth) {
+    writeFile(path.join(dir, 'hooks/use-api-client.ts'), `'use client';
+
+import { useAuth } from '@clerk/nextjs';
+import { useMemo } from 'react';
+import { createApiClient } from '@/lib/api';
+
+export function useApiClient() {
+  const { getToken } = useAuth();
+  return useMemo(() => createApiClient(() => getToken()), [getToken]);
+}
+`);
+  }
+
+  if (options.features.auth) {
+    writeFile(path.join(dir, 'components/account-actions.tsx'), `'use client';
+
+import { Show, SignInButton, UserButton } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
+
+export function AccountActions() {
+  return (
+    <>
+      <Show when="signed-out">
+        <SignInButton mode="modal">
+          <Button variant="outline">Sign in</Button>
+        </SignInButton>
+      </Show>
+      <Show when="signed-in">
+        <UserButton />
+      </Show>
+    </>
+  );
+}
+`);
+  }
 
   writeFile(path.join(dir, 'components/ui/button.tsx'), `import * as React from 'react';
 import { cn } from '@/lib/utils';
@@ -191,8 +266,23 @@ export function CardContent({ className, ...props }: React.ComponentProps<'div'>
 `);
 }
 
-function writeAppFiles(dir: string, displayName: string): void {
+function writeAppFiles(dir: string, options: ProjectOptions): void {
+  const { displayName } = options;
+  const displayNameLiteral = jsString(displayName);
+  const descriptionLiteral = jsString(`${displayName} web app`);
+  const accountActionsImport = options.features.auth
+    ? "import { AccountActions } from '@/components/account-actions';\n"
+    : '';
+  const accountAction = options.features.auth
+    ? `{process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+            <AccountActions />
+          ) : (
+            <Button variant="outline" disabled>Configure Clerk to sign in</Button>
+          )}`
+    : '<Button variant="outline">View account</Button>';
+  const clerkStyles = options.features.auth ? '@import "@clerk/ui/themes/shadcn.css";\n' : '';
   writeFile(path.join(dir, 'app/globals.css'), `@import "tailwindcss";
+${clerkStyles}
 
 :root {
   --background: oklch(1 0 0);
@@ -208,6 +298,20 @@ function writeAppFiles(dir: string, displayName: string): void {
   --input: oklch(0.922 0 0);
 }
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -215,24 +319,25 @@ body {
 }
 `);
 
+  const authImport = options.features.auth
+    ? "import { ClerkProvider } from '@clerk/nextjs';\nimport { shadcn } from '@clerk/ui/themes';\n"
+    : '';
+  const providers = options.features.auth ? `function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!publishableKey) return <>{children}</>;
+  return <ClerkProvider publishableKey={publishableKey} appearance={{ theme: shadcn }}>{children}</ClerkProvider>;
+}` : `function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <>{children}</>;
+}`;
   writeFile(path.join(dir, 'app/layout.tsx'), `import type { Metadata } from 'next';
-import { ClerkProvider } from '@clerk/nextjs';
-import './globals.css';
+${authImport}import './globals.css';
 
 export const metadata: Metadata = {
-  title: '${displayName}',
-  description: '${displayName} web app',
+  title: ${displayNameLiteral},
+  description: ${descriptionLiteral},
 };
 
-function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-  if (!publishableKey) {
-    return <>{children}</>;
-  }
-
-  return <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>;
-}
+${providers}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -245,20 +350,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 }
 `);
 
-  writeFile(path.join(dir, 'app/page.tsx'), `import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  writeFile(path.join(dir, 'app/page.tsx'), `${accountActionsImport}import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 px-6 py-10">
       <section className="flex flex-col gap-3">
-        <h1 className="text-4xl font-semibold tracking-normal">${displayName}</h1>
+        <h1 className="text-4xl font-semibold tracking-normal">{${displayNameLiteral}}</h1>
         <p className="max-w-2xl text-muted-foreground">
-          Next.js + shadcn/ui web client connected to the shared Fastify API through the monorepo API client.
+          ${options.apps.api ? 'Next.js + shadcn/ui web client connected to the shared Fastify API.' : 'Next.js + shadcn/ui web application.'}
         </p>
         <div className="flex gap-3">
           <Button>Open app</Button>
-          <Button variant="outline">View account</Button>
+          ${accountAction}
         </div>
       </section>
       <Card>
@@ -266,7 +371,7 @@ export default function Home() {
           <CardTitle>Shared modules</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Contracts, API access, database schema, and config live in packages/* and are reused by every client.
+          ${options.apps.api ? 'Contracts, API access, and configuration are shared through workspace packages.' : 'Add modules later with anhedral add; user-owned source remains untouched.'}
         </CardContent>
       </Card>
     </main>

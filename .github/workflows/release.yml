@@ -1,61 +1,382 @@
 name: Release
 
 on:
+  workflow_call:
+    secrets:
+      NODE_AUTH_TOKEN:
+        required: false
+      NPM_TOKEN:
+        required: false
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_NODE_VERSION: '24.18.0'
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: npm-publish-anhedral
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish to npm
+  verify:
+    name: Verify and pack
     runs-on: ubuntu-latest
-    environment: npm
-    timeout-minutes: 45
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      integrity: ${{ steps.metadata.outputs.integrity }}
+      tarball: ${{ steps.metadata.outputs.tarball }}
+      version: ${{ steps.metadata.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require a commit from main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/main"; then
+            echo "Release commit $GITHUB_SHA is not contained in origin/main"
+            exit 1
+          fi
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.15.1
+          version: 10.34.5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          node-version: ${{ env.RELEASE_NODE_VERSION }}
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Read package version
-        id: version
-        run: |
-          PACKAGE_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
-          echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Check npm version is unpublished
-        run: |
-          if npm view "anhedral@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
-            echo "anhedral@${{ steps.version.outputs.version }} is already published"
-            exit 1
-          fi
-
       - name: Run release checks
         run: pnpm release:check
 
+      - name: Build release artifact
+        run: pnpm release:pack
+
+      - name: Verify release artifact
+        run: pnpm release:artifact:verify
+
+      - name: Smoke test exact release artifact
+        run: pnpm release:artifact:smoke
+
+      - name: Read release metadata
+        id: metadata
+        run: |
+          VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('release-artifact/metadata.json', 'utf8')).version")
+          TARBALL=$(node -p "JSON.parse(require('node:fs').readFileSync('release-artifact/metadata.json', 'utf8')).filename")
+          INTEGRITY=$(node -p "JSON.parse(require('node:fs').readFileSync('release-artifact/metadata.json', 'utf8')).integrity")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "integrity=$INTEGRITY" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=anhedral-$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing tag from another commit
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if git rev-parse --quiet --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")
+            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
+              echo "$TAG already points to $TAG_COMMIT; refusing to publish $GITHUB_SHA"
+              exit 1
+            fi
+          fi
+
+      - name: Upload verified artifact
+        id: artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: release-artifact/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Record artifact digest
+        run: echo "Artifact digest ${{ steps.artifact.outputs.artifact-digest }}" >> "$GITHUB_STEP_SUMMARY"
+
+  portability:
+    name: Exact artifact (${{ matrix.os }}, Node ${{ matrix.node }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+        node:
+          - '20.19.0'
+          - '22.12.0'
+          - '24.18.0'
+    steps:
+      - name: Checkout artifact verification code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+
+      - name: Download exact verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.verify.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: Verify and execute exact artifact
+        env:
+          ANHEDRAL_EXPECTED_FILENAME: ${{ needs.verify.outputs.tarball }}
+          ANHEDRAL_EXPECTED_INTEGRITY: ${{ needs.verify.outputs.integrity }}
+          ANHEDRAL_EXPECTED_NAME: anhedral
+          ANHEDRAL_EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          node scripts/verify-release-artifact.mjs release-artifact/metadata.json
+          node tests/test-packed-cli.js release-artifact/metadata.json
+
+  runtime-acceptance:
+    name: Runtime acceptance (${{ matrix.target }})
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - desktop
+          - extension
+          - mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.13.0'
+          package-manager-cache: false
+
+      - name: Setup Java for Android
+        if: matrix.target == 'mobile'
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Require Android SDK
+        if: matrix.target == 'mobile'
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -n "$SDK_ROOT"
+          test -d "$SDK_ROOT"
+          java -version
+
+      - name: Download exact verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.verify.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: Verify exact release artifact
+        env:
+          ANHEDRAL_EXPECTED_FILENAME: ${{ needs.verify.outputs.tarball }}
+          ANHEDRAL_EXPECTED_INTEGRITY: ${{ needs.verify.outputs.integrity }}
+          ANHEDRAL_EXPECTED_NAME: anhedral
+          ANHEDRAL_EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+        run: node scripts/verify-release-artifact.mjs release-artifact/metadata.json
+
+      - name: Discover Chrome
+        if: matrix.target == 'extension'
+        run: |
+          CHROME_PATH=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
+          if [ -z "$CHROME_PATH" ]; then
+            echo "Chrome is required for extension runtime acceptance"
+            exit 1
+          fi
+          echo "ANHEDRAL_CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Require Xvfb
+        if: matrix.target == 'desktop'
+        run: command -v xvfb-run
+
+      - name: Exercise generated runtime
+        run: node tests/test-runtime-acceptance.js ${{ matrix.target }} release-artifact/metadata.json
+
+  publish:
+    name: Publish verified artifact
+    needs:
+      - verify
+      - portability
+      - runtime-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.RELEASE_NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Download verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.verify.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: Recheck artifact integrity
+        env:
+          ANHEDRAL_EXPECTED_FILENAME: ${{ needs.verify.outputs.tarball }}
+          ANHEDRAL_EXPECTED_INTEGRITY: ${{ needs.verify.outputs.integrity }}
+          ANHEDRAL_EXPECTED_NAME: anhedral
+          ANHEDRAL_EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+        run: node scripts/verify-release-artifact.mjs release-artifact/metadata.json
+
+      - name: Check npm registry state
+        id: registry
+        run: |
+          STATE=$(node scripts/check-release-registry.mjs preflight release-artifact/metadata.json)
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "Registry state before publish: $STATE" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish package
-        run: npm publish --provenance --ignore-scripts
+        if: steps.registry.outputs.state == 'missing'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN || secrets.NPM_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/anhedral-npmrc
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NODE_AUTH_TOKEN/NPM_TOKEN is required to publish"
+            exit 1
+          fi
+          cleanup_auth() {
+            rm -f "$NPM_CONFIG_USERCONFIG"
+          }
+          trap cleanup_auth EXIT
+          printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$NPM_CONFIG_USERCONFIG"
+          chmod 600 "$NPM_CONFIG_USERCONFIG"
+          npm publish "release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
+
+      - name: Verify npm registry integrity
+        run: node scripts/check-release-registry.mjs verify release-artifact/metadata.json
+
+      - name: Summarize publication
+        run: |
+          echo "npm package: anhedral@${{ needs.verify.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "integrity: ${{ needs.verify.outputs.integrity }}" >> "$GITHUB_STEP_SUMMARY"
+
+  tag:
+    name: Tag and create GitHub release
+    needs:
+      - verify
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout published commit
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.RELEASE_NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Download published artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.verify.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: Recheck published artifact
+        env:
+          ANHEDRAL_EXPECTED_FILENAME: ${{ needs.verify.outputs.tarball }}
+          ANHEDRAL_EXPECTED_INTEGRITY: ${{ needs.verify.outputs.integrity }}
+          ANHEDRAL_EXPECTED_NAME: anhedral
+          ANHEDRAL_EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+        run: node scripts/verify-release-artifact.mjs release-artifact/metadata.json
+
+      - name: Verify declared version
+        env:
+          EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          PACKAGE_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+          if [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "package.json version $PACKAGE_VERSION does not match published version $EXPECTED_VERSION"
+            exit 1
+          fi
+
+      - name: Create or verify tag
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")
+            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
+              echo "$TAG points to $TAG_COMMIT instead of published commit $GITHUB_SHA"
+              exit 1
+            fi
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          ASSET="release-artifact/$TARBALL"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET#npm package tarball" --clobber
+          else
+            gh release create "$TAG" "$ASSET#npm package tarball" --verify-tag --generate-notes --title "$TAG"
+          fi

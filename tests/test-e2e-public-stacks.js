@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { argv } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { findNestedWorkspaceIslands } from './support/output-tree.js';
+import { runCommand, runScenario } from './support/scenario-runner.js';
+import { OUTPUT_TREE_SCENARIOS } from './support/scenarios.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const cliEntry = path.join(repoRoot, 'dist', 'index.js');
-const demoRoot = path.join(repoRoot, 'demo');
+const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
 const TOOLCHAIN_CHANNELS = new Set(['stable', 'latest']);
+const manifestKeys = ['files', 'generatorVersion', 'modules', 'project', 'schemaVersion', 'toolchain'];
 
 function resolveToolchainChannel(rawArgs) {
   const args = [...rawArgs];
@@ -43,26 +46,6 @@ function resolveToolchainChannel(rawArgs) {
 
 const toolchainChannel = resolveToolchainChannel(argv.slice(2));
 
-function run(command, args, cwd) {
-  console.log(`Running in ${cwd}: ${command} ${args.join(' ')}`);
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      ANHEDRAL_TOOLCHAIN: toolchainChannel,
-    },
-  });
-
-  const stdout = String(result.stdout ?? '');
-  const stderr = String(result.stderr ?? '');
-  assert.equal(
-    result.status,
-    0,
-    `${command} ${args.join(' ')} failed in ${cwd}\nstdout:\n${stdout}\nstderr:\n${stderr}`,
-  );
-}
-
 function assertGitignoreContains(projectRoot, relativePath, expectedLines) {
   const filePath = path.join(projectRoot, relativePath);
   const contents = readFileSync(filePath, 'utf8');
@@ -84,158 +67,124 @@ function assertNoNestedGit(projectRoot, apps) {
   }
 }
 
-function assertStackManifest(projectRoot, scenario) {
-  const stack = JSON.parse(readFileSync(path.join(projectRoot, 'stack.json'), 'utf8'));
+function assertProjectManifest(projectRoot, scenario) {
   const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
-  const toolchain = stack.outputs.toolchain;
 
-  assert.equal(stack.mode, 'modular');
-  assert.deepEqual(stack.apps, scenario.apps);
-  assert.deepEqual(stack.features, scenario.features);
-  assert.deepEqual(manifest.apps, stack.apps);
-  assert.deepEqual(manifest.features, stack.features);
-
-  assert.equal('reactNativeReusables' in toolchain, true);
-  assert.equal('wxt' in toolchain, true);
-  assert.equal('shadcn' in toolchain, true);
-  assert.equal('tauriCli' in toolchain, false);
-  assert.equal('tauriApi' in toolchain, false);
-  assert.equal('viteCreate' in toolchain, false);
+  assert.equal(manifest.schemaVersion, 3);
+  assert.deepEqual(Object.keys(manifest).sort(), manifestKeys);
+  assert.deepEqual(manifest.modules, scenario.modules);
+  assert.equal(manifest.toolchain, toolchainChannel);
+  assert.equal(typeof manifest.generatorVersion, 'string');
+  assert.ok(manifest.generatorVersion.length > 0);
+  assert.equal(typeof manifest.files, 'object');
+  assert.ok(Object.keys(manifest.files).length > 0);
 }
 
-rmSync(demoRoot, { recursive: true, force: true });
-mkdirSync(demoRoot, { recursive: true });
+function representativeFile(directory, relativeDirectory = '') {
+  const absoluteDirectory = path.join(directory, relativeDirectory);
+  for (const entry of readdirSync(absoluteDirectory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.name === 'cache') continue;
+    const relative = path.join(relativeDirectory, entry.name);
+    if (entry.isDirectory()) {
+      const nested = representativeFile(directory, relative);
+      if (nested) return nested;
+    } else if (entry.isFile()) {
+      return relative;
+    }
+  }
+  return null;
+}
 
-console.log(`Executing public stack e2e verification in ${demoRoot} with toolchain: ${toolchainChannel}`);
-const scenarios = [
-  {
-    name: 'expo-extension',
-    args: [],
-    folderName: 'expo-extension-sample',
-    apps: {
-      web: true,
-      mobile: true,
-      api: true,
-      desktop: true,
-      extension: true,
-    },
-    features: {
-      database: true,
-      auth: true,
-      billing: true,
-      storage: true,
-      nativeSubscriptions: true,
-    },
-    gitignores: [
-      ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/mobile/.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
-    ],
-    checks: [
-      ['pnpm', ['verify']],
-      ['pnpm', ['build']],
-    ],
-  },
-  {
-    name: 'web-api-minimal',
-    args: ['--web', '--api', '--db', '--auth'],
-    folderName: 'web-api-minimal',
-    apps: {
-      web: true,
-      mobile: false,
-      api: true,
-      desktop: false,
-      extension: false,
-    },
-    features: {
-      database: true,
-      auth: true,
-      billing: false,
-      storage: false,
-      nativeSubscriptions: false,
-    },
-    gitignores: [
-      ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
-    ],
-    checks: [
-      ['pnpm', ['verify']],
-      ['pnpm', ['build']],
-    ],
-  },
-  {
-    name: 'api-only',
-    args: ['--api', '--db', '--auth'],
-    folderName: 'api-only',
-    apps: {
-      web: false,
-      mobile: false,
-      api: true,
-      desktop: false,
-      extension: false,
-    },
-    features: {
-      database: true,
-      auth: true,
-      billing: false,
-      storage: false,
-      nativeSubscriptions: false,
-    },
-    gitignores: [
-      ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
-    ],
-    checks: [
-      ['pnpm', ['verify']],
-      ['pnpm', ['build']],
-    ],
-  },
-  {
-    name: 'add-desktop-flow',
-    args: ['--api', '--db', '--auth', '--skip-install'],
-    addArgs: ['desktop', '--skip-install'],
-    folderName: 'add-desktop-flow',
-    apps: {
-      web: false,
-      mobile: false,
-      api: true,
-      desktop: true,
-      extension: false,
-    },
-    features: {
-      database: true,
-      auth: true,
-      billing: false,
-      storage: false,
-      nativeSubscriptions: false,
-    },
-    gitignores: [
-      ['.gitignore', ['.env', '.env.*', '!.env.example']],
-      ['apps/api/.gitignore', ['.env', '.env.*', '!.env.example']],
-    ],
-    checks: [],
-  },
-];
+function assertTurboRestoresOutputs(projectRoot) {
+  const outputDirectories = [
+    'apps/web/.next',
+    'apps/mobile/dist',
+    'apps/desktop/dist',
+    'apps/extension/.output',
+  ];
+  const representatives = outputDirectories.map((relativeDirectory) => {
+    assert.equal(existsSync(path.join(projectRoot, relativeDirectory)), true, `initial build should emit ${relativeDirectory}`);
+    const file = representativeFile(path.join(projectRoot, relativeDirectory));
+    assert.ok(file, `${relativeDirectory} should contain a representative build artifact`);
+    return {
+      outputDirectory: relativeDirectory,
+      file,
+      contents: readFileSync(path.join(projectRoot, relativeDirectory, file)),
+    };
+  });
 
-for (const scenario of scenarios) {
-  console.log(`\n=== Verifying ${scenario.name} ===`);
-  const projectRoot = path.join(demoRoot, scenario.folderName);
-  rmSync(projectRoot, { recursive: true, force: true });
-  mkdirSync(projectRoot, { recursive: true });
-  run('node', [cliEntry, 'init', ...scenario.args], projectRoot);
-  if (scenario.addArgs) {
-    run('node', [cliEntry, 'add', ...scenario.addArgs], projectRoot);
+  for (const { outputDirectory } of representatives) {
+    rmSync(path.join(projectRoot, outputDirectory), { recursive: true, force: true });
   }
 
-  for (const [relativePath, expectedLines] of scenario.gitignores) {
-    assertGitignoreContains(projectRoot, relativePath, expectedLines);
-  }
-  assertNoNestedGit(projectRoot, scenario.apps);
-  assertStackManifest(projectRoot, scenario);
-
-  for (const [command, args] of scenario.checks) {
-    run(command, args, projectRoot);
+  const restored = runCommand('pnpm', ['build'], projectRoot);
+  assert.match(`${restored.stdout}\n${restored.stderr}`, /cache hit/i, 'second build should report Turbo cache hits');
+  for (const representative of representatives) {
+    const restoredPath = path.join(projectRoot, representative.outputDirectory, representative.file);
+    assert.equal(existsSync(restoredPath), true, `Turbo should restore ${representative.outputDirectory}/${representative.file}`);
+    assert.deepEqual(readFileSync(restoredPath), representative.contents, `restored artifact should be byte-identical: ${representative.file}`);
   }
 }
 
-console.log(`Public stack e2e verification passed: ${scenarios.length} stacks (${toolchainChannel})`);
+const e2eRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-e2e-'));
+const keepOutput = process.env.ANHEDRAL_E2E_KEEP === '1';
+
+console.log(`Executing public stack e2e verification in ${e2eRoot} with toolchain: ${toolchainChannel}`);
+
+try {
+  for (const scenario of OUTPUT_TREE_SCENARIOS) {
+    console.log(`\n=== Verifying ${scenario.id} ===`);
+    const projectRoot = runScenario({
+      cliEntry,
+      scenario,
+      workspaceRoot: e2eRoot,
+      toolchainChannel,
+    });
+
+    for (const [relativePath, expectedLines] of scenario.gitignoreExpectations) {
+      assertGitignoreContains(projectRoot, relativePath, expectedLines);
+    }
+    assertNoNestedGit(projectRoot, scenario.apps);
+    assertProjectManifest(projectRoot, scenario);
+    assert.deepEqual(
+      findNestedWorkspaceIslands(projectRoot),
+      [],
+      `${scenario.id} should have only the root pnpm lockfile, workspace, and package store`,
+    );
+
+    if (scenario.features.database) {
+      runCommand('pnpm', ['db:generate'], projectRoot, { toolchainChannel });
+      runCommand('git', ['init', '--quiet'], projectRoot, { toolchainChannel });
+      runCommand('git', ['add', '--', 'packages/db/migrations'], projectRoot, { toolchainChannel });
+    }
+
+    for (const [command, args] of scenario.e2eChecks) {
+      runCommand(command, args, projectRoot, { toolchainChannel });
+    }
+
+    if (scenario.id === 'expo-extension') {
+      assertTurboRestoresOutputs(projectRoot);
+    }
+
+    if (scenario.apps.desktop) {
+      const preload = path.join(projectRoot, 'apps/desktop/dist/main/preload.cjs');
+      assert.equal(existsSync(preload), true, 'desktop build must emit a sandbox-compatible CommonJS preload');
+      assert.match(readFileSync(preload, 'utf8'), /require\(["']electron["']\)/);
+      assert.equal(existsSync(path.join(projectRoot, 'apps/desktop/dist/main/preload.js')), false);
+    }
+
+    if (scenario.auditLock) {
+      runCommand('node', [path.join(repoRoot, 'scripts', 'audit-osv.mjs'), 'pnpm-lock.yaml'], projectRoot, {
+        toolchainChannel,
+      });
+    }
+  }
+
+  console.log(`Public stack e2e verification passed: ${OUTPUT_TREE_SCENARIOS.length} stacks (${toolchainChannel})`);
+} finally {
+  if (keepOutput) {
+    console.log(`ANHEDRAL_E2E_KEEP=1; retained E2E output at ${e2eRoot}`);
+  } else {
+    rmSync(e2eRoot, { recursive: true, force: true });
+  }
+}

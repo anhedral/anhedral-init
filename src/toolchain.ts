@@ -7,7 +7,6 @@ export type ToolchainChannel = (typeof TOOLCHAIN_CHANNELS)[number];
 export type ToolchainSpec = {
   verifiedAt: string | null;
   shadcn: string;
-  reactNativeReusables: string;
   wxt: string;
 };
 
@@ -15,13 +14,11 @@ const TOOLCHAIN_SPECS: Record<ToolchainChannel, ToolchainSpec> = {
   latest: {
     verifiedAt: null,
     shadcn: 'latest',
-    reactNativeReusables: 'latest',
     wxt: 'latest',
   },
   stable: {
     verifiedAt: VERIFIED_AT,
     shadcn: TOOLCHAIN_DEPENDENCIES.shadcn,
-    reactNativeReusables: TOOLCHAIN_DEPENDENCIES.reactNativeReusables,
     wxt: TOOLCHAIN_DEPENDENCIES.wxt,
   },
 };

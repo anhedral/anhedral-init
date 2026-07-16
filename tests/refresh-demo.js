@@ -1,82 +1,48 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  createOutputTreeManifest,
+  findGoldenTreeViolations,
+  findNestedWorkspaceIslands,
+} from './support/output-tree.js';
+import { runScenario } from './support/scenario-runner.js';
+import { getRefreshDemoScenario } from './support/scenarios.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const demoRoot = path.join(repoRoot, 'demo');
-const cliEntry = path.join(repoRoot, 'dist', 'index.js');
+const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
+const scenario = getRefreshDemoScenario();
+const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-demo-'));
+let completed = false;
 
-function run(command, args, cwd) {
-  console.log(`Running in ${cwd}: ${command} ${args.join(' ')}`);
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      ANHEDRAL_TOOLCHAIN: 'stable',
-    },
+try {
+  const projectRoot = runScenario({
+    cliEntry,
+    scenario,
+    workspaceRoot: temporaryRoot,
+    skipInstall: true,
+    toolchainChannel: 'stable',
   });
+  const manifest = createOutputTreeManifest(projectRoot, scenario);
 
-  assert.equal(result.status, 0, `${command} ${args.join(' ')} failed in ${cwd}`);
+  assert.deepEqual(findGoldenTreeViolations(manifest), [], 'temporary demo should be source-only');
+  assert.deepEqual(
+    findNestedWorkspaceIslands(projectRoot),
+    [],
+    'temporary demo should not contain nested pnpm workspace islands',
+  );
+  completed = true;
+
+  console.log('');
+  console.log(`Source-only demo generated outside the repository: ${projectRoot}`);
+  console.log(`Output-tree digest: ${manifest.digest}`);
+  console.log('Run pnpm install in that directory when you are ready to install dependencies.');
+  console.log('The operating system may remove this temporary directory automatically.');
+} finally {
+  if (!completed) {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
 }
-
-function writeFile(filePath, contents) {
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, contents);
-}
-
-function writeDemoReadme() {
-  writeFile(path.join(demoRoot, 'README.md'), `# Demo Apps
-
-These demos are generated from the local Anhedral CLI in this repository using the stable toolchain.
-
-## Stacks
-
-- \`demo/expo-extension\` — Expo app, Fastify backend, WXT extension, and shared packages
-
-## Start Commands
-
-\`\`\`sh
-cd demo/expo-extension
-pnpm dev
-\`\`\`
-
-## Notes
-
-- API env files are generated with \`ANHEDRAL_DEMO=true\` for provider-free smoke testing.
-- Auth, billing, storage, and database operations need real provider credentials for production behavior.
-- The main UI surfaces worth previewing immediately are the Expo app shell and extension side panel.
-- Root \`pnpm build\` passes in the demo after generation.
-- Refresh the demos from the repo root with \`pnpm demo:refresh\`.
-`);
-}
-
-function removeNestedGitDirs(projectRoot) {
-  rmSync(path.join(projectRoot, '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'web', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'mobile', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'api', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'desktop', '.git'), { recursive: true, force: true });
-  rmSync(path.join(projectRoot, 'apps', 'extension', '.git'), { recursive: true, force: true });
-}
-
-const scenarios = [
-  { args: [], dir: 'expo-extension' },
-];
-
-rmSync(demoRoot, { recursive: true, force: true });
-mkdirSync(demoRoot, { recursive: true });
-
-for (const scenario of scenarios) {
-  const projectRoot = path.join(demoRoot, scenario.dir);
-  mkdirSync(projectRoot, { recursive: true });
-  run('node', [cliEntry, 'init', ...scenario.args], projectRoot);
-  removeNestedGitDirs(projectRoot);
-}
-
-writeDemoReadme();
-
-console.log(`Demo apps refreshed in ${demoRoot}`);

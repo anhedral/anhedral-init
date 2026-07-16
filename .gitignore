@@ -12,5 +12,6 @@ yarn-debug.log*
 yarn-error.log*
 *.tgz
 *.tsbuildinfo
+/release-artifact/
 /demo
 /.claude/

@@ -20,23 +20,27 @@ jobs:
   checks:
     name: Checks (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         node:
-          - 20
-          - 24
+          - '20.19.0'
+          - '22.12.0'
+          - '24.18.0'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.15.1
+          version: 10.34.5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -47,13 +51,36 @@ jobs:
       - name: Run local checks
         run: pnpm test
 
+      - name: Run explicit typecheck
+        run: pnpm typecheck
+
+      - name: Enforce generator coverage floor
+        if: ${{ matrix.node == '20.19.0' }}
+        run: pnpm test:coverage
+
+      - name: Check source hygiene and static security policy
+        if: ${{ matrix.node == '20.19.0' }}
+        run: pnpm lint && pnpm check:security
+
+      - name: Audit dependencies
+        if: ${{ matrix.node == '20.19.0' }}
+        run: pnpm audit:osv
+
       - name: Validate dependency manifest
-        if: ${{ matrix.node == 20 }}
+        if: ${{ matrix.node == '20.19.0' }}
         run: pnpm test:deps
 
+      - name: Validate current Vercel Services schema
+        if: ${{ matrix.node == '20.19.0' }}
+        run: pnpm test:vercel-schema
+
       - name: Smoke test packed CLI
-        if: ${{ matrix.node == 20 }}
+        if: ${{ matrix.node != '22.12.0' }}
         run: pnpm test:pack
+
+      - name: Enforce package allowlist
+        if: ${{ matrix.node == '20.19.0' }}
+        run: pnpm test:packlist
 
   e2e-stable:
     name: E2E Stable
@@ -61,17 +88,19 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.15.1
+          version: 10.34.5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 20
+          node-version: '22.13.0'
           cache: pnpm
 
       - name: Install dependencies
@@ -79,3 +108,42 @@ jobs:
 
       - name: Run stable e2e matrix
         run: pnpm test:e2e
+
+  portable-cli:
+    name: Portable CLI (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+        node:
+          - '20.19.0'
+          - '22.12.0'
+          - '24.18.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and exercise portable CLI paths
+        run: |
+          node tests/test-cli-validation.js
+          pnpm test:pack

@@ -1,218 +1,112 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { execSync, spawn, spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+const FAILURE_TAIL_BYTES = 128 * 1024;
+
 export function writeFile(filePath: string, content: string): void {
+  const existed = existsSync(filePath);
   mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, content, 'utf-8');
+  writeFileSync(filePath, content, { encoding: 'utf8', mode: 0o644 });
+  // Defeat a restrictive caller umask for newly generated files. Existing seeded
+  // files retain their user-selected mode across structural merges.
+  if (!existed) chmodSync(filePath, 0o644);
 }
 
 export function appendGitignore(root: string, lines: string[]): void {
   const filePath = path.join(root, '.gitignore');
-  const existing = existsSync(filePath)
-    ? readFileSync(filePath, 'utf-8').split('\n').map((line) => line.trim()).filter(Boolean)
-    : [];
-  const merged = [...new Set([...existing, ...lines])];
-  writeFile(filePath, merged.join('\n') + '\n');
+  const existing = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '';
+  const existingLines = new Set(existing.split(/\r\n|\n|\r/));
+  const additions = [...new Set(lines)].filter((line) => !existingLines.has(line));
+  if (additions.length === 0) return;
+
+  const newline = existing.includes('\r\n') ? '\r\n' : existing.includes('\n') ? '\n' : existing.includes('\r') ? '\r' : '\n';
+  const separator = existing.length > 0 && !/(?:\r\n|\n|\r)$/.test(existing) ? newline : '';
+  writeFile(filePath, `${existing}${separator}${additions.join(newline)}${newline}`);
 }
 
-const VERBOSE = process.env.ANHEDRAL_VERBOSE === '1';
-
-function dumpFailure(error: unknown, cmd: string): never {
-  const err = error as { stdout?: Buffer | string; stderr?: Buffer | string; status?: number | null };
-  const stdoutText = err.stdout ? err.stdout.toString() : '';
-  const stderrText = err.stderr ? err.stderr.toString() : '';
-  if (stdoutText) process.stderr.write(stdoutText);
-  if (stderrText) process.stderr.write(stderrText);
-  throw new Error(`Command failed (exit ${err.status ?? '?'}): ${cmd}`);
+function readTail(filePath: string): string {
+  const file = openSync(filePath, 'r');
+  try {
+    const size = fstatSync(file).size;
+    const length = Math.min(size, FAILURE_TAIL_BYTES);
+    if (length === 0) return '';
+    const buffer = Buffer.allocUnsafe(length);
+    readSync(file, buffer, 0, length, size - length);
+    return buffer.toString();
+  } finally {
+    closeSync(file);
+  }
 }
 
-function commandLabel(command: string, args: string[]): string {
-  return [command, ...args].join(' ');
+function dumpFailure(
+  cmd: string,
+  status: number | null,
+  stdoutPath: string,
+  stderrPath: string,
+  spawnError?: Error,
+): never {
+  const stdoutText = readTail(stdoutPath);
+  const stderrText = readTail(stderrPath);
+  if (process.env.ANHEDRAL_QUIET !== '1') {
+    if (stdoutText) process.stderr.write(stdoutText);
+    if (stderrText) process.stderr.write(stderrText);
+  }
+  throw new Error(`Command failed (exit ${status ?? '?'}): ${cmd}`, spawnError ? { cause: spawnError } : undefined);
 }
 
 export function exec(cmd: string, cwd: string): void {
-  if (VERBOSE) {
+  const quiet = process.env.ANHEDRAL_QUIET === '1';
+  if (process.env.ANHEDRAL_VERBOSE === '1' && !quiet) {
     console.log(`  $ ${cmd}`);
-    execSync(cmd, { cwd, stdio: 'inherit' });
-    return;
-  }
-  try {
-    execSync(cmd, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (error) {
-    dumpFailure(error, cmd);
-  }
-}
-
-export function execCommand(command: string, args: string[], cwd: string): void {
-  const label = commandLabel(command, args);
-  if (VERBOSE) {
-    console.log(`  $ ${label}`);
-  }
-
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: VERBOSE ? 'inherit' : ['ignore', 'pipe', 'pipe'],
-  });
-
-  if (result.status === 0) {
-    return;
-  }
-
-  if (!VERBOSE) {
-    if (result.stdout) process.stderr.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-  }
-
-  throw new Error(`Command failed (exit ${result.status ?? '?'}): ${label}`);
-}
-
-export function execWithInput(cmd: string, cwd: string, stdinInput: string): void {
-  if (VERBOSE) {
-    console.log(`  $ ${cmd}`);
-    execSync(cmd, { cwd, stdio: ['pipe', 'inherit', 'inherit'], input: stdinInput });
-    return;
-  }
-  try {
-    execSync(cmd, { cwd, stdio: ['pipe', 'pipe', 'pipe'], input: stdinInput });
-  } catch (error) {
-    dumpFailure(error, cmd);
-  }
-}
-
-function moveDirectoryContents(sourceDir: string, targetDir: string): void {
-  for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
-    const sourcePath = path.join(sourceDir, entry.name);
-    const targetPath = path.join(targetDir, entry.name);
-
-    if (existsSync(targetPath)) {
-      if (!entry.isDirectory() || !statSync(targetPath).isDirectory()) {
-        throw new Error(`Cannot merge scaffold output because ${targetPath} already exists.`);
-      }
-
-      moveDirectoryContents(sourcePath, targetPath);
-      rmSync(sourcePath, { recursive: true, force: true });
-      continue;
+    const result = spawnSync(cmd, { cwd, shell: true, stdio: 'inherit' });
+    if (result.error || result.status !== 0) {
+      throw new Error(`Command failed (exit ${result.status ?? '?'}): ${cmd}`, result.error ? { cause: result.error } : undefined);
     }
-
-    renameSync(sourcePath, targetPath);
-  }
-}
-
-export function liftNestedProject(root: string, nestedName: string): void {
-  const nestedRoot = path.join(root, nestedName);
-  if (!existsSync(nestedRoot)) {
     return;
   }
 
-  const selfNamedChild = path.join(nestedRoot, nestedName);
-  const tempSelfNamedChild = path.join(root, `.${nestedName}.anhedral-tmp`);
-  const hasSelfNamedChild = existsSync(selfNamedChild);
-
-  if (hasSelfNamedChild) {
-    if (existsSync(tempSelfNamedChild)) {
-      throw new Error(`Cannot lift scaffold output because ${tempSelfNamedChild} already exists.`);
-    }
-
-    renameSync(selfNamedChild, tempSelfNamedChild);
-  }
-
-  moveDirectoryContents(nestedRoot, root);
-  rmSync(nestedRoot, { recursive: true, force: true });
-
-  if (hasSelfNamedChild) {
-    renameSync(tempSelfNamedChild, path.join(root, nestedName));
-  }
-}
-
-function trimOutputTail(output: string, maxLength = 4000): string {
-  if (output.length <= maxLength) {
-    return output;
-  }
-
-  return output.slice(output.length - maxLength);
-}
-
-export async function execExpect(
-  cmd: string,
-  cwd: string,
-  prompts: [waitFor: string, answer: string][],
-  timeoutMs = 120_000,
-): Promise<void> {
-  if (VERBOSE) {
-    console.log(`  $ ${cmd}`);
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(cmd, {
+  // Successful package-manager and build commands can easily exceed Node's
+  // default execSync buffer. Spool both streams to disk and retain only a
+  // bounded diagnostic tail on failure.
+  const captureRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-exec-'));
+  const stdoutPath = path.join(captureRoot, 'stdout.log');
+  const stderrPath = path.join(captureRoot, 'stderr.log');
+  const stdout = openSync(stdoutPath, 'w');
+  const stderr = openSync(stderrPath, 'w');
+  try {
+    const result = spawnSync(cmd, {
       cwd,
-      env: process.env,
       shell: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', stdout, stderr],
     });
-
-    let combinedOutput = '';
-    let promptIndex = 0;
-    let settled = false;
-
-    const finish = (handler: () => void) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      clearTimeout(timeoutId);
-      handler();
-    };
-
-    const maybeAnswerPrompt = () => {
-      while (promptIndex < prompts.length && combinedOutput.includes(prompts[promptIndex][0])) {
-        child.stdin.write(`${prompts[promptIndex][1]}\n`);
-        promptIndex += 1;
-      }
-    };
-
-    const handleChunk = (chunk: Buffer, target: NodeJS.WriteStream) => {
-      const text = chunk.toString();
-      combinedOutput += text;
-      if (VERBOSE) target.write(text);
-      maybeAnswerPrompt();
-    };
-
-    const timeoutId = setTimeout(() => {
-      child.kill('SIGTERM');
-      finish(() => {
-        reject(new Error(
-          `Command timed out after ${timeoutMs}ms: ${cmd}\n` +
-          `Answered ${promptIndex}/${prompts.length} prompts.\n` +
-          `Recent output:\n${trimOutputTail(combinedOutput)}`,
-        ));
-      });
-    }, timeoutMs);
-
-    child.stdout.on('data', (chunk: Buffer) => handleChunk(chunk, process.stdout));
-    child.stderr.on('data', (chunk: Buffer) => handleChunk(chunk, process.stderr));
-
-    child.on('error', (error) => {
-      finish(() => {
-        reject(error);
-      });
-    });
-
-    child.on('close', (code) => {
-      finish(() => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-
-        reject(new Error(
-          `Command failed with exit code ${code}: ${cmd}\n` +
-          `Answered ${promptIndex}/${prompts.length} prompts.\n` +
-          `Recent output:\n${trimOutputTail(combinedOutput)}`,
-        ));
-      });
-    });
-  });
+    closeSync(stdout);
+    closeSync(stderr);
+    if (result.error || result.status !== 0) {
+      dumpFailure(cmd, result.status, stdoutPath, stderrPath, result.error);
+    }
+  } finally {
+    // closeSync throws for an already-closed descriptor, so close only when
+    // spawnSync itself threw before the normal close path.
+    try {
+      closeSync(stdout);
+    } catch {}
+    try {
+      closeSync(stderr);
+    } catch {}
+    rmSync(captureRoot, { recursive: true, force: true });
+  }
 }

@@ -1,339 +1,122 @@
 ---
 name: anhedral-init
-description: Use this skill when a user asks to scaffold, initialize, repair, or explain an Anhedral app using the anhedral init CLI. Covers the current commands, generated project structure, provider setup, skill installation, verification, and official documentation links for the stack.
+description: Scaffold, extend, diagnose, or explain Anhedral modular TypeScript workspaces. Use for Anhedral CLI requests involving init/add/doctor, selecting web/mobile/API/desktop/extension surfaces, enabling database/auth/billing/storage/native subscriptions, interpreting anhedral.json ownership, or verifying generated projects.
 ---
 
 # Anhedral Init
 
-Use this skill when the user asks for "anhedral init", "set up an Anhedral app", "make an Anhedral starter", or wants a project scaffold with Expo or Next.js, Fastify, Drizzle, Neon, Clerk, Stripe or RevenueCat, Cloudflare R2, and optional WXT extension support.
+Use Node.js 20.19+ or 22.12+ and pnpm. Run the CLI in an empty directory for `init`; `.git`, `.gitignore`, and `.DS_Store` are allowed.
 
-Always prefer the current official docs linked below when the user asks for exact current behavior. The Anhedral CLI pins a stable toolchain by default, but upstream frameworks and provider dashboards change frequently.
+## Select modules
 
-## Source Links
+Choose app surfaces from `web`, `mobile`, `api`, `desktop`, and `extension`.
 
-Anhedral:
-- Anhedral init repository: https://github.com/anhedral/anhedral-init
-- Anhedral npm package: https://www.npmjs.com/package/anhedral
+Choose backend features from `db`, `auth`, `billing`, `storage`, and `native-subscriptions`.
 
-Skills:
-- Skills CLI docs: https://skills.sh/docs/cli
-- Skills docs overview: https://skills.sh/docs
+Apply these dependency rules automatically:
 
-Runtime and package manager:
-- Node.js downloads: https://nodejs.org/en/download
-- pnpm installation: https://pnpm.io/installation
-- pnpm `dlx`: https://pnpm.io/cli/dlx
-
-Generated stack docs:
-- Expo docs: https://docs.expo.dev/
-- Next.js App Router docs: https://nextjs.org/docs/app
-- shadcn/ui Next.js install: https://ui.shadcn.com/docs/installation/next
-- shadcn/ui CLI: https://ui.shadcn.com/docs/cli
-- React Native Reusables repository: https://github.com/founded-labs/react-native-reusables
-- React Native Reusables CLI package: https://www.npmjs.com/package/@react-native-reusables/cli
-- Fastify getting started: https://fastify.dev/docs/latest/Guides/Getting-Started/
-- Drizzle with Neon: https://orm.drizzle.team/docs/get-started/neon-existing
-- Neon connect docs: https://neon.com/docs/get-started-with-neon/connect-neon
-- Clerk quickstarts: https://clerk.com/docs/getting-started/quickstart/overview
-- Clerk Next.js App Router quickstart: https://clerk.com/docs/nextjs/getting-started/quickstart
-- Clerk Chrome extension docs: https://clerk.com/docs/chrome-extension/overview
-- Stripe docs: https://docs.stripe.com/
-- Stripe Node API reference: https://docs.stripe.com/api?lang=node
-- RevenueCat Expo docs: https://www.revenuecat.com/docs/getting-started/installation/expo
-- RevenueCat React Native docs: https://www.revenuecat.com/docs/getting-started/installation/reactnative
-- Cloudflare R2 S3 getting started: https://developers.cloudflare.com/r2/get-started/s3/
-- Cloudflare R2 S3 API: https://developers.cloudflare.com/r2/api/s3/
-- Cloudflare R2 LLM docs index: https://developers.cloudflare.com/r2/llms.txt
-- WXT introduction: https://wxt.dev/guide/introduction
-- WXT installation: https://wxt.dev/guide/installation
-- WXT LLM docs index: https://wxt.dev/llms.txt
-- Vercel project configuration: https://vercel.com/docs/project-configuration
-- Vercel Node.js runtime: https://vercel.com/docs/functions/runtimes/node-js
-
-## Before Running
-
-Verify the machine has Node.js 20 or newer and pnpm available:
-
-```bash
-node --version
-pnpm --version
+```text
+auth                 -> api + db
+billing              -> auth
+storage              -> auth
+native-subscriptions -> mobile + billing
 ```
 
-If pnpm is missing and Node ships with Corepack:
+With no module flags, generate the full stack.
 
-```bash
-corepack enable
-corepack prepare pnpm@latest --activate
-```
+## Initialize
 
-Anhedral must run in an empty directory. Existing `.git`, `.gitignore`, and `.DS_Store` entries are allowed, but normal project files are not.
-
-## Scaffold Commands
-
-The Anhedral Expo path is based on React Native Reusables, not `create-expo-app`. Do not scaffold the mobile app with `create-expo-app` for Anhedral projects.
-
-User-facing default scaffold: Expo mobile app from the React Native Reusables `clerk-auth` template, Fastify API, shared packages, Clerk, RevenueCat plus Stripe env fields, Neon plus Drizzle, Cloudflare R2.
-
-```bash
-mkdir my-anhedral-app
-cd my-anhedral-app
+```sh
+mkdir my-product
+cd my-product
 pnpm dlx anhedral@latest init
 ```
 
-Underlying Expo scaffold command used by Anhedral:
+Prefer explicit modules when the user requests a smaller stack:
 
-```bash
-mkdir -p apps/mobile
-cd apps/mobile
-pnpm dlx @react-native-reusables/cli@0.5.0 init -t clerk-auth
-```
-
-Answer the React Native Reusables prompts this way when reproducing the Anhedral flow manually:
-
-```text
-What is the name of your project? <project-name>
-Would you like to install dependencies? n
-Would you like to initialize a Git repository? n
-```
-
-After the React Native Reusables CLI creates the nested `<project-name>` directory, move its contents up into `apps/mobile`, then install dependencies from `apps/mobile`.
-
-Add or verify the React Native Reusables components used by the Anhedral mobile screens:
-
-```bash
-pnpm dlx @react-native-reusables/cli@0.5.0 add avatar button card icon input label popover separator text
-```
-
-Then add the Anhedral mobile extras:
-
-```bash
-pnpm install
-pnpm exec expo install expo-image-picker
-pnpm add react-native-purchases react-native-purchases-ui @revenuecat/purchases-js
-```
-
-Next.js web scaffold:
-
-```bash
-mkdir my-anhedral-web-app
-cd my-anhedral-web-app
-pnpm dlx anhedral@latest init --next
-```
-
-Expo plus WXT Chrome extension:
-
-```bash
-mkdir my-anhedral-mobile-extension-app
-cd my-anhedral-mobile-extension-app
-pnpm dlx anhedral@latest init --extension
-```
-
-Next.js plus WXT Chrome extension:
-
-```bash
-mkdir my-anhedral-web-extension-app
-cd my-anhedral-web-extension-app
-pnpm dlx anhedral@latest init --next --extension
+```sh
+pnpm dlx anhedral@latest init --web --api --db --auth
+pnpm dlx anhedral@latest init --api --skip-install
 ```
 
 Use the stable toolchain unless the user explicitly wants upstream drift testing:
 
-```bash
+```sh
 pnpm dlx anhedral@latest init --toolchain stable
 pnpm dlx anhedral@latest init --toolchain latest
 ```
 
-The `latest` channel floats upstream scaffold tools and can break when upstream CLIs change. Use it for investigation, not normal user setup.
+Treat `latest` as an investigation channel. Stable generation uses exact verified versions and local deterministic templates.
 
-## Expected Structure
+## Add modules safely
 
-The current fullstack scaffold writes:
+Run `add` only from a project containing `anhedral.json` schema v3:
 
-```text
-.
-|-- apps/
-|   |-- api/          # Fastify API, Vercel Node entry, tests, provider integrations
-|   |-- mobile/       # Expo app when using default mode
-|   |-- web/          # Next.js app when using --next
-|   `-- extension/    # WXT Chrome extension when using --extension
-|-- packages/
-|   |-- api-client/
-|   |-- config/
-|   |-- db/           # Drizzle schema and migrations
-|   `-- types/
-|-- .env.example
-|-- install-skills.sh
-|-- package.json
-|-- pnpm-workspace.yaml
-|-- stack.json
-`-- vercel.json
+```sh
+pnpm dlx anhedral@latest add desktop extension
+pnpm dlx anhedral@latest add storage --dry-run
 ```
 
-The exact generated paths are recorded in `stack.json` under `outputs.generated_paths`.
+Use `--dry-run` before a consequential add. Use `--json` when another program needs the plan; JSON failures include a stable `code` and a human-readable `error`. Use `--verbose` for interactive child-command diagnostics. Do not bypass ownership conflicts: Anhedral intentionally refuses modified managed files, user-owned files, symlinks, and unowned collisions.
 
-## Install Skills
+Require the manifest generator version to match the running CLI. Regenerate projects created by another version; do not add compatibility branches.
 
-After scaffolding, inspect and run `install-skills.sh`. Install project-scoped skills when the user wants the skill files tracked with the generated project; otherwise use the agent's normal global scope.
+Do not rewrite a generated project's README or custom workflows while adding modules. Preserve custom package fields and mergeable root configuration.
 
-Commands generated by Anhedral:
+## Diagnose
 
-```bash
-pnpm dlx skills add https://github.com/clerk/skills --skill clerk-custom-ui
-pnpm dlx skills add https://github.com/stripe/ai --skill stripe-best-practices
+Dry-runs never perform transaction recovery. If a recovery journal is pending, rerun the original command without `--dry-run` before requesting a new preview.
+
+Check recorded files and hashes with:
+
+```sh
+pnpm dlx anhedral@latest doctor
+pnpm dlx anhedral@latest doctor --json
 ```
 
-For Expo or RevenueCat projects, also run:
+Explain that warnings can represent mergeable or user-owned drift, while modified or missing managed files make the project unhealthy.
 
-```bash
-pnpm dlx skills add https://github.com/revenuecat/revenuecat-skill --skill revenuecat
-```
+## Configure the generated project
 
-Recommended when the user expects database-specific agent help:
+Copy environment examples, fill only selected provider values, install, and verify:
 
-```bash
-pnpm dlx skills add https://github.com/neondatabase/agent-skills --skill neon-postgres
-```
-
-Skills CLI examples often use `npx skills`. In pnpm projects, prefer `pnpm dlx skills` unless the user asks for another package manager.
-
-## Provider Setup
-
-Create runtime env files from the generated examples:
-
-```bash
-cp .env.example .env
-```
-
-Then fill these values before running the complete app:
-
-```text
-DATABASE_URL
-CLERK_PUBLISHABLE_KEY
-CLERK_SECRET_KEY
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-R2_BUCKET
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-STRIPE_PRICE_STARTER
-RC_SECRET_API_KEY
-RC_WEBHOOK_SECRET
-RC_ENTITLEMENT_ID
-RC_OFFERING_ID
-EXPO_PUBLIC_RC_API_KEY_IOS
-EXPO_PUBLIC_RC_API_KEY_ANDROID
-EXPO_PUBLIC_RC_WEB_API_KEY
-```
-
-Use only the values required by the generated stack. For example, a Next.js-only setup may not need Expo public RevenueCat keys immediately, and an Expo-first setup may not need `NEXT_PUBLIC_APP_URL`.
-
-Provider checklist:
-- Neon: create a project, copy the pooled or direct Postgres connection string, and set `DATABASE_URL`.
-- Clerk: create an application, enable the required frontend platform, and set publishable and secret keys.
-- Stripe: create products/prices if the project uses web billing, then set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_PRICE_STARTER`.
-- RevenueCat: create apps, entitlements, offerings, and platform API keys for Expo/mobile billing.
-- Cloudflare R2: create a bucket, create S3-compatible credentials, and set account, key, secret, and bucket values.
-- WXT extension: set `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_API_URL`, `VITE_WEBSITE_URL`, and optionally `VITE_CRX_PUBLIC_KEY` in `apps/extension`.
-
-Do not commit real `.env` files.
-
-## Post-Scaffold Commands
-
-Install dependencies if the scaffold did not complete dependency installation, or after changing workspace dependencies:
-
-```bash
+```sh
+cp apps/api/.env.example apps/api/.env
+cp packages/db/.env.example packages/db/.env
 pnpm install
+pnpm verify
 ```
 
-Generate and run database migrations:
+Copy only examples that exist for the selected surfaces. Client packages use package-local runtime files (for example, copy `apps/web/.env.example` to `apps/web/.env.local` and `apps/desktop/.env.example` to `apps/desktop/.env`); the root `.env.example` is an inventory, not a runtime environment file.
 
-```bash
-pnpm db:generate
-pnpm db:migrate
-```
+Common selected keys are:
 
-Run the app:
+- Neon: `DATABASE_URL`
+- Clerk server: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+- Clerk clients: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
+- RevenueCat: `RC_WEBHOOK_SECRET`, `RC_ENTITLEMENT_ID`, `EXPO_PUBLIC_RC_*`
+- R2: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
 
-```bash
-pnpm dev
-```
+Never commit real `.env` files. Keep `ANHEDRAL_DEMO=false` in production.
 
-Run only the API:
+Run only scripts present for installed modules. Typical commands include `dev:web`, `dev:mobile`, `dev:api`, `dev:desktop`, `dev:extension`, corresponding `verify:*` scripts, and database scripts for `db` projects.
 
-```bash
-pnpm dev:api
-```
+## Understand deployment
 
-Run only the web app when `--next` was used:
+Treat the root `vercel.json` as the only Vercel Services configuration. It uses the current `services` schema, declares `apps/api` and `apps/web` as independent service roots, and routes `/api/(.*)` before the web catch-all. Vercel preserves the original path, so Fastify mounts its routes under `/api` locally and in deployment. Select the Services framework preset before deploying.
 
-```bash
-pnpm dev:web
-```
+Use `apps/mobile` for EAS, `pnpm desktop:build` for a current-host Electron artifact, matching platform-specific desktop scripts in CI, and `pnpm extension:zip` for the WXT archive.
 
-Run only the mobile app when default Expo mode was used:
+## Verify outcomes
 
-```bash
-pnpm dev:mobile
-```
+After generation or repair, run the strongest practical checks:
 
-Run or package the extension when `--extension` was used:
-
-```bash
-pnpm dev:extension
-pnpm extension:zip
-```
-
-Verify the workspace:
-
-```bash
+```sh
 pnpm typecheck
+pnpm verify
 pnpm build
 ```
 
-The API also includes tests:
+Use `pnpm --filter ./apps/api test` when the API exists. If verification fails, report the exact package and command rather than replacing generated ownership records manually.
 
-```bash
-pnpm --filter ./apps/api test
-```
-
-## Troubleshooting
-
-If `anhedral init` fails with "Current directory is not empty", create a new empty directory and rerun the command there.
-
-If an upstream scaffold CLI fails, rerun with the stable channel:
-
-```bash
-pnpm dlx anhedral@latest init --toolchain stable
-```
-
-If a package install fails due to network or registry access, ask the user for permission to retry with network access in the coding environment.
-
-If migrations fail, verify `DATABASE_URL`, then run:
-
-```bash
-pnpm --filter @anhedral/db db:generate
-pnpm --filter @anhedral/db db:migrate
-```
-
-If Clerk auth fails, verify that frontend URLs, extension origins, and redirect URLs match the active local ports.
-
-If R2 uploads fail, verify the endpoint is `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`, region is `auto`, and the token has read/write access to the configured bucket.
-
-## Maintenance
-
-When updating this skill, check the Anhedral CLI source for current flags and generated paths before changing commands. The authoritative local files are:
-
-```text
-src/cli.ts
-src/scaffold.ts
-src/commands.ts
-src/toolchain.ts
-src/templates/frontend.ts
-src/templates/backend.ts
-src/templates/extension.ts
-```
-
-If upstream docs mention LLM-optimized Markdown or `llms.txt`, prefer those sources when the agent has web access.
+For exact representative trees, consult `docs/output-tree-contract.md` in the Anhedral repository.

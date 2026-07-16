@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "scenario": "api-only",
+  "projectDirectory": "api-only",
+  "entries": [
+    {
+      "path": ".env.example",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 63,
+      "sha256": "cb41f5842cb698bb1b3fe03666a87d12aee739faeee6de72c0cc1e2d547ac5d5"
+    },
+    {
+      "path": ".github/workflows/anhedral-ci.yml",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 847,
+      "sha256": "92ac2e762ee8eb7bdd7250271ea9f5f7276e8ba8d6071e8fbe32ab2e93a258c7"
+    },
+    {
+      "path": ".gitignore",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 107,
+      "sha256": "2e15b05a9c13c248be48c64479ec17ec88fa6d6aee644345dfb7173e2a81cfd4"
+    },
+    {
+      "path": ".vercelignore",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 61,
+      "sha256": "120ea73f6afde97f7d346310fc741aaaf91c9b6e161fff7d75ae0a1595943931"
+    },
+    {
+      "path": "ANHEDRAL.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 309,
+      "sha256": "d1bbf5d898226bc9e20ca827cc2d58dcc11e74c0ad13068cb32fc629dc3d14f5"
+    },
+    {
+      "path": "PRODUCTION.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 389,
+      "sha256": "619c2305f98a5ffea34675b7d8daa08b84ebb6c9a885e1b8c4090e07e174c7b3"
+    },
+    {
+      "path": "README.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 235,
+      "sha256": "7b409312b440cdff1ec56d35aad9772a790e46f5ad3011528c0071648d407696"
+    },
+    {
+      "path": "anhedral.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 4948,
+      "sha256": "d4e2e8a9c5570b3d641a99243be7a8358ee1a5d9b886943ea70f802c7deeed6d"
+    },
+    {
+      "path": "apps/api/.env.example",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 215,
+      "sha256": "cb7abeff3e9feec5e013eb048025582cf517dbbeeac89c52ef18cde04a1f26db"
+    },
+    {
+      "path": "apps/api/.gitignore",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 67,
+      "sha256": "85e844ae21b21b714f29bf2c73f13284d556a72cd06efe32455f88ef56d7ccd6"
+    },
+    {
+      "path": "apps/api/package.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 708,
+      "sha256": "3021d58a97abca648a772f4b95301497789bf9973033e3b546940788b53dfb7b"
+    },
+    {
+      "path": "apps/api/src/application.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3061,
+      "sha256": "dd127dbde283d1268d10283d0d75547b53eaaac91661d425f8fc9df0a0724605"
+    },
+    {
+      "path": "apps/api/src/env.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 1617,
+      "sha256": "3f86cd3bf7afed042c8e843f8c849a98d0e6a3367ec4932176d1fbd21623f317"
+    },
+    {
+      "path": "apps/api/src/index.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 1248,
+      "sha256": "d131994bf59de82bd229c84e5cf87a6eaa83e6be185580d4cbb29c47e7427527"
+    },
+    {
+      "path": "apps/api/src/routes.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 795,
+      "sha256": "91f285e4fa25915baff8dfe78e82e4360a9cef57535230ee85c32c43b2d9b60d"
+    },
+    {
+      "path": "apps/api/tests/env.test.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 935,
+      "sha256": "4d9891e8fa2bc951d7c1c89c3797f4e1d7a5181fefdc84b22092c76fc09d16eb"
+    },
+    {
+      "path": "apps/api/tests/health.test.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 4263,
+      "sha256": "c67d1b892da3ba9be86ece963f4cc4666e1688d2d9f066473c0ecedd498664b8"
+    },
+    {
+      "path": "apps/api/tsconfig.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 368,
+      "sha256": "623b2e6f89bb8500072e8364a157e7ed203a84db497e9ec97134f4b6b22a6636"
+    },
+    {
+      "path": "apps/api/vitest.config.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 365,
+      "sha256": "450587260ed79be43a546093fef6a77be922477fd8eff94ca4029d2969f38d21"
+    },
+    {
+      "path": "package.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 574,
+      "sha256": "6b345fc77d271026788e348b1a3d9794ee79292cc1c027caf75f23e9312a4aac"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 322,
+      "sha256": "d362ea64877bd25863a3a7b0debfecdb4ae7f9633dbabbfc782f508b537139bc"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 544,
+      "sha256": "ee173c65662387a299e5f785af55daf842b1934af17d84e2c75ca24fa31b8bb7"
+    },
+    {
+      "path": "packages/contracts/tsconfig.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 252,
+      "sha256": "824c10cd054b37475999fdaff5f29eb20742a160eed5d201bb9ffab418f9bb71"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 668,
+      "sha256": "a46702f5aa2aed575ff2d78bbf159b160f02499e89fb4c23281e2f4ac9353a5c"
+    },
+    {
+      "path": "turbo.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 392,
+      "sha256": "7ecaf79bc90cbf0622407790974dce27f144dfea126e0e1bdeb9f4bfe9b7af60"
+    },
+    {
+      "path": "vercel.json",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 240,
+      "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
+    }
+  ],
+  "digest": "2912a100a316dece117e6ef9008af20f05bcd0e8f4111fe4466d062149a48a29"
+}

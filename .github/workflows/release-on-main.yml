@@ -4,83 +4,56 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '.github/**'
-      - 'README.md'
+    paths:
+      - package.json
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-concurrency:
-  group: release-main
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  version:
-    name: Version, tag, and publish
-    if: github.actor != 'github-actions[bot]'
+  version-change:
+    name: Detect declared version change
     runs-on: ubuntu-latest
-    environment: npm
-    timeout-minutes: 45
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout version commit
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          ref: main
+          persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump patch version
+      - name: Compare package versions
         id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          npm version patch --no-git-tag-version
-          VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).version')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Check npm version is unpublished
-        run: |
-          if npm view "anhedral@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
-            echo "anhedral@${{ steps.version.outputs.version }} is already published"
-            exit 1
+          CURRENT_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PREVIOUS_VERSION=$(git show "$BEFORE_SHA:package.json" | node -e "process.stdout.write(JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version)")
+          if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package.json changed without a version change; release skipped" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Version change: $PREVIOUS_VERSION -> $CURRENT_VERSION" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Run release checks
-        run: pnpm release:check
-
-      - name: Commit release version
-        run: |
-          git add package.json
-          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
-          git tag "v${{ steps.version.outputs.version }}"
-
-      - name: Push release commit and tag
-        run: |
-          git push origin HEAD:main
-          git push origin "v${{ steps.version.outputs.version }}"
-
-      - name: Publish package
-        run: npm publish --provenance --ignore-scripts
+  release:
+    name: Publish declared package version
+    needs: version-change
+    if: needs.version-change.outputs.changed == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    secrets:
+      # Preserve token-based npm publishing while scoping NODE_AUTH_TOKEN to
+      # the canonical workflow's single publish step.
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -5,45 +5,55 @@ import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
 import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
 import { resolveToolchainChannel, resolveToolchain, toolPackageRef } from '../toolchain.js';
+import { childPackageName, htmlText, jsString, markdownHeading } from '../render.js';
 
-export async function scaffoldExtension(root: string, { projectName, displayName, skipInstall }: ProjectOptions): Promise<void> {
+function selectedDependencies(options: ProjectOptions): Record<string, string> {
+  const dependencies = { ...(EXTENSION_DEPENDENCIES.dependencies ?? {}) };
+  if (!options.apps.api) delete dependencies['@shared/api-client'];
+  if (!options.features.auth) delete dependencies['@clerk/chrome-extension'];
+  return dependencies;
+}
+
+export async function scaffoldExtension(root: string, options: ProjectOptions): Promise<void> {
+  const { projectName, displayName, skipInstall } = options;
   const dir = path.join(root, 'apps/extension');
   const toolchain = resolveToolchain(resolveToolchainChannel(process.env.ANHEDRAL_TOOLCHAIN));
+  const useUpstreamScaffolder = toolchain.wxt === 'latest' && !skipInstall;
 
   anhedralPrint.section('Chrome extension (WXT)');
 
   anhedralPrint.step('Scaffolding WXT extension');
-  exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init apps/extension -t react --pm pnpm`, root);
-  writePackageJson(dir, projectName);
+  if (useUpstreamScaffolder) {
+    exec(`pnpm dlx --allow-build=esbuild --allow-build=spawn-sync ${toolPackageRef('wxt', toolchain.wxt)} init apps/extension -t react --pm pnpm`, root);
+  } else {
+    anhedralPrint.info(`Using the deterministic local extension template (wxt@${toolchain.wxt}).`);
+  }
+  writePackageJson(dir, projectName, options);
   anhedralPrint.done('WXT extension scaffolded');
 
-  anhedralPrint.step('Installing Clerk + React + Tailwind dependencies');
+  anhedralPrint.step(`Recording ${options.features.auth ? 'Clerk + ' : ''}React + Tailwind dependencies`);
   if (skipInstall) {
     anhedralPrint.info('Skipping extension dependency install (--skip-install)');
     anhedralPrint.info('Run after init: pnpm install');
-  } else {
-    exec('pnpm install --no-frozen-lockfile', dir);
   }
-  anhedralPrint.done(skipInstall ? 'Extension dependency manifests written' : 'Extension dependencies installed');
+  anhedralPrint.done('Extension dependency manifests written');
 
   cleanWxtStarterFiles(dir);
-  writeWxtConfig(dir, displayName);
+  writeWxtConfig(dir, displayName, options);
   writeTsConfig(dir);
-  writeEnvExample(dir);
-  writeEnvFile(dir);
+  writeEnvExample(dir, options);
   writePostcssConfig(dir);
   writeTailwindConfig(dir);
   writeShadcnConfig(dir);
-  writeReadme(dir, displayName);
+  writeReadme(dir, displayName, options);
   writeCnUtil(dir);
   writeButtonComponent(dir);
-  writeAuthContext(dir);
-  writeApiClient(dir);
-  writeBackground(dir);
-  writeContentScript(dir);
-  writeSidepanelEntry(dir);
+  if (options.features.auth) writeAuthContext(dir);
+  if (options.apps.api) writeApiClient(dir);
+  writeBackground(dir, options.features.auth);
+  writeSidepanelEntry(dir, options.features.auth);
   writeSidepanelHtml(dir, displayName);
-  writeSidepanelApp(dir);
+  writeSidepanelApp(dir, options.features.auth);
   writeStyles(dir);
 
   anhedralPrint.done('Extension source files written');
@@ -51,6 +61,7 @@ export async function scaffoldExtension(root: string, { projectName, displayName
 
 function cleanWxtStarterFiles(dir: string): void {
   for (const relativePath of [
+    '.git',
     'entrypoints',
     'assets/react.svg',
     'public/wxt.svg',
@@ -59,45 +70,93 @@ function cleanWxtStarterFiles(dir: string): void {
   }
 }
 
-function writePackageJson(dir: string, projectName: string): void {
+function writePackageJson(dir: string, projectName: string, options: ProjectOptions): void {
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
-    name: projectName + '-chrome-ext',
+    name: childPackageName(projectName, 'chrome-ext'),
     version: '0.1.0',
     private: true,
     type: 'module',
     scripts: {
       dev: 'wxt',
-      'dev:firefox': 'wxt -b firefox',
       build: 'wxt build',
-      'build:firefox': 'wxt build -b firefox',
       postinstall: 'wxt prepare',
       zip: 'wxt zip',
-      'zip:firefox': 'wxt zip -b firefox',
       typecheck: 'tsc --noEmit',
     },
-    dependencies: EXTENSION_DEPENDENCIES.dependencies,
+    dependencies: selectedDependencies(options),
     devDependencies: EXTENSION_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
 }
 
-function writeWxtConfig(dir: string, displayName: string): void {
+function writeWxtConfig(dir: string, displayName: string, options: ProjectOptions): void {
+  const nameLiteral = jsString(displayName);
+  const descriptionLiteral = jsString(`${displayName} Chrome Extension`);
+  const actionTitleLiteral = jsString(`Open ${displayName}`);
+  const permissionsLiteral = options.features.auth
+    ? "['activeTab', 'cookies', 'scripting', 'storage', 'sidePanel']"
+    : "['activeTab', 'scripting', 'sidePanel']";
+  const permissionSources = [
+    options.apps.api
+      ? "    permissionForUrl('VITE_API_URL', import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8787/api' : undefined)),"
+      : null,
+    options.features.auth
+      ? "    permissionForUrl('VITE_CLERK_FRONTEND_API_URL', import.meta.env.VITE_CLERK_FRONTEND_API_URL),"
+      : null,
+    options.features.auth
+      ? "    permissionForUrl('VITE_CLERK_SYNC_HOST', import.meta.env.VITE_CLERK_SYNC_HOST),"
+      : null,
+  ].filter((value): value is string => value !== null);
+  const permissionHelper = permissionSources.length > 0
+    ? `
+function permissionForUrl(name: string, value: string | undefined): string | null {
+  const candidate = value?.trim();
+  if (!candidate) return null;
+
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error(\`\${name} must be a valid absolute URL\`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(\`\${name} must use http: or https:\`);
+  }
+  if (url.username || url.password) throw new Error(\`\${name} must not include URL credentials\`);
+  if (url.search || candidate.includes('?')) throw new Error(\`\${name} must not include a query string\`);
+  if (url.hash || candidate.includes('#')) throw new Error(\`\${name} must not include a URL fragment\`);
+  if (import.meta.env.PROD && url.protocol !== 'https:') {
+    throw new Error(\`\${name} must use https: in production\`);
+  }
+  return \`\${url.protocol}//\${url.hostname}/*\`;
+}
+`
+    : '';
+  const hostPermissionsSetup = permissionSources.length > 0
+    ? `    const hostPermissions = [...new Set([
+${permissionSources.join('\n')}
+    ].filter((value): value is string => value !== null))];
+`
+    : '';
+  const hostPermissionsLiteral = permissionSources.length > 0 ? 'hostPermissions' : '[]';
   writeFile(path.join(dir, 'wxt.config.ts'), `import { defineConfig } from 'wxt';
+${permissionHelper}
 
 export default defineConfig({
   srcDir: 'src',
   manifest: () => {
-    const crxPublicKey = process.env.VITE_CRX_PUBLIC_KEY || '';
+    const crxPublicKey = import.meta.env.VITE_CRX_PUBLIC_KEY || '';
+${hostPermissionsSetup}
 
     return {
-      name: '${displayName}',
-      description: '${displayName} Chrome Extension',
+      name: ${nameLiteral},
+      description: ${descriptionLiteral},
       version: '0.1.0',
       ...(crxPublicKey ? { key: crxPublicKey } : {}),
       minimum_chrome_version: '114',
-      permissions: ['activeTab', 'cookies', 'storage', 'sidePanel'],
-      host_permissions: [],
+      permissions: ${permissionsLiteral},
+      host_permissions: ${hostPermissionsLiteral},
       action: {
-        default_title: 'Open ${displayName}',
+        default_title: ${actionTitleLiteral},
       },
       side_panel: {
         default_path: 'sidepanel.html',
@@ -138,40 +197,25 @@ function writeTsConfig(dir: string): void {
   }, null, 2) + '\n');
 }
 
-function writeEnvExample(dir: string): void {
-  writeFile(path.join(dir, '.env.example'), `# Clerk Authentication
+function extensionEnvContents(options: ProjectOptions): string {
+  const sections: string[] = [];
+  if (options.features.auth) {
+    sections.push(`# Clerk Authentication
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_***
-
-# API API URL
-VITE_API_URL=http://localhost:8787
-
-# Website URL (for sign-up and subscription links)
-VITE_WEBSITE_URL=http://localhost:8081
-
-# Chrome Extension CRX public key (optional, for stable extension ID)
-VITE_CRX_PUBLIC_KEY=
-
-# RevenueCat Web Billing URL (optional, for subscription management)
-VITE_RC_BILLING_URL=
-`);
+VITE_CLERK_FRONTEND_API_URL=
+VITE_CLERK_SYNC_HOST=`);
+  }
+  if (options.apps.api) {
+    sections.push(`# API URL
+VITE_API_URL=http://localhost:8787/api`);
+  }
+  sections.push(`# Chrome Extension CRX public key (optional, for stable extension ID)
+VITE_CRX_PUBLIC_KEY=`);
+  return `${sections.join('\n\n')}\n`;
 }
 
-function writeEnvFile(dir: string): void {
-  writeFile(path.join(dir, '.env'), `# Clerk Authentication
-VITE_CLERK_PUBLISHABLE_KEY=
-
-# API API URL
-VITE_API_URL=http://localhost:8787
-
-# Website URL (for sign-up and subscription links)
-VITE_WEBSITE_URL=http://localhost:8081
-
-# Chrome Extension CRX public key (optional, for stable extension ID)
-VITE_CRX_PUBLIC_KEY=
-
-# RevenueCat Web Billing URL (optional, for subscription management)
-VITE_RC_BILLING_URL=
-`);
+function writeEnvExample(dir: string, options: ProjectOptions): void {
+  writeFile(path.join(dir, '.env.example'), extensionEnvContents(options));
 }
 
 function writePostcssConfig(dir: string): void {
@@ -307,36 +351,54 @@ module.exports = {
 `);
 }
 
-function writeReadme(dir: string, displayName: string): void {
-  writeFile(path.join(dir, 'README.md'), `# ${displayName} Chrome Extension
+function writeReadme(dir: string, displayName: string, options: ProjectOptions): void {
+  const configuration = [
+    options.features.auth
+      ? 'Set `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_CLERK_FRONTEND_API_URL` before using authenticated routes. Set `VITE_CLERK_SYNC_HOST` only when syncing auth with another Clerk application.'
+      : null,
+    options.apps.api ? 'Set `VITE_API_URL` before using the shared API client.' : null,
+    'Set `VITE_CRX_PUBLIC_KEY` only when you need a stable Chrome extension ID.',
+  ].filter((value): value is string => value !== null).join(' ');
+  const authBehavior = options.features.auth ? ', the background script initializes Clerk' : '';
+  const networkIntegrations = [
+    options.apps.api ? '`VITE_API_URL`' : null,
+    options.features.auth ? '`VITE_CLERK_FRONTEND_API_URL` and optional `VITE_CLERK_SYNC_HOST`' : null,
+  ].filter((value): value is string => value !== null).join(' and ');
+  const hostPermissionsGuidance = networkIntegrations
+    ? `\n\nThe manifest derives deduplicated Chrome host permissions from ${networkIntegrations}. Only absolute HTTP(S) URLs are accepted; malformed configured URLs fail the build. Set production URLs in the extension environment before publishing—no source edit is required.`
+    : '';
+
+  writeFile(path.join(dir, 'README.md'), `# ${markdownHeading(displayName)} Chrome Extension
 
 WXT side-panel extension generated by anhedral.
 
 ## Development
 
 \`\`\`bash
+cp .env.example .env
 pnpm dev
 pnpm build
 pnpm zip
 \`\`\`
 
-Set \`VITE_CLERK_PUBLISHABLE_KEY\` and \`VITE_API_URL\` in \`.env\` before using auth-backed routes. Set \`VITE_CRX_PUBLIC_KEY\` only when you need a stable Chrome extension ID.
+Run these commands from \`apps/extension\`. Anhedral generates only \`.env.example\`; keep the local \`.env\` file uncommitted. ${configuration}
 
 ## Chrome
 
 Run \`pnpm build\`, then load \`.output/chrome-mv3\` as an unpacked extension from \`chrome://extensions\`.
 
-The extension uses Chrome's Side Panel API. The browser action opens \`sidepanel.html\`, \`wxt.config.ts\` declares the \`sidePanel\` permission and Chrome 114+ minimum version, the background script initializes Clerk, and the content script is ready for page-to-extension messages.
+The extension uses Chrome's Side Panel API. The browser action opens \`sidepanel.html\`, \`wxt.config.ts\` declares the \`sidePanel\` permission and Chrome 114+ minimum version${authBehavior}, and active-page reads use a user-triggered \`activeTab\` + \`scripting\` grant instead of persistent site access.${hostPermissionsGuidance}
 `);
 }
 
 function writeAuthContext(dir: string): void {
   writeFile(path.join(dir, 'src/contexts/auth-context.tsx'), `import * as React from 'react';
-import { ClerkProvider, useAuth as useClerkAuth, useUser } from '@clerk/chrome-extension';
-import { APIClient } from '../lib/api';
+import { ClerkProvider, useAuth as useClerkAuth } from '@clerk/chrome-extension';
+import { apiConfigurationError, createApiClient } from '../lib/api';
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-const WEBSITE_URL = import.meta.env.VITE_WEBSITE_URL || 'http://localhost:8081';
+const CLERK_SYNC_HOST = import.meta.env.VITE_CLERK_SYNC_HOST || undefined;
+const BACKGROUND_AUTH_ERROR_KEY = 'anhedralClerkBackgroundError';
 
 function getExtensionUrl(path: string) {
   if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
@@ -351,107 +413,76 @@ type AuthState = {
   isSignedIn: boolean;
   isLoading: boolean;
   userId: string | null;
-  subscription: {
-    status: 'idle' | 'loading' | 'active' | 'inactive' | 'error';
-    canAccess: boolean;
-    inTrial?: boolean;
-    trialEndsAt?: string;
-    expiresAt?: string;
-    method?: 'trialing' | 'redeemed' | 'paid' | null;
-    managementUrl?: string;
-    cancelAtPeriodEnd?: boolean;
-    error?: string;
-  };
 };
 
 type AuthContextValue = AuthState & {
+  api: ReturnType<typeof createApiClient>;
   signOut: () => Promise<void>;
-  refreshSubscription: (opts?: { refresh?: boolean }) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
+function ConfigurationError({ message }: { message: string }) {
+  return (
+    <div role="alert" aria-live="assertive" style={{ padding: 24, color: 'hsl(var(--destructive))' }}>
+      <h2>Extension configuration required</h2>
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function useBackgroundAuthError(): string | null {
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let active = true;
+    void chrome.storage.local.get(BACKGROUND_AUTH_ERROR_KEY).then((values) => {
+      const message = values[BACKGROUND_AUTH_ERROR_KEY];
+      if (active) setError(typeof message === 'string' ? message : null);
+    });
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName !== 'local') return;
+      const message = changes[BACKGROUND_AUTH_ERROR_KEY]?.newValue;
+      setError(typeof message === 'string' ? message : null);
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => {
+      active = false;
+      chrome.storage.onChanged.removeListener(listener);
+    };
+  }, []);
+  return error;
+}
+
 function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded, userId, signOut, getToken } = useClerkAuth();
-  const { user } = useUser();
-
-  const [subscription, setSubscription] = React.useState<AuthState['subscription']>({
-    status: 'idle',
-    canAccess: false,
-  });
-
-  const apiRef = React.useRef<APIClient | null>(null);
-
-  React.useEffect(() => {
-    if (isSignedIn && getToken) {
-      apiRef.current = new APIClient(getToken);
-    } else {
-      apiRef.current = null;
-    }
-  }, [isSignedIn, getToken]);
-
-  const checkSubscription = React.useCallback(
-    async (opts?: { refresh?: boolean }) => {
-      if (!apiRef.current || !isSignedIn) {
-        setSubscription({ status: 'idle', canAccess: false });
-        return;
-      }
-      setSubscription(prev => ({ ...prev, status: 'loading' }));
-      try {
-        const result = await apiRef.current.getSubscriptionEntitlements(opts);
-        const isPro = result.pro;
-        const inTrial = result.inTrial;
-        setSubscription({
-          status: isPro ? 'active' : 'inactive',
-          canAccess: isPro,
-          inTrial,
-          trialEndsAt: result.trialEndsAt,
-          expiresAt: result.expiresAt,
-          method: result.method,
-          managementUrl: result.managementUrl,
-          cancelAtPeriodEnd: result.cancelAtPeriodEnd,
-        });
-      } catch (error) {
-        setSubscription({
-          status: 'error',
-          canAccess: false,
-          error: error instanceof Error ? error.message : 'Failed to check subscription',
-        });
-      }
-    },
-    [isSignedIn],
-  );
-
-  React.useEffect(() => {
-    if (isSignedIn && isLoaded) {
-      void checkSubscription({ refresh: true });
-    }
-  }, [isSignedIn, isLoaded, checkSubscription]);
-
-  const handleSignOut = React.useCallback(async () => {
-    setSubscription({ status: 'idle', canAccess: false });
-    await signOut();
-  }, [signOut]);
+  const api = React.useMemo(() => createApiClient(() => getToken()), [getToken]);
 
   const value = React.useMemo<AuthContextValue>(
     () => ({
+      api,
       isSignedIn: !!isSignedIn,
       isLoading: !isLoaded,
       userId: userId || null,
-      subscription,
-      signOut: handleSignOut,
-      refreshSubscription: (opts?: { refresh?: boolean }) => checkSubscription(opts),
+      signOut,
     }),
-    [isSignedIn, isLoaded, userId, subscription, handleSignOut, checkSubscription],
+    [api, isSignedIn, isLoaded, userId, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const backgroundError = useBackgroundAuthError();
+  if (!CLERK_PUBLISHABLE_KEY) {
+    return <ConfigurationError message="Set VITE_CLERK_PUBLISHABLE_KEY before building the extension." />;
+  }
+  const apiError = apiConfigurationError();
+  if (apiError) return <ConfigurationError message={apiError} />;
+  if (backgroundError) return <ConfigurationError message={backgroundError} />;
   return (
     <ClerkProvider
       publishableKey={CLERK_PUBLISHABLE_KEY}
+      syncHost={CLERK_SYNC_HOST}
       afterSignOutUrl={SIDEPANEL_URL}
       signInFallbackRedirectUrl={SIDEPANEL_URL}
       signUpFallbackRedirectUrl={SIDEPANEL_URL}
@@ -466,51 +497,77 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
-
-export { WEBSITE_URL };
 `);
 }
 
 function writeApiClient(dir: string): void {
-  writeFile(path.join(dir, 'src/lib/api.ts'), `import { ApiClient } from '@shared/api-client';
+  writeFile(path.join(dir, 'src/lib/api.ts'), `import { ApiClient, normalizeApiBaseUrl } from '@shared/api-client';
 
-export class APIClient {
-  constructor(private getToken: () => Promise<string | null>) {}
-
-  private client() {
-    return new ApiClient({
-      baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:8787',
-      getToken: this.getToken,
-      platform: 'extension',
-    });
+function apiBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_URL?.trim();
+  const candidate = configured || (import.meta.env.DEV ? 'http://localhost:8787/api' : '');
+  if (!candidate) throw new Error('VITE_API_URL is required in production builds');
+  const normalized = normalizeApiBaseUrl(candidate, 'VITE_API_URL');
+  const url = new URL(normalized);
+  if (import.meta.env.PROD && url.protocol !== 'https:') {
+    throw new Error('VITE_API_URL must use https: in production');
   }
+  return normalized;
+}
 
-  getMe() {
-    return this.client().getMe();
+export function apiConfigurationError(): string | null {
+  try {
+    apiBaseUrl();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'The API URL is invalid';
   }
+}
 
-  getSubscriptionEntitlements(options?: { refresh?: boolean }) {
-    return this.client().getSubscriptionEntitlements(options);
-  }
+export function createApiClient(getToken?: () => Promise<string | null>) {
+  return new ApiClient({
+    baseUrl: apiBaseUrl(),
+    getToken,
+  });
 }
 `);
 }
 
-function writeBackground(dir: string): void {
-  writeFile(path.join(dir, 'src/entrypoints/background.ts'), `import { createClerkClient } from '@clerk/chrome-extension/background';
+function writeBackground(dir: string, hasAuth: boolean): void {
+  const clerkImport = hasAuth
+    ? "import { createClerkClient } from '@clerk/chrome-extension/background';\n\n"
+    : '';
+  const clerkInitialization = hasAuth
+    ? `  const backgroundAuthErrorKey = 'anhedralClerkBackgroundError';
+  const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
+  if (!publishableKey) {
+    void chrome.storage.local.set({
+      [backgroundAuthErrorKey]: 'Set VITE_CLERK_PUBLISHABLE_KEY before building the extension.',
+    });
+  } else {
+    // Initialize Clerk in the background script for cookie-based auth and expose failures to the panel.
+    void createClerkClient({
+      publishableKey,
+      syncHost: import.meta.env.VITE_CLERK_SYNC_HOST || undefined,
+    }).then(
+      () => chrome.storage.local.remove(backgroundAuthErrorKey),
+      () => chrome.storage.local.set({
+        [backgroundAuthErrorKey]: 'Clerk background initialization failed. Check the key and allowed origins.',
+      }),
+    );
+  }
 
-type ChromeWithSidePanel = typeof chrome & {
+`
+    : '';
+
+  writeFile(path.join(dir, 'src/entrypoints/background.ts'), `${clerkImport}type ChromeWithSidePanel = typeof chrome & {
   sidePanel: {
     setPanelBehavior: (behavior: { openPanelOnActionClick: boolean }) => Promise<void>;
   };
 };
 
 export default defineBackground(() => {
-  // Initialize Clerk in the background script for cookie-based auth
-  void createClerkClient({
-    publishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '',
-  }).catch(() => {});
-
+${clerkInitialization}
   // Open the side panel when the extension icon is clicked.
   (chrome as ChromeWithSidePanel).sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
@@ -519,29 +576,17 @@ export default defineBackground(() => {
 `);
 }
 
-function writeContentScript(dir: string): void {
-  writeFile(path.join(dir, 'src/entrypoints/content.ts'), `export default defineContentScript({
-  matches: ['<all_urls>'],
-  main() {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type !== 'ANHEDRAL_PAGE_SNAPSHOT') return false;
+function writeSidepanelEntry(dir: string, hasAuth: boolean): void {
+  const authImport = hasAuth ? "import { AuthProvider } from '../../contexts/auth-context';\n" : '';
+  const app = hasAuth
+    ? `      <AuthProvider>
+        <SidePanelApp />
+      </AuthProvider>`
+    : '      <SidePanelApp />';
 
-      sendResponse({
-        title: document.title,
-        location: window.location.href,
-      });
-      return true;
-    });
-  },
-});
-`);
-}
-
-function writeSidepanelEntry(dir: string): void {
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/main.tsx'), `import * as React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AuthProvider } from '../../contexts/auth-context';
-import { SidePanelApp } from './app';
+${authImport}import { SidePanelApp } from './app';
 import '../../styles/main.css';
 
 const container = document.getElementById('root');
@@ -549,9 +594,7 @@ if (container) {
   const root = createRoot(container);
   root.render(
     <React.StrictMode>
-      <AuthProvider>
-        <SidePanelApp />
-      </AuthProvider>
+${app}
     </React.StrictMode>
   );
 }
@@ -564,7 +607,7 @@ function writeSidepanelHtml(dir: string, displayName: string): void {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${displayName}</title>
+    <title>${htmlText(displayName)}</title>
   </head>
   <body>
     <div id="root"></div>
@@ -574,11 +617,34 @@ function writeSidepanelHtml(dir: string, displayName: string): void {
 `);
 }
 
-function writeSidepanelApp(dir: string): void {
+function writeSidepanelApp(dir: string, hasAuth: boolean): void {
+  const authImports = hasAuth
+    ? "import { useAuth } from '../../contexts/auth-context';\nimport { SignIn } from '@clerk/chrome-extension';\n"
+    : '';
+  const authState = hasAuth
+    ? '  const { isSignedIn, isLoading, signOut } = useAuth();\n'
+    : '';
+  const authGuards = hasAuth
+    ? `
+  if (isLoading) {
+    return <div role="status" aria-live="polite" style={{ padding: 24, textAlign: 'center' }}>Loading account…</div>;
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div aria-label="Sign in" style={{ padding: 24 }}>
+        <SignIn />
+      </div>
+    );
+  }
+`
+    : '';
+  const signOutButton = hasAuth
+    ? '      <Button type="button" variant="outline" onClick={() => void signOut()}>Sign Out</Button>\n'
+    : '';
+
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/app.tsx'), `import * as React from 'react';
-import { useAuth } from '../../contexts/auth-context';
-import { SignIn } from '@clerk/chrome-extension';
-import { Button } from '../../components/ui/button';
+${authImports}import { Button } from '../../components/ui/button';
 
 type PageSnapshot = {
   title: string;
@@ -586,8 +652,7 @@ type PageSnapshot = {
 };
 
 export function SidePanelApp() {
-  const { isSignedIn, isLoading, signOut, subscription } = useAuth();
-  const [page, setPage] = React.useState<PageSnapshot | null>(null);
+${authState}  const [page, setPage] = React.useState<PageSnapshot | null>(null);
   const [pageError, setPageError] = React.useState<string | null>(null);
 
   const readActivePage = React.useCallback(async () => {
@@ -599,39 +664,30 @@ export function SidePanelApp() {
     }
 
     try {
-      const response = await chrome.tabs.sendMessage(tab.id, { type: 'ANHEDRAL_PAGE_SNAPSHOT' });
-      setPage(response as PageSnapshot);
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => ({ title: document.title, location: window.location.href }),
+      });
+      if (!injection?.result) throw new Error('The active page did not return a snapshot.');
+      setPage(injection.result as PageSnapshot);
     } catch {
-      setPageError('Refresh the active page, then try again.');
+      setPageError('Chrome does not allow this page to be inspected. Open a normal website and try again.');
     }
   }, []);
 
-  if (isLoading) {
-    return <div style={{ padding: 24, textAlign: 'center' }}>Loading...</div>;
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div style={{ padding: 24 }}>
-        <SignIn />
-      </div>
-    );
-  }
-
+${authGuards}
   return (
     <div style={{ padding: 24 }}>
       <h2>Welcome!</h2>
-      <p>Subscription: {subscription.status}</p>
       <Button type="button" onClick={() => void readActivePage()}>Read active page</Button>
       {page ? (
-        <div style={{ marginTop: 16 }}>
+        <div role="status" aria-live="polite" style={{ marginTop: 16 }}>
           <strong>{page.title || 'Untitled page'}</strong>
           <p style={{ overflowWrap: 'anywhere' }}>{page.location}</p>
         </div>
       ) : null}
-      {pageError ? <p style={{ color: 'hsl(var(--destructive))' }}>{pageError}</p> : null}
-      <Button type="button" variant="outline" onClick={signOut}>Sign Out</Button>
-    </div>
+      {pageError ? <p role="alert" aria-live="assertive" style={{ color: 'hsl(var(--destructive))' }}>{pageError}</p> : null}
+${signOutButton}    </div>
   );
 }
 `);

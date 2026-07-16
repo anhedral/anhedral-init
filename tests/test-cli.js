@@ -21,9 +21,23 @@ function runScript(scriptName) {
 }
 
 runScript('test-cli-validation.js');
+runScript('test-json-stream-flush.js');
+runScript('test-util-exec.js');
 runScript('test-command-builders.js');
+runScript('test-architecture-foundation.js');
+runScript('test-conditional-app-templates.js');
+runScript('test-billing-template.js');
+runScript('test-operational-api-template.js');
+runScript('test-api-production-env.js');
+runScript('test-database-migration-gate.js');
 runScript('test-generated-config-regression.js');
-runScript('test-util-exec-expect.js');
-runScript('test-util-lift-nested-project.js');
+runScript('test-security-audit.js');
+runScript('test-release-tooling.js');
+runScript('test-module-topology-invariants.js');
+runScript('test-public-api-and-render-safety.js');
+runScript('test-output-tree-contracts.js');
+runScript('test-safe-add.js');
+runScript('test-transaction-rollback.js');
+runScript('test-scaffold-transaction-recovery.js');
 
 console.log('All CLI tests passed');

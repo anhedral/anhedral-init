@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
   "timezone": "America/Los_Angeles",
   "labels": [
@@ -31,7 +32,7 @@
         "minor",
         "digest"
       ],
-      "automerge": true
+      "automerge": false
     },
     {
       "matchManagers": [
@@ -58,6 +59,21 @@
       "automerge": false
     },
     {
+      "matchPackageNames": [
+        "pnpm"
+      ],
+      "groupName": "pnpm runtime pin",
+      "automerge": false
+    },
+    {
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "allowedVersions": "<21",
+      "groupName": "Node 20 type definitions",
+      "automerge": false
+    },
+    {
       "matchUpdateTypes": [
         "major"
       ],
@@ -69,13 +85,43 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Pinned Node.js 24 runtime used for release packing and portability lanes",
+      "managerFilePatterns": [
+        "/^\\.github/workflows\\/(?:ci|release)\\.yml$/"
+      ],
+      "matchStrings": [
+        "RELEASE_NODE_VERSION:\\s*'(?<currentValue>24\\.\\d+\\.\\d+)'",
+        "(?:node-version:|-)\\s*'(?<currentValue>24\\.\\d+\\.\\d+)'"
+      ],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
+    },
+    {
+      "customType": "regex",
       "description": "Pinned verified generated dependency versions",
-      "fileMatch": [
-        "^src/dependencies\\.ts$"
+      "managerFilePatterns": [
+        "/^src\\/dependencies\\.ts$/"
       ],
       "matchStrings": [
         "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:['\\\"]?[^:'\\\"]+['\\\"]?): '(?<currentValue>[^']+)'"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Synchronized pnpm runtime pin in generator source and CI",
+      "managerFilePatterns": [
+        "/^CONTRIBUTING\\.md$/",
+        "/^src\\/dependencies\\.ts$/",
+        "/^\\.github\\/workflows\\/(?:ci|release|toolchain-drift)\\.yml$/"
+      ],
+      "matchStrings": [
+        "pnpm (?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "PACKAGE_MANAGER\\s*=\\s*'pnpm@(?<currentValue>[^']+)'",
+        "name:\\s*Setup pnpm[\\s\\S]{0,250}?uses:\\s*pnpm/action-setup@[^\\n]+\\n\\s*with:\\s*\\n\\s*version:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
     }
   ]
 }

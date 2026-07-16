@@ -1,18 +1,28 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const cliEntry = path.join(repoRoot, 'dist', 'index.js');
+const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
+const packageVersion = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')).version;
 const {
   USAGE,
   buildAddOptions,
   buildOptions,
+  deriveProjectName,
   normalizeModuleName,
   parseCli,
 } = await import(path.join(repoRoot, 'dist', 'cli.js'));
+const { assertPackageName, childPackageName } = await import(path.join(repoRoot, 'dist', 'render.js'));
+const {
+  DEFAULT_PROMPT_APP_MODULES,
+  DEFAULT_PROMPT_FEATURE_MODULES,
+  shouldPromptForInitModules,
+} = await import(path.join(repoRoot, 'dist', 'prompts.js'));
 const usageLine = USAGE.trim().split('\n')[0];
 
 function runCli(args) {
@@ -30,6 +40,12 @@ const cases = [
     stdoutIncludes: usageLine,
   },
   {
+    name: 'prints generator version',
+    args: ['--version'],
+    expectedExit: 0,
+    stdoutIncludes: packageVersion,
+  },
+  {
     name: 'prints usage on init help',
     args: ['init', '--help'],
     expectedExit: 0,
@@ -45,7 +61,7 @@ const cases = [
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
-    stderrIncludes: 'Unexpected argument: demo. Use module flags, --toolchain, or --skip-install',
+    stderrIncludes: 'Unexpected argument: demo. Use module names, module flags, --toolchain, or --skip-install',
   },
   {
     name: 'defaults stack before validating toolchain',
@@ -70,18 +86,6 @@ const cases = [
     args: ['init', '--next'],
     expectedExit: 1,
     stderrIncludes: 'Unknown flag: --next',
-  },
-  {
-    name: 'rejects old template flag',
-    args: ['init', '--template', 'next', '--skip-install'],
-    expectedExit: 1,
-    stderrIncludes: 'Unknown flag: --template',
-  },
-  {
-    name: 'rejects template positional value',
-    args: ['init', '--template=next'],
-    expectedExit: 1,
-    stderrIncludes: 'Unknown flag: --template=next',
   },
   {
     name: 'rejects invalid toolchain values',
@@ -109,39 +113,117 @@ for (const testCase of cases) {
   }
 }
 
+const unknownJson = runCli(['whoops', '--json']);
+assert.equal(unknownJson.status, 1);
+assert.equal(unknownJson.stdout, '', 'unknown-command JSON errors must not print usage to stdout');
+assert.deepEqual(JSON.parse(String(unknownJson.stderr).trim()), {
+  error: 'Unknown command: whoops',
+  code: 'UNKNOWN_COMMAND',
+});
+
+const invalidJson = runCli(['init', '--not-a-real-option', '--json']);
+assert.equal(invalidJson.status, 1);
+assert.deepEqual(JSON.parse(String(invalidJson.stderr).trim()), {
+  error: 'Unknown flag: --not-a-real-option',
+  code: 'INVALID_ARGUMENT',
+});
+
+const helpJson = runCli(['init', '--help', '--json']);
+assert.equal(helpJson.status, 0);
+assert.equal(JSON.parse(String(helpJson.stdout).trim()).usage, USAGE);
+assert.equal(helpJson.stderr, '');
+
+const versionJson = runCli(['--version', '--json']);
+assert.equal(versionJson.status, 0);
+assert.deepEqual(JSON.parse(String(versionJson.stdout).trim()), { version: packageVersion });
+assert.equal(versionJson.stderr, '');
+
+if (process.platform !== 'win32') {
+  const failureRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-json-install-failure-'));
+  try {
+    const fakeBin = path.join(failureRoot, 'bin');
+    const project = path.join(failureRoot, 'project');
+    mkdirSync(fakeBin);
+    mkdirSync(project);
+    const fakePnpm = path.join(fakeBin, 'pnpm');
+    writeFileSync(fakePnpm, '#!/bin/sh\necho fake-child-stdout\necho fake-child-stderr >&2\nexit 7\n');
+    chmodSync(fakePnpm, 0o755);
+    const failed = spawnSync('node', [cliEntry, 'init', '--api', '--json'], {
+      cwd: project,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ANHEDRAL_VERBOSE: '1',
+        PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      },
+    });
+    assert.equal(failed.status, 1);
+    assert.equal(failed.stdout, '', 'JSON failures must not be preceded by child stdout');
+    const errorDocument = JSON.parse(String(failed.stderr).trim());
+    assert.equal(errorDocument.code, 'POST_COMMIT_FAILED');
+    assert.match(errorDocument.error, /Changes were committed successfully/);
+    assert.match(errorDocument.error, /Command failed \(exit 7\): pnpm install/);
+    assert.equal(existsSync(path.join(project, 'anhedral.json')), true, 'post-commit failures must retain generated files');
+    assert.doesNotMatch(String(failed.stderr), /fake-child/);
+  } finally {
+    rmSync(failureRoot, { recursive: true, force: true });
+  }
+}
+
 const defaultFlags = parseCli([]);
-assert.equal(buildOptions(defaultFlags).payments, 'revenuecat_stripe', 'buildOptions should use RevenueCat + Stripe');
 assert.equal(buildOptions(defaultFlags).skipInstall, false, 'buildOptions should install dependencies by default');
 assert.equal(buildOptions(parseCli(['--skip-install'])).skipInstall, true, '--skip-install should disable dependency installs');
+assert.equal(parseCli(['--verbose']).verbose, true, '--verbose should be accepted as a first-class CLI flag');
 assert.equal(
-  buildOptions(parseCli(['--toolchain', 'stable'])).api,
-  'fastify',
-  'toolchain flags should not require an explicit stack',
+  buildOptions(parseCli(['--toolchain', 'stable'])).toolchainChannel,
+  'stable',
+  'toolchain flags should not require explicit modules',
 );
-assert.equal(buildOptions(parseCli(['--toolchain=stable'])).api, 'fastify', 'toolchain assignment flags should be accepted');
+assert.equal(
+  buildOptions(parseCli(['--toolchain=stable'])).toolchainChannel,
+  'stable',
+  'toolchain assignment flags should be accepted',
+);
+assert.deepEqual([...parseCli(['web', 'api']).modules], ['web', 'api'], 'init should accept positional modules');
+
+for (const [directoryName, expected] of [
+  ['...Hidden Project', 'hidden-project'],
+  ['Crème 🚀', 'creme'],
+  ['node_modules', 'anhedral-node_modules'],
+  ['favicon.ico', 'anhedral-favicon.ico'],
+  ['💫', 'anhedral-app'],
+]) {
+  const derived = deriveProjectName(path.join('workspace', directoryName));
+  assert.equal(derived, expected);
+  assert.equal(assertPackageName(derived), derived);
+}
+const longDerivedName = deriveProjectName(path.join('workspace', `_${'a'.repeat(240)}_`));
+assert.ok(longDerivedName.length <= 214);
+assert.equal(assertPackageName(longDerivedName), longDerivedName);
+const longChildName = childPackageName('a'.repeat(214), 'desktop');
+assert.ok(longChildName.length <= 214);
+assert.equal(assertPackageName(longChildName), longChildName);
+assert.throws(() => assertPackageName('node_modules'), /Invalid package name/);
 
 const minimalOptions = buildOptions(parseCli(['--web', '--api', '--db', '--auth']));
-assert.deepEqual(minimalOptions.apps, {
-  web: true,
-  mobile: false,
-  api: true,
-  desktop: false,
-  extension: false,
-});
-assert.deepEqual(minimalOptions.features, {
-  database: true,
-  auth: true,
-  billing: false,
-  storage: false,
-  nativeSubscriptions: false,
-});
+assert.deepEqual(minimalOptions.modules, ['web', 'api', 'db', 'auth']);
 
-assert.equal(normalizeModuleName('database'), 'db');
-assert.equal(normalizeModuleName('chrome-extension'), 'extension');
-assert.equal(normalizeModuleName('native-billing'), 'native-subscriptions');
 assert.deepEqual(
-  buildAddOptions(['mobile', 'chrome-extension', 'mobile'], parseCli(['--skip-install'])).modules,
+  buildAddOptions(['mobile', 'extension', 'mobile'], parseCli(['--skip-install'])).modules,
   ['mobile', 'extension'],
+);
+assert.deepEqual([...DEFAULT_PROMPT_APP_MODULES, ...DEFAULT_PROMPT_FEATURE_MODULES], [
+  'web', 'mobile', 'api', 'desktop', 'extension',
+  'db', 'auth', 'billing', 'storage', 'native-subscriptions',
+]);
+assert.equal(shouldPromptForInitModules([], true), true);
+assert.equal(shouldPromptForInitModules(['--json'], true), false, '--json must never open interactive prompts');
+assert.equal(shouldPromptForInitModules(['--web'], true), false);
+assert.equal(shouldPromptForInitModules([], false), false);
+assert.deepEqual(
+  buildAddOptions(['billing'], parseCli(['--skip-install'])).modules,
+  ['billing'],
+  'add should preserve explicit intent instead of storing the dependency closure',
 );
 
 console.log(`Validation tests passed: ${cases.length}`);

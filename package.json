@@ -1,56 +1,82 @@
 {
   "name": "anhedral",
-  "version": "0.1.12",
-  "description": "Opinionated init CLI for Expo, Fastify, WXT, shared packages, Neon, Drizzle, Clerk, RevenueCat, Stripe, R2, and Vercel.",
+  "version": "0.2.0",
+  "description": "Deterministic modular app generator for Next.js, Expo, Fastify, Electron, WXT, Neon, Clerk, RevenueCat, R2, and Vercel.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
   "bin": {
     "anhedral": "bin/anhedral.js"
   },
   "files": [
     "bin",
     "dist",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md",
+    "SECURITY.md",
     "anhedral.svg",
     "favicon.ico"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/anhedral/anhedral-init.git"
-  },
-  "homepage": "https://github.com/anhedral/anhedral-init#readme",
-  "bugs": {
-    "url": "https://github.com/anhedral/anhedral-init/issues"
-  },
+  "homepage": "https://www.npmjs.com/package/anhedral",
   "publishConfig": {
     "access": "public"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "scaffold": "node dist/index.js init",
-    "build": "tsc",
+    "scaffold": "node dist/bin.js init",
+    "clean": "node scripts/clean.mjs",
+    "build": "pnpm clean && tsc",
     "prepare": "pnpm build",
     "typecheck": "tsc --noEmit",
+    "check:hygiene": "node scripts/check-source-hygiene.mjs",
+    "check:security": "node scripts/check-security-policy.mjs",
+    "check:release-policy": "node scripts/check-release-policy.mjs",
+    "check:release-secrets": "node scripts/check-release-secrets.mjs",
+    "lint": "pnpm typecheck && pnpm check:hygiene && pnpm check:release-policy",
+    "audit:osv": "pnpm build && node scripts/audit-osv.mjs --generator",
     "test": "pnpm test:cli",
+    "test:coverage": "pnpm build && c8 --all --include='dist/**/*.js' --reporter=text --reporter=json-summary --check-coverage --lines 84 --statements 84 --functions 84 --branches 80 node tests/test-cli.js",
     "pretest": "pnpm build",
     "prepublishOnly": "pnpm test:all",
     "test:cli": "node tests/test-cli.js",
     "test:cli:validation": "node tests/test-cli-validation.js",
     "test:deps": "pnpm build && node tests/test-dependency-manifest.js",
+    "test:vercel-schema": "pnpm build && node tests/test-vercel-services-schema.js",
     "test:pack": "pnpm build && node tests/test-packed-cli.js",
+    "test:pack:exact": "node tests/test-packed-cli.js release-artifact/metadata.json",
+    "test:packlist": "pnpm build && node tests/test-packlist.js",
+    "test:release-tooling": "node tests/test-release-tooling.js",
+    "test:topologies": "pnpm build && node tests/test-module-topology-invariants.js",
+    "pretest:e2e": "pnpm build",
     "test:e2e": "node tests/test-e2e-public-stacks.js",
+    "pretest:e2e:latest": "pnpm build",
     "test:e2e:latest": "node tests/test-e2e-public-stacks.js --toolchain latest",
-    "test:all": "pnpm test && pnpm test:deps && pnpm test:pack && pnpm test:e2e",
-    "release:check": "pnpm test:all && npm pack --dry-run --ignore-scripts",
+    "test:acceptance:desktop": "pnpm build && node tests/test-runtime-acceptance.js desktop",
+    "test:acceptance:extension": "pnpm build && node tests/test-runtime-acceptance.js extension",
+    "test:acceptance:mobile": "pnpm build && node tests/test-runtime-acceptance.js mobile",
+    "test:all": "pnpm lint && pnpm check:security && pnpm audit:osv && pnpm test:coverage && pnpm test:deps && pnpm test:vercel-schema && pnpm test:pack && pnpm test:packlist && pnpm test:e2e",
+    "release:check": "pnpm check:release-policy && pnpm test:all && npm pack --dry-run --ignore-scripts",
+    "release:pack": "pnpm build && node scripts/create-release-artifact.mjs && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
+    "release:artifact:verify": "node scripts/verify-release-artifact.mjs release-artifact/metadata.json && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
+    "release:artifact:smoke": "node tests/test-packed-cli.js release-artifact/metadata.json",
     "demo:refresh": "pnpm build && node tests/refresh-demo.js"
   },
   "keywords": [
     "cli",
     "scaffold",
+    "typescript",
+    "nextjs",
     "fastify",
     "expo",
+    "electron",
     "clerk",
     "drizzle",
     "neondb",
@@ -58,11 +84,11 @@
     "wxt",
     "vercel"
   ],
-  "license": "MIT",
-  "packageManager": "pnpm@10.15.1",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.34.5",
   "devDependencies": {
-    "@types/node": "^24.5.2",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "@types/node": "20.19.43",
+    "c8": "11.0.0",
+    "typescript": "5.9.3"
   }
 }

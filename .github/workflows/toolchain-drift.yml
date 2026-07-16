@@ -30,17 +30,19 @@ jobs:
             command: pnpm test:e2e:latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.15.1
+          version: 10.34.5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 20
+          node-version: '22.13.0'
           cache: pnpm
 
       - name: Install dependencies
@@ -48,3 +50,66 @@ jobs:
 
       - name: Run toolchain drift matrix
         run: ${{ matrix.lane.command }}
+
+  runtime-acceptance:
+    name: Runtime acceptance (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - desktop
+          - extension
+          - mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.13.0'
+          cache: pnpm
+
+      - name: Setup Java for Android
+        if: matrix.target == 'mobile'
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Require Android SDK
+        if: matrix.target == 'mobile'
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -n "$SDK_ROOT"
+          test -d "$SDK_ROOT"
+          java -version
+
+      - name: Install generator dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Discover Chrome
+        if: matrix.target == 'extension'
+        run: |
+          CHROME_PATH=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
+          if [ -z "$CHROME_PATH" ]; then
+            echo "Chrome is required for extension runtime acceptance"
+            exit 1
+          fi
+          echo "ANHEDRAL_CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Require Xvfb
+        if: matrix.target == 'desktop'
+        run: command -v xvfb-run
+
+      - name: Exercise generated runtime
+        run: pnpm test:acceptance:${{ matrix.target }}
