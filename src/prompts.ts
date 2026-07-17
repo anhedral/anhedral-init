@@ -1,6 +1,6 @@
 import { APP_MODULES, FEATURE_MODULES, normalizeModuleName } from './cli.js';
 
-export function hasModuleSelection(args: readonly string[]): boolean {
+function hasModuleSelection(args: readonly string[]): boolean {
   return args.some((arg) => normalizeModuleName(arg.startsWith('--') ? arg.slice(2) : arg) != null);
 }
 

@@ -10,7 +10,7 @@ export type DependencyGroup = {
   devDependencies?: DependencyMap;
 };
 
-export const VERIFIED_AT = '2026-07-15';
+const VERIFIED_AT = '2026-07-15';
 
 export const TOOLCHAIN_DEPENDENCIES = {
   // renovate: datasource=npm depName=shadcn

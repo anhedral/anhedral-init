@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible Anhedral CLI or generated-project defect.
+title: "[Bug]: "
+body:
+  - type: checkboxes
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed credentials and private application data from this report.
+          required: true
+  - type: input
+    attributes:
+      label: Anhedral version
+      description: Run `anhedral --version` or provide the exact package version.
+      placeholder: 0.3.0
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Runtime
+      description: Include the operating system plus `node --version` and `pnpm --version`.
+      placeholder: macOS 15, Node.js 22.13.0, pnpm 10.34.5
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Command and selected modules
+      description: Include the complete command, module selection, and relevant non-secret configuration.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Actual behavior
+      description: Include sanitized logs and the smallest reproducible example.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add screenshots, generated tree details, or provider versions when useful.

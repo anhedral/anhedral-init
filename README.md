@@ -539,6 +539,8 @@ The published package exposes a side-effect-free ESM API from `dist/index.js`. I
 
 ## Repository development
 
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before proposing a change. Report suspected vulnerabilities through the private process in [SECURITY.md](./SECURITY.md), never through a public issue.
+
 ```sh
 pnpm install
 pnpm lint

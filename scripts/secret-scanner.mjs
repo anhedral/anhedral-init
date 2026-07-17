@@ -5,7 +5,7 @@ import { gunzipSync } from 'node:zlib';
 
 // Keep this list intentionally high-confidence. Examples and tests construct tokens
 // from fragments so the repository itself never has to allowlist a secret-shaped value.
-export const SECRET_PATTERNS = Object.freeze([
+const SECRET_PATTERNS = Object.freeze([
   { id: 'private-key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g },
   { id: 'github-token', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/g },
   { id: 'npm-token', pattern: /\bnpm_[A-Za-z0-9]{30,}\b/g },
@@ -24,7 +24,7 @@ export const SECRET_PATTERNS = Object.freeze([
   },
 ]);
 
-export const PLACEHOLDER_VALUES = Object.freeze(new Set([
+const PLACEHOLDER_VALUES = Object.freeze(new Set([
   '***',
   'change-me',
   'changeme',
@@ -65,12 +65,12 @@ export function scanText(relativePath, contents) {
   return findings;
 }
 
-export function trackedFiles(root) {
+function trackedFiles(root) {
   const output = execFileSync('git', ['ls-files', '-z'], { cwd: root });
   return output.toString('utf8').split('\0').filter(Boolean);
 }
 
-export function workingTreeFiles(root) {
+function workingTreeFiles(root) {
   const output = execFileSync(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
@@ -124,7 +124,7 @@ function parseTarSize(buffer, offset, length) {
   return value === '' ? 0 : Number.parseInt(value, 8);
 }
 
-export function tarballEntries(tarballPath) {
+function tarballEntries(tarballPath) {
   const archive = gunzipSync(readFileSync(tarballPath));
   const entries = [];
   let offset = 0;

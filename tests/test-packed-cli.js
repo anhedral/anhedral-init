@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSyncPortable } from '../scripts/spawn-command.mjs';
+import { parseNpmPackJson } from './support/npm-pack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -24,13 +25,6 @@ function run(command, args, cwd) {
   const stderr = String(result.stderr ?? '');
   assert.equal(result.status, 0, `${command} ${args.join(' ')} failed\nstdout:\n${stdout}\nstderr:\n${stderr}`);
   return { stdout, stderr };
-}
-
-function parsePackJson(output) {
-  const start = output.indexOf('[');
-  const end = output.lastIndexOf(']');
-  assert.ok(start >= 0 && end > start, `npm pack should emit a JSON array\noutput:\n${output}`);
-  return JSON.parse(output.slice(start, end + 1));
 }
 
 function runInstalledCli(cwd) {
@@ -70,7 +64,7 @@ if (process.argv[2]) {
   assert.equal(existsSync(tarballPath), true, `provided tarball should exist at ${tarballPath}`);
 } else {
   const packResult = run(npmCommand, ['pack', '--json', '--ignore-scripts'], repoRoot);
-  const packed = parsePackJson(packResult.stdout);
+  const packed = parseNpmPackJson(packResult.stdout);
   const tarballName = packed[0]?.filename;
   assert.equal(typeof tarballName, 'string', 'npm pack should report a tarball filename');
   tarballPath = path.join(repoRoot, tarballName);

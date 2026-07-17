@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a focused improvement to Anhedral or its generated conventions.
+title: "[Feature]: "
+body:
+  - type: checkboxes
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched existing issues and documentation for this capability.
+          required: true
+  - type: textarea
+    attributes:
+      label: Problem
+      description: Describe the product or developer problem, not only the preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed behavior
+      description: Explain the desired CLI, generated-code, or deployment behavior.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Alternatives and tradeoffs
+      description: Note workarounds, compatibility concerns, and affected app or feature modules.
+  - type: textarea
+    attributes:
+      label: Additional context

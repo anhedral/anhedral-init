@@ -4,12 +4,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSyncPortable } from '../scripts/spawn-command.mjs';
+import { parseNpmPackJson } from './support/npm-pack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const npmCache = mkdtempSync(path.join(tmpdir(), 'anhedral-packlist-'));
 const requiredFiles = new Set([
   'CHANGELOG.md',
+  'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
   'SECURITY.md',
@@ -25,6 +27,7 @@ const requiredFiles = new Set([
 ]);
 const allowedRootFiles = new Set([
   'CHANGELOG.md',
+  'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
   'SECURITY.md',
@@ -33,16 +36,16 @@ const allowedRootFiles = new Set([
   'package.json',
 ]);
 
-function parsePackJson(output) {
-  const start = output.indexOf('[');
-  const end = output.lastIndexOf(']');
-  assert.ok(start >= 0 && end > start, `npm pack should emit a JSON array\noutput:\n${output}`);
-  return JSON.parse(output.slice(start, end + 1));
-}
-
 try {
   const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const license = readFileSync(path.join(repoRoot, 'LICENSE'), 'utf8');
+  assert.equal(packageJson.sideEffects, false);
+  assert.equal(packageJson.homepage, 'https://github.com/anhedral/anhedral-init#readme');
+  assert.deepEqual(packageJson.repository, {
+    type: 'git',
+    url: 'git+https://github.com/anhedral/anhedral-init.git',
+  });
+  assert.deepEqual(packageJson.bugs, { url: 'https://github.com/anhedral/anhedral-init/issues' });
   assert.equal(packageJson.license, 'UNLICENSED');
   assert.match(license, /proprietary and confidential/i);
   assert.match(license, /All Rights Reserved/);
@@ -66,7 +69,7 @@ try {
     `npm pack --dry-run failed\nstdout:\n${result.stdout ?? ''}\nstderr:\n${result.stderr ?? ''}`,
   );
 
-  const [packed] = parsePackJson(String(result.stdout ?? ''));
+  const [packed] = parseNpmPackJson(String(result.stdout ?? ''));
   assert.ok(packed, 'npm pack should describe one package');
   const files = packed.files.map((file) => file.path);
 

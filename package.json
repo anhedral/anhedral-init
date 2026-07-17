@@ -10,6 +10,7 @@
     }
   },
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "bin": {
     "anhedral": "bin/anhedral.js"
   },
@@ -18,13 +19,22 @@
     "dist",
     "templates",
     "CHANGELOG.md",
+    "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
     "SECURITY.md",
     "anhedral.svg",
     "favicon.ico"
   ],
-  "homepage": "https://www.npmjs.com/package/anhedral",
+  "homepage": "https://github.com/anhedral/anhedral-init#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anhedral/anhedral-init.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anhedral/anhedral-init/issues"
+  },
+  "author": "Anhedral, Inc.",
   "publishConfig": {
     "access": "public"
   },

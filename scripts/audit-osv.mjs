@@ -66,26 +66,19 @@ async function wait(milliseconds) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function queryOsv(batch) {
+async function fetchOsvJson(operation, url, init = undefined) {
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(OSV_ENDPOINT, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          queries: batch.map(({ name, version }) => ({
-            package: { ecosystem: 'npm', name },
-            version,
-          })),
-        }),
+      const response = await fetch(url, {
+        ...init,
         signal: AbortSignal.timeout(45_000),
       });
 
       if (!response.ok) {
         const detail = (await response.text()).slice(0, 500);
-        const error = new Error(`OSV audit request failed with HTTP ${response.status}: ${detail}`);
+        const error = new Error(`OSV ${operation} request failed with HTTP ${response.status}: ${detail}`);
         if (response.status < 500 && response.status !== 429) throw new NonRetryableOsvError(error.message);
         lastError = error;
       } else {
@@ -98,42 +91,29 @@ async function queryOsv(batch) {
 
     if (attempt < MAX_ATTEMPTS) {
       const delayMilliseconds = 1_000 * (2 ** (attempt - 1));
-      console.error(`OSV request attempt ${attempt}/${MAX_ATTEMPTS} failed; retrying in ${delayMilliseconds / 1_000}s`);
+      console.error(`OSV ${operation} request attempt ${attempt}/${MAX_ATTEMPTS} failed; retrying in ${delayMilliseconds / 1_000}s`);
       await wait(delayMilliseconds);
     }
   }
 
-  throw new Error(`OSV audit request failed after ${MAX_ATTEMPTS} attempts`, { cause: lastError });
+  throw new Error(`OSV ${operation} request failed after ${MAX_ATTEMPTS} attempts`, { cause: lastError });
+}
+
+async function queryOsv(batch) {
+  return fetchOsvJson('audit', OSV_ENDPOINT, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      queries: batch.map(({ name, version }) => ({
+        package: { ecosystem: 'npm', name },
+        version,
+      })),
+    }),
+  });
 }
 
 async function queryOsvAdvisory(id) {
-  let lastError;
-  const url = `https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`;
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(45_000) });
-      if (!response.ok) {
-        const detail = (await response.text()).slice(0, 500);
-        const error = new Error(`OSV advisory request failed with HTTP ${response.status}: ${detail}`);
-        if (response.status < 500 && response.status !== 429) throw new NonRetryableOsvError(error.message);
-        lastError = error;
-      } else {
-        return await response.json();
-      }
-    } catch (error) {
-      if (error instanceof NonRetryableOsvError) throw error;
-      lastError = error;
-    }
-
-    if (attempt < MAX_ATTEMPTS) {
-      const delayMilliseconds = 1_000 * (2 ** (attempt - 1));
-      console.error(`OSV advisory request attempt ${attempt}/${MAX_ATTEMPTS} failed; retrying in ${delayMilliseconds / 1_000}s`);
-      await wait(delayMilliseconds);
-    }
-  }
-
-  throw new Error(`OSV advisory request failed after ${MAX_ATTEMPTS} attempts`, { cause: lastError });
+  return fetchOsvJson('advisory', `https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`);
 }
 
 const findings = await collectOsvFindings(uniquePackages, {

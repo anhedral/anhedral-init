@@ -721,12 +721,6 @@ export function recoverInterruptedTransaction(root: string): boolean {
   }
 }
 
-export type StagedTransaction = {
-  root: string;
-  stageRoot: string;
-  commitPaths: string[];
-};
-
 /** The filesystem commit succeeded, but a follow-up action such as install failed. */
 export class PostCommitError extends Error {
   readonly committedPaths: readonly string[];
@@ -897,8 +891,4 @@ export async function runStagedTransaction(
       releaseTransactionLock(lock);
     }
   }
-}
-
-export function temporaryProjectRoot(prefix = 'anhedral-e2e-'): string {
-  return path.join(os.tmpdir(), `${prefix}${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }

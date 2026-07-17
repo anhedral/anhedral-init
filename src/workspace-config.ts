@@ -13,7 +13,7 @@ export type WorkspacePolicy = {
   };
 };
 
-export type SourceLine = { readonly text: string; readonly start: number; readonly end: number };
+type SourceLine = { readonly text: string; readonly start: number; readonly end: number };
 
 type WorkspaceStringScalar = {
   readonly value: string;

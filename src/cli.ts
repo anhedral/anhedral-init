@@ -185,14 +185,6 @@ export function buildOptions(flags: ParsedFlags): InitOptions {
   };
 }
 
-export type ParsedUiFlags = {
-  readonly components: readonly string[];
-  readonly targets: readonly UiTarget[];
-  readonly skipInstall: boolean;
-  readonly dryRun: boolean;
-  readonly json: boolean;
-};
-
 export function parseUiAddOptions(args: readonly string[]): UiAddOptions {
   const components: string[] = [];
   const targets: UiTarget[] = [];
