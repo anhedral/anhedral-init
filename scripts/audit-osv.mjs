@@ -126,8 +126,11 @@ const findings = await collectOsvFindings(uniquePackages, {
 });
 
 if (findings.length > 0) {
-  for (const finding of findings) console.error(`${finding.id}: ${finding.name}@${finding.version}`);
-  throw new Error(`OSV reported ${findings.length} vulnerability finding${findings.length === 1 ? '' : 's'}`);
+  const coordinates = findings.map((finding) => `${finding.id}: ${finding.name}@${finding.version}`);
+  for (const coordinate of coordinates) console.error(coordinate);
+  throw new Error(
+    `OSV reported ${findings.length} vulnerability finding${findings.length === 1 ? '' : 's'}: ${coordinates.join(', ')}`,
+  );
 }
 
 const auditScope = includeGenerator ? 'locked and generator' : 'locked';

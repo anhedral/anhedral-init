@@ -8,6 +8,8 @@ export {
   deriveProjectName,
   normalizeModuleName,
   parseCli,
+  parseNewProjectRequest,
+  buildOptionsForRoot,
   parseUiAddOptions,
 } from './cli.js';
 export type { AppModule, FeatureModule, ParsedFlags, SupportedModule } from './cli.js';

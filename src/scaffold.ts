@@ -1,8 +1,8 @@
-import { lstatSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, readdirSync, rmdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { env } from 'node:process';
 import { anhedralPrint } from './print.js';
-import { appendGitignore, exec, writeFile } from './util.js';
+import { appendGitignore, execFile, writeFile } from './util.js';
 import { MOBILE_NODE_ENGINE, NODE_ENGINE, PACKAGE_MANAGER, ROOT_DEPENDENCIES, TOOLCHAIN_DEPENDENCIES } from './dependencies.js';
 import { resolveToolchainChannel, type ToolchainChannel } from './toolchain.js';
 import { scaffoldApi } from './templates/api.js';
@@ -76,6 +76,8 @@ export interface InitOptions {
   toolchainChannel: ToolchainChannel;
   uiComponents?: string[];
   nativeStyling?: NativeStylingLibrary;
+  /** Destination root. Omit to scaffold the current working directory. */
+  rootDirectory?: string;
 }
 
 type ResolvedInitOptions = InitOptions & {
@@ -292,6 +294,10 @@ function toolchainChannelFromManifest(manifest: ProjectManifest): ToolchainChann
 }
 
 function ensureScaffoldRoot(root: string): void {
+  const rootStat = lstatIfPresent(root);
+  if (!rootStat) throw new Error(`Scaffold destination is not a directory: ${root}`);
+  if (rootStat.isSymbolicLink()) throw new Error(`Refusing scaffold destination that is a symbolic link: ${root}`);
+  if (!rootStat.isDirectory()) throw new Error(`Scaffold destination is not a directory: ${root}`);
   const allowed = new Set(['.git', '.gitignore', '.DS_Store', '.anhedral.lock']);
   const unexpected = readdirSync(root).filter((entry) => !allowed.has(entry));
   if (unexpected.length > 0) {
@@ -896,22 +902,121 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
     options.features.storage ? 'pnpm assets:proxy:deploy' : null,
     options.apps.extension ? 'pnpm extension:zip' : null,
   ].filter((value): value is string => value !== null).join('\n');
+  const sourceRows = [
+    options.apps.web ? '| Web frontend | `apps/web/app/`, `apps/web/components/`, `apps/web/lib/` | Next.js App Router pages, layouts, components, and web utilities. |' : null,
+    options.apps.mobile ? '| Mobile frontend | `apps/mobile/app/`, `apps/mobile/components/` | Expo Router screens, layouts, and native UI. |' : null,
+    options.apps.api ? '| Backend API | `apps/api/src/routes/`, `apps/api/src/services/` | Fastify routes and server-only business/provider code. |' : null,
+    options.apps.desktop ? '| Desktop app | `apps/desktop/src/renderer/`, `apps/desktop/src/main/` | React UI and privileged Electron main-process code. |' : null,
+    options.apps.extension ? '| Browser extension | `apps/extension/entrypoints/`, `apps/extension/components/` | WXT entrypoints and extension UI. |' : null,
+    options.apps.api ? '| Shared API contracts | `packages/contracts/src/` | Zod request and response schemas imported by clients and the API. |' : null,
+    options.apps.api ? '| Typed API client | `packages/api-client/src/` | Shared fetch client used by every selected frontend. |' : null,
+    options.features.database ? '| Database | `packages/db/src/schema.ts`, `packages/db/migrations/` | Drizzle tables, queries, and reviewed SQL migrations for managed Neon Postgres. |' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const moduleCommands = [
+    options.apps.web ? '- Web: `pnpm dev:web`' : null,
+    options.apps.mobile ? '- Mobile: `pnpm dev:mobile`' : null,
+    options.apps.api ? '- API: `pnpm dev:api`' : null,
+    options.apps.desktop ? '- Desktop: `pnpm dev:desktop`' : null,
+    options.apps.extension ? '- Extension: `pnpm dev:extension`' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const toolRows = [
+    options.apps.web ? '| Next.js | Web routes and rendering | `apps/web` | https://nextjs.org/docs/app/getting-started |' : null,
+    options.apps.mobile ? '| Expo Router | iOS and Android app | `apps/mobile` | https://docs.expo.dev/router/introduction/ |' : null,
+    options.apps.api ? '| Fastify | HTTP API | `apps/api` | https://fastify.dev/docs/latest/ |' : null,
+    options.features.database ? '| Neon | Managed Postgres; no local Postgres | `DATABASE_URL` | https://neon.com/docs/introduction |' : null,
+    options.features.database ? '| Drizzle | SQL schema, queries, migrations | `packages/db` | https://orm.drizzle.team/docs/get-started |' : null,
+    options.features.auth ? '| Clerk | Identity and sessions | generated auth files | https://clerk.com/docs/getting-started/quickstart/overview |' : null,
+    options.features.storage ? '| Cloudflare R2 | Private object storage | upload API and `apps/assets-private-proxy` | https://developers.cloudflare.com/r2/ |' : null,
+    options.features.billing ? '| RevenueCat | Subscription authority | API and native client | https://www.revenuecat.com/docs |' : null,
+    options.features.billing ? '| Ably | Realtime invalidation | `packages/realtime` | https://ably.com/docs |' : null,
+    options.apps.desktop ? '| Electron | Desktop runtime | `apps/desktop` | https://www.electronjs.org/docs/latest/ |' : null,
+    options.apps.extension ? '| WXT | Browser extension tooling | `apps/extension` | https://wxt.dev/guide/installation.html |' : null,
+    options.apps.web || options.apps.desktop || options.apps.extension ? '| shadcn/ui | Source-owned DOM UI | each DOM app\'s `components/ui` | https://ui.shadcn.com/docs |' : null,
+    '| Turborepo | Workspace tasks | root `turbo.json` | https://turborepo.com/docs |',
+  ].filter((value): value is string => value !== null).join('\n');
+  const developmentSteps = [
+    options.apps.api ? 'Define shared Zod schemas in `packages/contracts/src/` so the network boundary has one definition.' : null,
+    options.features.database ? 'Define persistent state in `packages/db/src/schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses managed Neon—do not add a local Postgres container.' : null,
+    options.apps.api ? 'Put business logic and provider calls in `apps/api/src/services/`. Keep `apps/api/src/routes/` focused on auth, validation, calling the service, and returning the contract.' : null,
+    options.apps.api ? 'Expose client-safe methods from `packages/api-client/src/`; never import API implementation files into a frontend.' : null,
+    options.apps.web ? 'Add web routes in `apps/web/app/<route>/page.tsx` and reusable UI in `apps/web/components/`. Use a client component only for browser state, events, or hooks.' : null,
+    options.apps.mobile ? 'Add mobile routes in `apps/mobile/app/` and reusable native UI in `apps/mobile/components/`. Keep platform-only APIs in platform-specific modules.' : null,
+    'Test the smallest affected package first, then run `pnpm verify`.',
+  ].filter((value): value is string => value !== null).map((value, index) => `${index + 1}. ${value}`).join('\n');
+  const commonTaskSections = [
+    options.apps.web ? `### Add a web page
+
+Create \`apps/web/app/<route>/page.tsx\`. Follow Next.js App Router conventions directly. Put reusable components under \`apps/web/components/<feature>/\` and web-only helpers under \`apps/web/lib/\`.` : null,
+    options.apps.api ? `### Add an API endpoint
+
+Define its Zod contract in \`packages/contracts/src/\`, add a service function in \`apps/api/src/services/\`, and register a Fastify route in \`apps/api/src/routes/\`. Authenticate on the server and derive the user ID from the verified session.` : null,
+    options.features.database ? `### Change the database
+
+Edit \`packages/db/src/schema.ts\`, then run:
+
+\`\`\`sh
+pnpm db:generate
+pnpm verify:db
+pnpm db:migrate
+\`\`\`
+
+Review generated SQL before applying it. \`DATABASE_URL\` points to a managed Neon branch or project; there is intentionally no local Postgres service.` : null,
+    options.features.auth ? `### Use authentication
+
+Frontend applications use their generated Clerk provider and hooks. The API verifies Clerk sessions. Public keys may use a framework public environment prefix; \`CLERK_SECRET_KEY\` remains in the API environment only.` : null,
+    options.features.storage ? `### Upload a file
+
+Use \`@shared/api-client\`. The API authorizes the user and creates a short-lived signed R2 upload; the client uploads directly and confirms through the API. Never put R2 credentials in a client or make the bucket public.` : null,
+  ].filter((value): value is string => value !== null).join('\n\n');
+  const dependencyLines = [
+    options.apps.api ? 'frontend apps -> @shared/api-client -> HTTP -> apps/api' : null,
+    options.apps.api ? 'frontend apps -> @shared/contracts <- apps/api' : null,
+    options.apps.api && options.features.database ? 'apps/api      -> @shared/db -> managed Neon Postgres' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const uiTaskSection = Object.values(options.apps).some(Boolean) && (options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension)
+    ? `### Add UI primitives
+
+\`\`\`sh
+anhedral ui add dialog
+${options.apps.web ? 'anhedral ui add data-table --target web\n' : ''}\`\`\`
+
+DOM apps receive source-owned shadcn/ui files. Mobile receives React Native Reusables files. Customize those files normally.`
+    : '';
   if (includeUserDocs) {
     writeFile(path.join(root, 'README.md'), `# ${markdownHeading(options.displayName)}
 
-Generated by Anhedral ${GENERATOR_VERSION}.
+This is a complete, readable TypeScript product stack generated by Anhedral ${GENERATOR_VERSION}. Anhedral assembled and connected the tools; application code remains normal framework code.
 
-## Modules
+## Start here
+
+\`\`\`sh
+pnpm install
+pnpm dev
+\`\`\`
+
+\`pnpm dev\` starts every selected application. To run one surface:
+
+${moduleCommands}
+
+There is no hidden Anhedral application runtime. Open the framework directory you want and write ordinary TypeScript there.
+
+## Where to write code
+
+| Concern | Location | What belongs there |
+| --- | --- | --- |
+${sourceRows}
+
+${options.apps.api ? 'For an end-to-end feature, define shared contracts first, implement server and persistence behavior, expose it through the typed client, then build each frontend.' : 'Build product features directly inside each selected application using its native framework conventions.'} Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for concrete recipes and [docs/STACK.md](docs/STACK.md) for every selected tool and its official documentation.
+
+## Selected modules
 
 ${modules.map((moduleName) => `- \`${moduleName}\``).join('\n')}
 
-## UI components
+## UI and customization
 
-DOM clients use shadcn/ui. Expo uses React Native Reusables with ${options.nativeStyling}.
+DOM clients use source-owned shadcn/ui. Expo uses React Native Reusables with ${options.nativeStyling}. Add components with \`anhedral ui add <component>\`; use \`--target\` when a component belongs to one client. Customize the resulting source normally.
 
-Add provider-specific source components with \`anhedral ui add <component>\`.
-
-## First run
+## Environment and first verification
 
 \`\`\`sh
 ${commands}
@@ -919,7 +1024,7 @@ ${commands}
 
 ## Deployment
 
-Only the selected surfaces and providers contribute deployment scripts. Deployment CLIs are exact-version, on-demand tools so they do not inflate the application lockfile.
+Only selected surfaces and providers contribute deployment scripts. Exact-version deployment CLIs run on demand instead of inflating the application lockfile.
 
 | Selection | Delivery target | Strategy |
 | --- | --- | --- |
@@ -929,10 +1034,58 @@ ${deploymentRows}
 ${deploymentCommands}
 \`\`\`
 
-Read \`PRODUCTION.md\` before creating accounts or production resources. It contains the selection-specific account, environment, DNS, testing, store, and release sequence.
-
-Generated-file ownership and exact tool versions are recorded in \`anhedral.json\`.
+Read \`PRODUCTION.md\` before creating accounts or production resources. Generated ownership and tool versions are recorded in \`anhedral.json\`. Run \`anhedral doctor\` before structural changes and preview them with \`--dry-run\`.
 `);
+  }
+    writeFile(path.join(root, 'docs/DEVELOPMENT.md'), `# Developing ${markdownHeading(options.displayName)}
+
+Anhedral generated this stack; it does not replace the frameworks inside it. Use official framework APIs and keep product logic in ordinary source files.
+
+## End-to-end feature loop
+
+${developmentSteps}
+
+## Common tasks
+
+${commonTaskSections}
+
+${uiTaskSection}
+
+### Add another app surface
+
+\`\`\`sh
+anhedral add mobile --dry-run
+anhedral add mobile
+\`\`\`
+
+Anhedral refuses ownership conflicts instead of overwriting product changes. Run \`anhedral doctor\` when an add cannot proceed.
+
+## Verification
+
+- While iterating, run the affected package's typecheck or tests.
+- Before handoff, run \`pnpm verify\`.
+- Before generation, run \`anhedral doctor\` and use \`--dry-run\`.
+- For schema changes, commit reviewed migration SQL and run \`pnpm verify:db\`.
+`);
+    writeFile(path.join(root, 'docs/STACK.md'), `# Stack guide
+
+This maps generated source to upstream documentation. Anhedral owns initial integration and safe incremental generation. Each framework owns its runtime and programming model.
+
+| Tool | Responsibility | Generated location | Official documentation |
+| --- | --- | --- | --- |
+${toolRows}
+
+## Dependency direction
+
+\`\`\`text
+${dependencyLines || 'selected applications are independent framework projects'}
+\`\`\`
+
+Clients may import contracts and the API client. They must not import API services, database connections, or server environment modules. Provider secrets terminate at the API or provider-specific Worker.
+
+\`anhedral add\` adds modules and integration files. \`anhedral ui add\` adds source-owned UI. \`anhedral doctor\` checks recorded ownership. Product features, models, pages, routes, and services remain developer-owned TypeScript.
+`);
+  if (includeUserDocs) {
     const productionItems = [
       options.apps.api ? '- Keep `ANHEDRAL_DEMO=false` in production.' : null,
       options.apps.api ? '- Set `TRUST_PROXY_HOPS` only to the number of trusted reverse-proxy hops.' : null,
@@ -1060,6 +1213,15 @@ Resolved modules: ${modules.join(', ')}
     options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
     options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
   ].filter((value): value is string => value !== null).join('\n');
+  const skillFeatureSteps = [
+    options.apps.api ? 'Define shared network schemas in `packages/contracts/src/`.' : null,
+    options.features.database ? 'Define persistent state in `packages/db/src/schema.ts`; generate, review, and commit Drizzle SQL. Use managed Neon, never a generated local Postgres service.' : null,
+    options.apps.api ? 'Put backend behavior in `apps/api/src/services/` and keep `apps/api/src/routes/` thin.' : null,
+    options.apps.api ? 'Add client-safe calls to `packages/api-client/src/`; frontends must not import server implementations.' : null,
+    options.apps.web ? 'Write web product code with normal Next.js App Router conventions in `apps/web`.' : null,
+    options.apps.mobile ? 'Write native product code with normal Expo Router conventions in `apps/mobile`.' : null,
+    'Verify the affected package, then run the root verification before handoff.',
+  ].filter((value): value is string => value !== null).map((value, index) => `${index + 1}. ${value}`).join('\n');
   writeFile(path.join(root, 'SKILL.md'), `---
 name: anhedral-project
 description: Build and extend this Anhedral-generated ${modules.join(', ')} TypeScript application while preserving its framework, ownership, security, and verification conventions.
@@ -1068,6 +1230,12 @@ description: Build and extend this Anhedral-generated ${modules.join(', ')} Type
 # Anhedral project
 
 Use this skill whenever you plan, implement, review, or diagnose work in this repository.
+
+## Product model
+
+This is a standard TypeScript monorepo assembled by Anhedral, not an application running inside an Anhedral framework. Write normal Next.js, Expo Router, Fastify, Drizzle, Electron, or WXT code in the generated workspace. Use Anhedral only for structural operations such as adding a module, adding source-owned UI, and checking generated-file ownership.
+
+Before implementing a feature, read \`README.md\` for the source map, \`docs/DEVELOPMENT.md\` for task recipes, and \`docs/STACK.md\` when you need the selected tools' responsibility boundaries and official documentation.
 
 ## Start safely
 
@@ -1084,6 +1252,10 @@ ${surfaceGuidance}
 
 - Shared source belongs in focused packages under \`packages/\`; do not create a second workspace, lockfile, or nested dependency island.
 ${featureGuidance}
+
+## Feature workflow
+
+${skillFeatureSteps}
 
 ## UI conventions
 
@@ -1245,6 +1417,11 @@ function installSelectedUiComponents(root: string, options: ResolvedInitOptions)
   return installs;
 }
 
+function installWorkspaceDependencies(root: string): void {
+  const executable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  execFile(executable, ['install', '--no-frozen-lockfile'], root);
+}
+
 async function writeSelectedModules(
   root: string,
   options: ResolvedInitOptions,
@@ -1322,7 +1499,12 @@ function stagedFileDiff(root: string, stageRoot: string, manifest?: ProjectManif
 export async function scaffoldProject(inputOptions: InitOptions): Promise<void> {
   const options = canonicalInitOptions(inputOptions);
   assertInstallNodeCompatibility(options);
-  const root = path.resolve(process.cwd());
+  const root = path.resolve(options.rootDirectory ?? process.cwd());
+  let createdRoot = false;
+  if (!pathEntryExists(root)) {
+    mkdirSync(root);
+    createdRoot = true;
+  }
   const previousChannel = env.ANHEDRAL_TOOLCHAIN;
   env.ANHEDRAL_TOOLCHAIN = options.toolchainChannel;
   const commitPaths: string[] = [];
@@ -1350,7 +1532,7 @@ export async function scaffoldProject(inputOptions: InitOptions): Promise<void> 
       afterCommit: () => {
         if (!options.skipInstall) {
           anhedralPrint.section('Workspace install');
-          exec('pnpm install --no-frozen-lockfile', root);
+          installWorkspaceDependencies(root);
         }
       },
     });
@@ -1360,6 +1542,7 @@ export async function scaffoldProject(inputOptions: InitOptions): Promise<void> 
   } finally {
     if (previousChannel == null) delete env.ANHEDRAL_TOOLCHAIN;
     else env.ANHEDRAL_TOOLCHAIN = previousChannel;
+    if (createdRoot && pathEntryExists(root) && readdirSync(root).length === 0) rmdirSync(root);
   }
 }
 
@@ -1432,7 +1615,7 @@ export async function scaffoldUiComponents(uiOptions: UiAddOptions): Promise<voi
         commitPaths.push(...diff.changed);
       },
       afterCommit: () => {
-        if (!uiOptions.skipInstall) exec('pnpm install --no-frozen-lockfile', root);
+        if (!uiOptions.skipInstall) installWorkspaceDependencies(root);
       },
     });
     if (noOp) {
@@ -1508,7 +1691,7 @@ export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> 
         deletePaths.push(...diff.deleted);
       },
       afterCommit: () => {
-        if (!addOptions.skipInstall) exec('pnpm install --no-frozen-lockfile', root);
+        if (!addOptions.skipInstall) installWorkspaceDependencies(root);
       },
     });
     if (noOp) {

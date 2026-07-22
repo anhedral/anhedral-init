@@ -1,11 +1,13 @@
 ---
 name: anhedral-init
-description: Scaffold, extend, diagnose, or explain Anhedral modular TypeScript workspaces, either manually or with the Anhedral CLI. Use for reproducing the complete Anhedral setup without the CLI; creating root monorepo configuration and web, mobile, API, desktop, or extension surfaces; wiring database, auth, billing, storage, or native subscriptions; handling init/add/doctor; interpreting anhedral.json ownership; or verifying generated projects.
+description: Create, extend, explain, or diagnose complete Anhedral-generated TypeScript stacks. Use for new/init/add/ui/doctor; ordinary Next.js, Expo, Fastify, Drizzle/Neon, Clerk, R2, Electron, or WXT development inside a generated workspace; interpreting anhedral.json ownership; reproducing the scaffold manually; or verifying generated applications.
 ---
 
 # Anhedral Init
 
-Use Node.js 20.19+ or 22.12+ and pnpm. Run the CLI in an empty directory for `init`; `.git`, `.gitignore`, and `.DS_Store` are allowed.
+Anhedral is a stack generator, not an application runtime or programming language. Generated projects use ordinary framework source and expose the complete integration code. Do not invent Anhedral-specific models, routes, queries, components, or client hooks when the selected framework already has a documented convention.
+
+Use Node.js 20.19+ or 22.12+ and pnpm. `new` creates a destination directory; `init` works in an empty current directory where `.git`, `.gitignore`, and `.DS_Store` are allowed.
 
 ## Choose the construction path
 
@@ -36,29 +38,48 @@ With no module flags, generate the full stack.
 ## Initialize
 
 ```sh
-mkdir my-product
+pnpm dlx anhedral@latest new my-product
 cd my-product
-pnpm dlx anhedral@latest init
 ```
 
 Prefer explicit modules when the user requests a smaller stack:
 
 ```sh
-pnpm dlx anhedral@latest init --web --api --db --auth
-pnpm dlx anhedral@latest init --web --mobile --ui button,dialog --native-styling nativewind
-pnpm dlx anhedral@latest init --api --skip-install
+pnpm dlx anhedral@latest new my-product --web --api --db --auth
+pnpm dlx anhedral@latest new my-product --web --mobile --ui button,dialog --native-styling nativewind
+pnpm dlx anhedral@latest new my-api --api --skip-install
 ```
 
 Use the stable toolchain for normal generation. The `latest` value is retained only as a metadata compatibility channel for maintainer investigations:
 
 ```sh
-pnpm dlx anhedral@latest init --toolchain stable
-pnpm dlx anhedral@latest init --toolchain latest
+pnpm dlx anhedral@latest new my-product --toolchain stable
+pnpm dlx anhedral@latest new my-product --toolchain latest
 ```
 
 Both channels generate the same exact verified dependencies and integrity-checked bundled templates; `latest` only records investigation intent in `anhedral.json`. Upstream refreshes happen outside user projects and are shipped only after review and checksum verification. Neither channel invokes mutable upstream framework generators inside a user project.
 
 Do not run any command in this section during the manual path.
+
+## Develop inside a generated project
+
+Read these files before changing product code:
+
+1. `README.md` for the selected modules, first run, and source-location map.
+2. `docs/DEVELOPMENT.md` for end-to-end feature recipes.
+3. `docs/STACK.md` for responsibility boundaries and official tool documentation.
+4. `PRODUCTION.md` only for provisioning, deployment, DNS, stores, or release work.
+
+Use the native source conventions:
+
+- Next.js code belongs in `apps/web/app`, `apps/web/components`, and `apps/web/lib`.
+- Expo Router code belongs in `apps/mobile/app` and `apps/mobile/components`.
+- Fastify routes and server-only services belong in `apps/api/src/routes` and `apps/api/src/services`.
+- Shared Zod network schemas belong in `packages/contracts/src`.
+- Client-safe HTTP methods belong in `packages/api-client/src`.
+- Drizzle schema and queries belong in `packages/db`; generate and review SQL migrations.
+
+Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
 
 ## Add modules safely
 

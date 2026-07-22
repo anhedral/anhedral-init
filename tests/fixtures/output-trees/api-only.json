@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1071,
-      "sha256": "ec3a09d9f0722e384102238ccc585caa2a2de84cbf2a0cef0262050a7a9e9cd3"
+      "bytes": 2325,
+      "sha256": "d063b066d723ca1518f1444d5b1e4ccdfacf04945edf0e42b1dc98321b229f60"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3580,
-      "sha256": "98b5f2281564f3aff3a5529b3447c76085b95c070ff03df21c9becd2377923a3"
+      "bytes": 4530,
+      "sha256": "12ac31594d49dee80a2e7709c458b325e111674f9376686e15bb0dd1eb24d43a"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 5349,
-      "sha256": "8e426a6bb149415cf81e575059d23e373a003188ea3198e9299aeee12d9f197d"
+      "bytes": 5721,
+      "sha256": "2e55abd76dd6cfab845adb1acc7f664a743808192b0b9130af76104175940337"
     },
     {
       "path": "apps/api/.env.example",
@@ -144,6 +144,20 @@
       "sha256": "450587260ed79be43a546093fef6a77be922477fd8eff94ca4029d2969f38d21"
     },
     {
+      "path": "docs/DEVELOPMENT.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 1437,
+      "sha256": "fdfa7c99eb255049374d95126eeb0cd7e2db845b21d85bf2ab050f41390f7d81"
+    },
+    {
+      "path": "docs/STACK.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 1014,
+      "sha256": "5329fe7512f2aa7b9cbd084f012a8e76d4d01cd5eccc8f9a8bd046122394819e"
+    },
+    {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
@@ -175,8 +189,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 668,
-      "sha256": "a46702f5aa2aed575ff2d78bbf159b160f02499e89fb4c23281e2f4ac9353a5c"
+      "bytes": 725,
+      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
     },
     {
       "path": "turbo.json",
@@ -193,5 +207,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "1f4cc7a4d75e6b2a530ea6424b8b7eef4c6192b0a55af3a5e7a09b66679637fe"
+  "digest": "f067a459375b49d53e9c031b917851e30dc0c4c67a583018ba4972cd480467fc"
 }

@@ -68,49 +68,6 @@ function dumpFailure(
   throw new Error(`Command failed (exit ${status ?? '?'}): ${cmd}`, spawnError ? { cause: spawnError } : undefined);
 }
 
-export function exec(cmd: string, cwd: string): void {
-  const quiet = process.env.ANHEDRAL_QUIET === '1';
-  if (process.env.ANHEDRAL_VERBOSE === '1' && !quiet) {
-    console.log(`  $ ${cmd}`);
-    const result = spawnSync(cmd, { cwd, shell: true, stdio: 'inherit' });
-    if (result.error || result.status !== 0) {
-      throw new Error(`Command failed (exit ${result.status ?? '?'}): ${cmd}`, result.error ? { cause: result.error } : undefined);
-    }
-    return;
-  }
-
-  // Successful package-manager and build commands can easily exceed Node's
-  // default execSync buffer. Spool both streams to disk and retain only a
-  // bounded diagnostic tail on failure.
-  const captureRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-exec-'));
-  const stdoutPath = path.join(captureRoot, 'stdout.log');
-  const stderrPath = path.join(captureRoot, 'stderr.log');
-  const stdout = openSync(stdoutPath, 'w');
-  const stderr = openSync(stderrPath, 'w');
-  try {
-    const result = spawnSync(cmd, {
-      cwd,
-      shell: true,
-      stdio: ['ignore', stdout, stderr],
-    });
-    closeSync(stdout);
-    closeSync(stderr);
-    if (result.error || result.status !== 0) {
-      dumpFailure(cmd, result.status, stdoutPath, stderrPath, result.error);
-    }
-  } finally {
-    // closeSync throws for an already-closed descriptor, so close only when
-    // spawnSync itself threw before the normal close path.
-    try {
-      closeSync(stdout);
-    } catch {}
-    try {
-      closeSync(stderr);
-    } catch {}
-    rmSync(captureRoot, { recursive: true, force: true });
-  }
-}
-
 export function execFile(executable: string, args: readonly string[], cwd: string): void {
   const quiet = process.env.ANHEDRAL_QUIET === '1';
   const display = [executable, ...args].join(' ');

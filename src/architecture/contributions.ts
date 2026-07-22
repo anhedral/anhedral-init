@@ -55,7 +55,7 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
   extension: Object.freeze({ module: 'extension', environment: EMPTY, crons: EMPTY }),
   db: Object.freeze({
     module: 'db',
-    environment: Object.freeze([{ name: 'DATABASE_URL', defaultValue: 'postgresql://user:pass@localhost:5432/app' }]),
+    environment: Object.freeze([{ name: 'DATABASE_URL', defaultValue: 'YOUR_NEON_POSTGRES_URL' }]),
     crons: EMPTY,
   }),
   auth: Object.freeze({

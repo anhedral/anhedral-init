@@ -391,7 +391,7 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(apiEnv, /VITE_API_URL/);
   assert.doesNotMatch(apiEnv, /VITE_(?:CLERK|WEBSITE|RC_BILLING)/);
 
-  assert.equal(read(roots.api, 'packages/db/.env.example'), 'DATABASE_URL=postgresql://user:pass@localhost:5432/app\n');
+  assert.equal(read(roots.api, 'packages/db/.env.example'), 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n');
   assert.equal(existsSync(path.join(roots.api, 'packages/db/.env')), false);
   assert.equal(JSON.parse(read(roots.api, 'packages/db/package.json')).scripts['db:migrate'], 'tsx --env-file=.env src/migrate.ts');
   assert.match(read(roots.api, 'packages/db/drizzle.config.ts'), /import 'dotenv\/config'/);

@@ -14,6 +14,7 @@ const requiredFiles = new Set([
   'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
+  'SKILL.md',
   'SECURITY.md',
   'anhedral.svg',
   'bin/anhedral.js',
@@ -22,6 +23,9 @@ const requiredFiles = new Set([
   'dist/index.js',
   'favicon.ico',
   'package.json',
+  'references/manual-scaffolding.md',
+  'docs/conventions.md',
+  'docs/output-tree-contract.md',
   'templates/catalog.json',
   'templates/web-next/apps/web/next-env.d.ts',
 ]);
@@ -30,6 +34,7 @@ const allowedRootFiles = new Set([
   'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
+  'SKILL.md',
   'SECURITY.md',
   'anhedral.svg',
   'favicon.ico',
@@ -100,9 +105,11 @@ try {
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
     const allowedTemplate = file.path.startsWith('templates/')
       && /(?:\.json|\.d\.ts)$/.test(file.path);
-    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate;
+    const allowedSkillReference = file.path === 'references/manual-scaffolding.md';
+    const allowedDocumentation = file.path === 'docs/conventions.md' || file.path === 'docs/output-tree-contract.md';
+    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate || allowedSkillReference || allowedDocumentation;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
-    assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|docs?|\.github|node_modules|\.git)(?:\/|$)/);
+    if (!allowedDocumentation) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
     assert.doesNotMatch(file.path, /\.(?:map|tgz|tsbuildinfo)$/);
   }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,9 +13,11 @@ const {
   USAGE,
   buildAddOptions,
   buildOptions,
+  buildOptionsForRoot,
   deriveProjectName,
   normalizeModuleName,
   parseCli,
+  parseNewProjectRequest,
 } = await import(pathToFileURL(path.join(repoRoot, 'dist', 'cli.js')).href);
 const { assertPackageName, childPackageName } = await import(
   pathToFileURL(path.join(repoRoot, 'dist', 'render.js')).href
@@ -52,6 +54,12 @@ const cases = [
     args: ['init', '--help'],
     expectedExit: 0,
     stdoutIncludes: usageLine,
+  },
+  {
+    name: 'requires a destination for new',
+    args: ['new'],
+    expectedExit: 1,
+    stderrIncludes: 'anhedral new requires a destination directory before module flags',
   },
   {
     name: 'fails unknown command',
@@ -140,7 +148,38 @@ assert.equal(versionJson.status, 0);
 assert.deepEqual(JSON.parse(String(versionJson.stdout).trim()), { version: packageVersion });
 assert.equal(versionJson.stderr, '');
 
+const newRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-new-command-'));
+const newProject = path.join(newRoot, 'readable-stack');
+try {
+  const created = runCli(['new', newProject, '--web', '--api', '--db', '--auth', '--skip-install', '--json']);
+  assert.equal(created.status, 0, `${created.stdout}\n${created.stderr}`);
+  assert.equal(created.stderr, '');
+  assert.doesNotThrow(() => JSON.parse(created.stdout));
+  assert.equal(existsSync(path.join(newProject, 'apps/web/app/page.tsx')), true);
+  assert.equal(existsSync(path.join(newProject, 'apps/api/src/application.ts')), true);
+  assert.equal(existsSync(path.join(newProject, 'docs/DEVELOPMENT.md')), true);
+  assert.equal(existsSync(path.join(newProject, 'docs/STACK.md')), true);
+  assert.match(readFileSync(path.join(newProject, 'README.md'), 'utf8'), /There is no hidden Anhedral application runtime/);
+  assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /standard TypeScript monorepo assembled by Anhedral/);
+} finally {
+  rmSync(newRoot, { recursive: true, force: true });
+}
+
 if (process.platform !== 'win32') {
+  const unsafeRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-new-symlink-'));
+  try {
+    const realDestination = path.join(unsafeRoot, 'real-destination');
+    const linkedDestination = path.join(unsafeRoot, 'linked-destination');
+    mkdirSync(realDestination);
+    symlinkSync(realDestination, linkedDestination, 'dir');
+    const rejected = runCli(['new', linkedDestination, '--api', '--skip-install']);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /Refusing transaction root that is a symbolic link/);
+    assert.deepEqual(readdirSync(realDestination), [], 'a rejected symbolic-link destination must remain untouched');
+  } finally {
+    rmSync(unsafeRoot, { recursive: true, force: true });
+  }
+
   const failureRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-json-install-failure-'));
   try {
     const fakeBin = path.join(failureRoot, 'bin');
@@ -187,6 +226,8 @@ assert.equal(
   'toolchain assignment flags should be accepted',
 );
 assert.deepEqual([...parseCli(['web', 'api']).modules], ['web', 'api'], 'init should accept positional modules');
+assert.deepEqual(parseNewProjectRequest(['my-app', '--web']), { directory: 'my-app', moduleArgs: ['--web'] });
+assert.equal(buildOptionsForRoot(parseCli(['--web']), '/tmp/My Product').projectName, 'my-product');
 
 for (const [directoryName, expected] of [
   ['...Hidden Project', 'hidden-project'],

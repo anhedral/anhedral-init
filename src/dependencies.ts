@@ -28,6 +28,8 @@ export const TOOLCHAIN_DEPENDENCIES = {
 } as const;
 
 export const SECURITY_OVERRIDES: DependencyMap = {
+  // renovate: datasource=npm depName=adm-zip
+  'adm-zip@<0.6.0': '0.6.0',
   // renovate: datasource=npm depName=@vitejs/plugin-react
   '@vitejs/plugin-react': '5.2.0',
   // renovate: datasource=npm depName=postcss
@@ -37,7 +39,9 @@ export const SECURITY_OVERRIDES: DependencyMap = {
   // renovate: datasource=npm depName=esbuild
   'esbuild@>=0.27.3 <0.28.1': '0.28.1',
   // renovate: datasource=npm depName=shell-quote
-  'shell-quote@<=1.8.3': '1.8.4',
+  'shell-quote@<=1.8.4': '1.10.0',
+  // renovate: datasource=npm depName=sharp
+  'sharp@<0.35.0': '0.35.3',
   // renovate: datasource=npm depName=tmp
   'tmp@<0.2.6': '0.2.7',
   // renovate: datasource=npm depName=uuid
@@ -149,9 +153,9 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@clerk/chrome-extension
     '@clerk/chrome-extension': '3.1.52',
     // renovate: datasource=npm depName=react
-    react: '19.2.3',
+    react: '19.2.7',
     // renovate: datasource=npm depName=react-dom
-    'react-dom': '19.2.3',
+    'react-dom': '19.2.7',
     // renovate: datasource=npm depName=clsx
     clsx: '2.1.1',
     // renovate: datasource=npm depName=tailwind-merge

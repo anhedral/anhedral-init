@@ -14,6 +14,7 @@ import {
 import type { UiAddOptions } from './scaffold.js';
 
 export const USAGE = `
+anhedral new <directory> [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral init [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral add <module...> [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
@@ -21,15 +22,28 @@ anhedral doctor [--json] [--verbose]
 anhedral --version
 
 Commands:
-  anhedral init
-    Choose app surfaces and backend features, then generate an anhedral.json manifest.
-  anhedral init --web --api --db --auth
+  anhedral new my-app
+    Generate the complete TypeScript stack in a new directory. With no module flags, every module is included.
+  anhedral new my-app --web --api --db --auth
     Generate a web app, Fastify API, shared database package, and auth wiring.
+  anhedral init --web --api --db --auth
+    Generate the same readable workspace in the current empty directory.
   anhedral add mobile extension
     Add missing modules to an existing Anhedral project.
   anhedral ui add button dialog --target mobile
     Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
 `;
+
+export type NewProjectRequest = {
+  readonly directory: string;
+  readonly moduleArgs: readonly string[];
+};
+
+export function parseNewProjectRequest(args: readonly string[]): NewProjectRequest {
+  const [directory, ...moduleArgs] = args;
+  if (!directory || directory.startsWith('--')) throw new Error('anhedral new requires a destination directory before module flags');
+  return Object.freeze({ directory, moduleArgs: Object.freeze(moduleArgs) });
+}
 
 export const APP_MODULES = ['web', 'mobile', 'api', 'desktop', 'extension'] as const;
 export const FEATURE_MODULES = ['db', 'auth', 'billing', 'storage', 'native-subscriptions'] as const;
@@ -159,9 +173,13 @@ export function deriveDisplayName(cwd: string): string {
 }
 
 export function buildOptions(flags: ParsedFlags): InitOptions {
-  const cwd = process.cwd();
-  const projectName = deriveProjectName(cwd);
-  const displayName = deriveDisplayName(cwd);
+  return buildOptionsForRoot(flags, process.cwd());
+}
+
+export function buildOptionsForRoot(flags: ParsedFlags, root: string): InitOptions {
+  const resolvedRoot = path.resolve(root);
+  const projectName = deriveProjectName(resolvedRoot);
+  const displayName = deriveDisplayName(resolvedRoot);
 
   if (flags.toolchain != null && !TOOLCHAIN_CHANNELS.includes(flags.toolchain as (typeof TOOLCHAIN_CHANNELS)[number])) {
     throw new Error(`--toolchain must be one of: ${TOOLCHAIN_CHANNELS.join(', ')}`);
@@ -182,6 +200,7 @@ export function buildOptions(flags: ParsedFlags): InitOptions {
     dryRun: flags.dryRun === true,
     json: flags.json === true,
     toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN),
+    rootDirectory: resolvedRoot,
   };
 }
 

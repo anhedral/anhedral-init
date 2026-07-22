@@ -2,7 +2,7 @@
 
 import { createInterface } from 'node:readline/promises';
 import { argv, stdin, stdout } from 'node:process';
-import { buildAddOptions, buildOptions, parseCli, parseUiAddOptions, USAGE } from './cli.js';
+import { buildAddOptions, buildOptions, buildOptionsForRoot, parseCli, parseNewProjectRequest, parseUiAddOptions, USAGE } from './cli.js';
 import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponents } from './scaffold.js';
 import {
   DEFAULT_PROMPT_APP_MODULES,
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!['init', 'add', 'ui', 'doctor'].includes(command)) {
+  if (!['new', 'init', 'add', 'ui', 'doctor'].includes(command)) {
     if (json) writeCliError(new Error(`Unknown command: ${command}`), 'UNKNOWN_COMMAND', true);
     else {
       console.error(`Unknown command: ${command}`);
@@ -123,7 +123,14 @@ async function main(): Promise<void> {
 
   let phase: 'arguments' | 'execute' = 'arguments';
   try {
-    if (command === 'doctor') {
+    if (command === 'new') {
+      const request = parseNewProjectRequest(rawArgs);
+      const promptedArgs = await promptForInitModules([...request.moduleArgs]);
+      const options = buildOptionsForRoot(parseCli(promptedArgs), request.directory);
+      phase = 'execute';
+      await scaffoldProject(options);
+      if (!options.json && !options.dryRun) console.log(`\nCreated ${options.rootDirectory}\nRun: cd ${options.rootDirectory} && pnpm dev`);
+    } else if (command === 'doctor') {
       const unknown = rawArgs.filter((arg) => !['--json', '--verbose'].includes(arg));
       if (unknown.length) throw new Error(`Unknown doctor option: ${unknown[0]}`);
       phase = 'execute';

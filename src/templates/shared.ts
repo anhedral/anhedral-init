@@ -44,7 +44,7 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
     dependencies: SHARED_DB_DEPENDENCIES.dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
-  writeFile(path.join(dir, '.env.example'), 'DATABASE_URL=postgresql://user:pass@localhost:5432/app\n');
+  writeFile(path.join(dir, '.env.example'), 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n');
   writeFile(path.join(dir, 'drizzle.config.ts'), `import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 

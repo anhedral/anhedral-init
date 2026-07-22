@@ -32,6 +32,15 @@ if (/@latest\b/.test(dependencySource)) failures.push('src/dependencies.ts: gene
 const dependencyPinSource = dependencySource.replace(/^export const (?:MOBILE_)?NODE_ENGINE = .*$/gm, '');
 if (/['"](?:\^|~)[^'"]+['"]/.test(dependencyPinSource)) failures.push('src/dependencies.ts: generated dependencies must use exact versions');
 
+for (const filename of readdirSync(path.join(root, 'src'), { recursive: true })) {
+  if (typeof filename !== 'string' || !filename.endsWith('.ts')) continue;
+  const relative = path.join('src', filename);
+  const source = readFileSync(path.join(root, relative), 'utf8');
+  if (/\bshell\s*:\s*true\b/.test(source)) {
+    failures.push(`${relative}: child processes must use an executable and argument vector, not a command shell`);
+  }
+}
+
 const templatesRoot = path.join(root, 'src', 'templates');
 for (const filename of readdirSync(templatesRoot).filter((entry) => entry.endsWith('.ts'))) {
   const relative = path.join('src', 'templates', filename);

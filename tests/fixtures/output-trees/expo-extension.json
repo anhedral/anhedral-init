@@ -7,8 +7,8 @@
       "path": ".env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 514,
-      "sha256": "b58b6975e8697d7bb547f47c3aa4b8a06a8df0594b05e8ffc1f7c173e774aba5"
+      "bytes": 495,
+      "sha256": "8338d9f75c80167072a020357b0dd76adf264119798ddf56f0e1720a36e8a909"
     },
     {
       "path": ".github/workflows/anhedral-ci.yml",
@@ -49,29 +49,29 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 2623,
-      "sha256": "e9462f3ef48b9e5df013ec7a5ba5d87bb5f6a0db53d41589cfd3e361ceb41a56"
+      "bytes": 4649,
+      "sha256": "1db0804d0a8290725b3eb90acea0e50d9b0920bc5a88d0e25958960c4a3545b8"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 5882,
-      "sha256": "c9686254464181f51a5670251de8d793e5b33999dbbc4a85e04787c8ce4504a7"
+      "bytes": 7160,
+      "sha256": "f438c6fd345703ee17ef43750a5c969995843d14e9bca5041803d28a536cbdd8"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 26533,
-      "sha256": "d9feefc8485d2397f19bd9d36ed07b1b939a25218df1ef1f0699f8144bacaee6"
+      "bytes": 26905,
+      "sha256": "4e236060c68a214dc0ebdc78f1eab714e5a938517d1a6c78b967538004818ffc"
     },
     {
       "path": "apps/api/.env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 1874,
-      "sha256": "96f5052e0d87dedf1e3dc5e081c2d50d5d923dede035a92ab6c2c588bbb71fec"
+      "bytes": 1896,
+      "sha256": "6fa760c7bfc19317e47f1896bfa35594525c80a3e4c606e0a85ad4140cbeca02"
     },
     {
       "path": "apps/api/.gitignore",
@@ -232,7 +232,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1792,
-      "sha256": "956ec24df7be1d12e85b02898405e63b228eb660728fafec068720833dfd68e5"
+      "sha256": "f50ab4c0b50fe499048e276dbc544fda2214c9e27d198b9d6c54052fac183a37"
     },
     {
       "path": "apps/desktop/postcss.config.mjs",
@@ -358,7 +358,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 823,
-      "sha256": "3c74798dd0a15008dc99dc380641de522079a51029aba3ee395d3429570c3705"
+      "sha256": "0afbf410f08a990779f928f916a7c8e9a8688c87c8eb755ab728f83f83dbbfa2"
     },
     {
       "path": "apps/extension/postcss.config.cjs",
@@ -589,7 +589,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 2372,
-      "sha256": "21c3863768ce65b729d4ec28b885942ee0932e34081f1a3b363d8169c6204796"
+      "sha256": "b77d16f8fa3d60ba821eb00d064e78c20a1c7421e00e7cb19f1463a6ac217ad0"
     },
     {
       "path": "apps/mobile/tailwind.config.js",
@@ -715,7 +715,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 735,
-      "sha256": "5da21f513970616119b0fa3f042c86ea0bce35f0f59562bec7900fcf0aab18bf"
+      "sha256": "0e6cdd5b7417ce6ddafa72148fc69ae3eb0a57276deee104d196199763a892b2"
     },
     {
       "path": "apps/web/postcss.config.mjs",
@@ -744,6 +744,20 @@
       "mode": "0644",
       "bytes": 420,
       "sha256": "0b36a74d26fb9d1f814be9e4d542fd22244f5e48fe0d97b532b2a34d3224e89e"
+    },
+    {
+      "path": "docs/DEVELOPMENT.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3146,
+      "sha256": "4c8418fa62bb8083344e7dbebac8ce5b4d9e56fbad0efdc75d19c3b1b0e08b70"
+    },
+    {
+      "path": "docs/STACK.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 2179,
+      "sha256": "6887ce9083fd84ed064378cf99fa81f46317fd6a73cc9526122195c25fb9fbac"
     },
     {
       "path": "package.json",
@@ -798,8 +812,8 @@
       "path": "packages/db/.env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 55,
-      "sha256": "ef0cedf0ccede880c5dbcf6f4d5a541a37445fae5e2c793b76e6583a68bd1d0c"
+      "bytes": 36,
+      "sha256": "4929e813ba8533eb48de5d3cf4e898e9f3c4935d95280b1fdb46e59391f316c1"
     },
     {
       "path": "packages/db/drizzle.config.ts",
@@ -875,8 +889,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 668,
-      "sha256": "a46702f5aa2aed575ff2d78bbf159b160f02499e89fb4c23281e2f4ac9353a5c"
+      "bytes": 725,
+      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
     },
     {
       "path": "scripts/verify-db-migrations.mjs",
@@ -900,5 +914,5 @@
       "sha256": "54571e9bf3fb5667c756cfb1b1d105831a1ad3dc8e3050488ebfc216b14d7800"
     }
   ],
-  "digest": "4a4b37beef040881142b22f5227feb2be5d88061f079383b80a88f3bfd640496"
+  "digest": "997fff94b7a61b48b063634523e88146d9b454013285f233ddf44afa12b22693"
 }

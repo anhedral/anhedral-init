@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 128 | `4a4b37beef040881142b22f5227feb2be5d88061f079383b80a88f3bfd640496` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 56 | `e8d9ae656d0e0592f6b064091c5ea69317f0325ce2ec5df7d757093a2a19a84e` |
-| `api-only` | api |  | deterministic golden | 27 | `1f4cc7a4d75e6b2a530ea6424b8b7eef4c6192b0a55af3a5e7a09b66679637fe` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 57 | `0eb7b03b54327add2a2f96f09f2d9dafb9461c60ca96906fa687603cbdab8e38` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 130 | `997fff94b7a61b48b063634523e88146d9b454013285f233ddf44afa12b22693` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 58 | `5e178bce3710dfbbbdd78acb7021f18c213d4ad80a93ac345c436e1372549f99` |
+| `api-only` | api |  | deterministic golden | 29 | `f067a459375b49d53e9c031b917851e30dc0c4c67a583018ba4972cd480467fc` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 59 | `7955805e03d0ee3cb1efadfffe2886f27335e29e1c0f22408b5df637f7c31a74` |
 
 ## expo-extension
 
@@ -177,6 +177,9 @@ expo-extension-sample/
 ├── cloudflare/
 │   ├── README.md
 │   └── r2-cors.template.json
+├── docs/
+│   ├── DEVELOPMENT.md
+│   └── STACK.md
 ├── package.json
 ├── packages/
 │   ├── api-client/
@@ -267,6 +270,9 @@ web-api-minimal/
 │       ├── package.json
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
+├── docs/
+│   ├── DEVELOPMENT.md
+│   └── STACK.md
 ├── package.json
 ├── packages/
 │   ├── api-client/
@@ -329,6 +335,9 @@ api-only/
 │       │   └── health.test.ts
 │       ├── tsconfig.json
 │       └── vitest.config.ts
+├── docs/
+│   ├── DEVELOPMENT.md
+│   └── STACK.md
 ├── package.json
 ├── packages/
 │   └── contracts/
@@ -399,6 +408,9 @@ add-desktop-flow/
 │       ├── tsconfig.json
 │       ├── tsconfig.main.json
 │       └── vite.config.ts
+├── docs/
+│   ├── DEVELOPMENT.md
+│   └── STACK.md
 ├── package.json
 ├── packages/
 │   ├── api-client/

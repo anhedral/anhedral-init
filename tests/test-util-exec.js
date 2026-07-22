@@ -9,15 +9,11 @@ const repoRoot = path.resolve(import.meta.dirname, '..');
 const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-util-exec-'));
 const utilUrl = pathToFileURL(path.join(repoRoot, 'dist', 'util.js')).href;
 
-function shellCommand(scriptPath) {
-  return `${JSON.stringify(process.execPath)} ${JSON.stringify(scriptPath)}`;
-}
-
-function runExec(command, env = {}) {
+function runExecFile(args, env = {}) {
   const source = `
-    import { exec } from ${JSON.stringify(utilUrl)};
+    import { execFile } from ${JSON.stringify(utilUrl)};
     try {
-      exec(${JSON.stringify(command)}, ${JSON.stringify(temporaryRoot)});
+      execFile(${JSON.stringify(process.execPath)}, ${JSON.stringify(args)}, ${JSON.stringify(temporaryRoot)});
     } catch (error) {
       process.stdout.write(String(error instanceof Error ? error.message : error));
       process.exitCode = 1;
@@ -37,7 +33,7 @@ try {
     process.stdout.write('o'.repeat(2 * 1024 * 1024));
     process.stderr.write('e'.repeat(2 * 1024 * 1024));
   `);
-  const success = runExec(shellCommand(noisySuccess));
+  const success = runExecFile([noisySuccess]);
   assert.equal(success.status, 0, `large successful output must not overflow a memory buffer: ${success.stderr}`);
   assert.equal(success.stdout, '');
   assert.equal(success.stderr, '');
@@ -48,7 +44,7 @@ try {
     process.stderr.write('discarded-stderr-prefix\\n' + 'y'.repeat(256 * 1024) + '\\nstderr-tail-marker\\n');
     process.exitCode = 7;
   `);
-  const failure = runExec(shellCommand(noisyFailure));
+  const failure = runExecFile([noisyFailure]);
   assert.equal(failure.status, 1);
   assert.match(failure.stdout, /Command failed \(exit 7\)/);
   assert.match(failure.stderr, /stdout-tail-marker/);
@@ -56,7 +52,7 @@ try {
   assert.doesNotMatch(failure.stderr, /discarded-(?:stdout|stderr)-prefix/);
   assert.ok(Buffer.byteLength(failure.stderr) <= 2 * 128 * 1024, 'failure diagnostics must remain bounded');
 
-  const quietFailure = runExec(shellCommand(noisyFailure), { ANHEDRAL_QUIET: '1' });
+  const quietFailure = runExecFile([noisyFailure], { ANHEDRAL_QUIET: '1' });
   assert.equal(quietFailure.status, 1);
   assert.match(quietFailure.stdout, /Command failed \(exit 7\)/);
   assert.equal(quietFailure.stderr, '', 'quiet mode must suppress child diagnostics');

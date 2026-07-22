@@ -7,8 +7,8 @@
       "path": ".env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 181,
-      "sha256": "062fd1c068d3def959d56012592b8333b52b00437b17a7ab147b4004745e2075"
+      "bytes": 162,
+      "sha256": "7157b7d9130b876852ddcf08d2a6f424dbfb22b00e3e3c39664e482991f617a6"
     },
     {
       "path": ".github/workflows/anhedral-ci.yml",
@@ -49,29 +49,29 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1421,
-      "sha256": "b328513511daf593470ba39ca180ed27dc472ef9684ddf478aecdb2f22760efa"
+      "bytes": 2827,
+      "sha256": "65332f61fc8ebc9b6408424221d2f36f6e5a2bc5b36e2707cb6265265af28b5d"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4234,
-      "sha256": "e4fc5b1224987740034854ad2e4ed27816bf4f8bd71e0b5e00ed4950bd02bc3f"
+      "bytes": 5345,
+      "sha256": "0c9148779d5d68aa5e267150c610b3d0d16fc151441ad43756ab6e960f0de4d6"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 11696,
-      "sha256": "a6cc675b1c2dec6a6afc9e86f0e6e244785f772bd4a248cb1d78fbaf3589a45a"
+      "bytes": 12068,
+      "sha256": "eda0a9b5332c17353aaf04fe411cfc8204f6b167d2f690628ba0e75d483b9264"
     },
     {
       "path": "apps/api/.env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 530,
-      "sha256": "f9ace0a05dfdca7f10a8469dfec5ed6356e131a7156d421ee51723da129982f9"
+      "bytes": 552,
+      "sha256": "a37868e29b45f2bfda23d568f9c1de3f9e00bc2bad999ec2808d4be21fb2a2be"
     },
     {
       "path": "apps/api/.gitignore",
@@ -176,7 +176,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1733,
-      "sha256": "5cd698a89aa9763e57080d2e3b37f207415df7889fc5a9ddd7bde865c25e03a4"
+      "sha256": "88566ad7e5cb77d31aa156327c98d6d196db8bad27c1ffc4c52106c031dc2f80"
     },
     {
       "path": "apps/desktop/postcss.config.mjs",
@@ -270,6 +270,20 @@
       "sha256": "9b3df32cecd8de0a978a526083f5729af89cfec5a91685ed6d3292a9588b2a0b"
     },
     {
+      "path": "docs/DEVELOPMENT.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 2334,
+      "sha256": "817338a89e263a9b1fc96af61cf9901af58d6b9066073467cd278d71b41fb5f7"
+    },
+    {
+      "path": "docs/STACK.md",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 1580,
+      "sha256": "4338cff52a7cbb4e3869a3459f5809b94c342129a4625b4dfc7905d466d049e1"
+    },
+    {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
@@ -322,8 +336,8 @@
       "path": "packages/db/.env.example",
       "type": "file",
       "mode": "0644",
-      "bytes": 55,
-      "sha256": "ef0cedf0ccede880c5dbcf6f4d5a541a37445fae5e2c793b76e6583a68bd1d0c"
+      "bytes": 36,
+      "sha256": "4929e813ba8533eb48de5d3cf4e898e9f3c4935d95280b1fdb46e59391f316c1"
     },
     {
       "path": "packages/db/drizzle.config.ts",
@@ -378,8 +392,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 668,
-      "sha256": "a46702f5aa2aed575ff2d78bbf159b160f02499e89fb4c23281e2f4ac9353a5c"
+      "bytes": 725,
+      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
     },
     {
       "path": "scripts/verify-db-migrations.mjs",
@@ -403,5 +417,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "0eb7b03b54327add2a2f96f09f2d9dafb9461c60ca96906fa687603cbdab8e38"
+  "digest": "7955805e03d0ee3cb1efadfffe2886f27335e29e1c0f22408b5df637f7c31a74"
 }

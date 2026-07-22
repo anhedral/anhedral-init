@@ -338,6 +338,12 @@ function isProcessAlive(pid: number): boolean {
 }
 
 function acquireTransactionLock(root: string): TransactionLock {
+  const rootStat = lstatIfPresent(root);
+  if (!rootStat) throw new Error(`Transaction root is not a directory: ${root}`);
+  if (rootStat.isSymbolicLink()) {
+    throw new Error(`Refusing transaction root that is a symbolic link: ${root}`);
+  }
+  if (!rootStat.isDirectory()) throw new Error(`Transaction root is not a directory: ${root}`);
   const lockPath = path.join(root, LOCK_FILE);
   const reclaimPath = `${lockPath}.reclaim`;
   const owner: LockOwner = {

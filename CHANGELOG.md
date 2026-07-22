@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
-## 0.3.0 - 2026-07-16
+## 0.3.0 - 2026-07-21
 
 ### Added
 
@@ -15,11 +15,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add React Native Reusables-ready Expo configuration, theme CSS, aliases, utilities, Metro integration, and portal hosting.
 - Add manifest schema v5 UI configuration and per-client component installation records.
 - Add staged provider execution, dry-run plans, duplicate-install detection, target validation, and provider routing tests.
+- Add `anhedral new <directory>` as the primary complete-stack creation flow while retaining `init` for an empty current directory.
+- Generate selection-aware `README.md`, `docs/DEVELOPMENT.md`, `docs/STACK.md`, and `SKILL.md` guidance that maps product tasks to ordinary framework source.
+- Publish the repository skill, manual scaffolding reference, conventions, and output-tree contract with the npm package.
 
 ### Changed
 
 - Pin the component installer to shadcn 4.13.0 and run all provider mutations inside Anhedral transaction staging.
 - Preserve Anhedral's exact Expo SDK dependency while resolving React Native Reusables registry dependencies before the root workspace install.
+- Present Anhedral as a readable TypeScript stack generator with native Next.js, Expo, Fastify, Drizzle, Electron, and WXT conventions rather than a proprietary application runtime.
+- Use argument-vector process execution for workspace installation instead of invoking a command through a shell.
+- Remove the retired one-app compiler experiment from the production CLI and package surface.
+
+### Security
+
+- Reject symbolic-link scaffold roots before creating transaction metadata or modifying their targets.
+- Override vulnerable `shell-quote` and `sharp` dependency ranges in generated workspaces.
 
 ## 0.2.1 - 2026-07-16
 
