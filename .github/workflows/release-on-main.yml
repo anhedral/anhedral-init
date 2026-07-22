@@ -52,8 +52,5 @@ jobs:
     if: needs.version-change.outputs.changed == 'true'
     permissions:
       contents: write
+      id-token: write
     uses: ./.github/workflows/release.yml
-    secrets:
-      # Preserve token-based npm publishing while scoping NODE_AUTH_TOKEN to
-      # the canonical workflow's single publish step.
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

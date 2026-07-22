@@ -2,11 +2,6 @@ name: Release
 
 on:
   workflow_call:
-    secrets:
-      NODE_AUTH_TOKEN:
-        required: false
-      NPM_TOKEN:
-        required: false
   workflow_dispatch:
 
 permissions:
@@ -247,6 +242,7 @@ jobs:
     environment: npm
     permissions:
       contents: read
+      id-token: write
     steps:
       - name: Checkout release scripts
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -258,6 +254,13 @@ jobs:
         with:
           node-version: ${{ env.RELEASE_NODE_VERSION }}
           package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Require OIDC-capable npm
+        run: |
+          NPM_VERSION=$(npm --version)
+          echo "npm $NPM_VERSION"
+          node -e "const match = /^(\d+)\.(\d+)\.(\d+)/.exec(process.argv[1]); const minimum = [11, 5, 1]; const actual = match?.slice(1).map(Number); const difference = actual?.findIndex((part, index) => part !== minimum[index]); if (!actual || (difference >= 0 && actual[difference] < minimum[difference])) { throw new Error('npm 11.5.1 or newer is required for trusted publishing') }" "$NPM_VERSION"
 
       - name: Download verified artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -283,21 +286,8 @@ jobs:
       - name: Publish package
         if: steps.registry.outputs.state == 'missing'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN || secrets.NPM_TOKEN }}
-          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/anhedral-npmrc
           TARBALL: ${{ needs.verify.outputs.tarball }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NODE_AUTH_TOKEN/NPM_TOKEN is required to publish"
-            exit 1
-          fi
-          cleanup_auth() {
-            rm -f "$NPM_CONFIG_USERCONFIG"
-          }
-          trap cleanup_auth EXIT
-          printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$NPM_CONFIG_USERCONFIG"
-          chmod 600 "$NPM_CONFIG_USERCONFIG"
-          npm publish "./release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
+        run: npm publish "./release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
 
       - name: Verify npm registry integrity
         run: node scripts/check-release-registry.mjs verify release-artifact/metadata.json

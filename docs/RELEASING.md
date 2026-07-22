@@ -48,7 +48,8 @@ Before merging, also confirm:
 - The release owner approved package and workflow changes.
 - The security responder reviewed any security-policy exception; broad secret-scan exclusions are not permitted.
 - Toolchain Drift is healthy or every known upstream failure is recorded with an owner.
-- The protected `npm` environment has a current reviewer and credential.
+- The protected `npm` environment has a current reviewer and is restricted to `main`.
+- npm trusts `anhedral/anhedral-init`, calling workflow `release-on-main.yml`, environment `npm`, for `npm publish`.
 - Workflow and scheduled-job failure notifications route to the documented owners.
 - The intended recipients have a written Anhedral agreement covering installation, use, and generated-output rights. Public npm availability is distribution infrastructure, not a license grant.
 
@@ -56,9 +57,13 @@ Never reuse or overwrite a version that npm already contains.
 
 ## Authentication
 
-The current workflow uses the `NPM_TOKEN` secret from the protected `npm` environment. The caller maps it to `NODE_AUTH_TOKEN`, and the canonical workflow writes only an environment-variable reference to a temporary npm user config for the `npm publish` step. The temporary config is removed when the step exits.
+The release uses npm Trusted Publishing. GitHub obtains a short-lived OIDC credential for the exact trusted workflow instead of storing an npm write token. Because `release-on-main.yml` calls the reusable `release.yml`, both the caller's release job and the reusable workflow's publish job grant `id-token: write`; npm validates the calling filename `release-on-main.yml`.
 
-The repository is not publicly accessible, so publication explicitly disables npm provenance. If the source repository becomes public, migrate to npm trusted publishing in a separate reviewed change: remove the long-lived token, grant `id-token: write` only to the publish job, configure the exact workflow as npm's trusted publisher, and enable provenance.
+The npm package settings must contain exactly one GitHub Actions trusted publisher with organization/user `anhedral`, repository `anhedral-init`, workflow filename `release-on-main.yml`, environment `npm`, and permission `npm publish`. The publishing job uses a GitHub-hosted runner, configures `registry.npmjs.org`, and requires npm 11.5.1 or newer. No `NODE_AUTH_TOKEN`, `NPM_TOKEN`, or npm authentication file is permitted in the release workflows.
+
+The repository is not publicly accessible, so publication explicitly disables npm provenance. If the source repository becomes public, remove `--provenance=false` in a reviewed change so npm can generate provenance automatically.
+
+After the first trusted publication succeeds, set npm package **Publishing access** to **Require two-factor authentication and disallow tokens**, then delete the obsolete `NPM_TOKEN` secret from the GitHub `npm` environment and revoke the corresponding npm automation token. Do not remove the fallback token before OIDC has succeeded once.
 
 ## Idempotent retries
 

@@ -109,11 +109,31 @@ try {
   const workflowPolicyDirectory = path.join(workflowPolicyRoot, '.github', 'workflows');
   mkdirSync(workflowPolicyDirectory, { recursive: true });
   const releaseWorkflow = readFileSync(path.join(repoRoot, '.github', 'workflows', 'release.yml'), 'utf8');
+  const releaseOnMainWorkflow = readFileSync(path.join(repoRoot, '.github', 'workflows', 'release-on-main.yml'), 'utf8');
+  writeFileSync(path.join(workflowPolicyDirectory, 'release-on-main.yml'), releaseOnMainWorkflow);
   writeFileSync(
     path.join(workflowPolicyDirectory, 'release.yml'),
     releaseWorkflow.replace('npm publish "./release-artifact/$TARBALL"', 'npm publish "release-artifact/$TARBALL"'),
   );
   assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /explicit local release-artifact tarball path/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('      id-token: write\n', '      id-token: read\n'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /publish job must grant id-token=write/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('          registry-url: https://registry.npmjs.org\n', ''),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /configure the npm registry for OIDC/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('          TARBALL: ${{ needs.verify.outputs.tarball }}', '          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n          TARBALL: ${{ needs.verify.outputs.tarball }}'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /without long-lived npm credentials/);
 
   const token = ['ghp', '_', 'A'.repeat(32)].join('');
   const clerkSecret = ['sk', '_test_', 'B'.repeat(28)].join('');

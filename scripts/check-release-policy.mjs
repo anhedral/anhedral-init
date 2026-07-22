@@ -130,6 +130,27 @@ export function validateWorkflowPolicy(root) {
   if (!/npm publish "\.\/release-artifact\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
     failures.push('.github/workflows/release.yml: npm publish must use an explicit local release-artifact tarball path');
   }
+  const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
+  const reusableReleaseJob = releaseOnMainWorkflow.match(/^  release:[\s\S]*$/m)?.[0] ?? '';
+  const publishJob = releaseWorkflow.match(
+    /^  publish:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
+  )?.[0] ?? '';
+  if (!/^\s{6}id-token:\s*write\s*$/m.test(reusableReleaseJob)) {
+    failures.push('.github/workflows/release-on-main.yml: reusable release caller must grant id-token=write');
+  }
+  if (!/^\s{6}id-token:\s*write\s*$/m.test(publishJob)) {
+    failures.push('.github/workflows/release.yml: publish job must grant id-token=write');
+  }
+  if (!/^\s{10}registry-url:\s*https:\/\/registry\.npmjs\.org\s*$/m.test(publishJob)) {
+    failures.push('.github/workflows/release.yml: publish job must configure the npm registry for OIDC');
+  }
+  if (!/Require OIDC-capable npm/.test(publishJob) || !/npm 11\.5\.1 or newer/.test(publishJob)) {
+    failures.push('.github/workflows/release.yml: publish job must require an OIDC-capable npm CLI');
+  }
+  const releaseAuthentication = `${releaseOnMainWorkflow}\n${releaseWorkflow}`;
+  if (/\b(?:NODE_AUTH_TOKEN|NPM_TOKEN|NPM_CONFIG_USERCONFIG)\b|:_authToken/.test(releaseAuthentication)) {
+    failures.push('release workflows must use trusted publishing without long-lived npm credentials');
+  }
   return failures;
 }
 
