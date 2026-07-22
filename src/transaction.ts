@@ -270,7 +270,10 @@ function syncEntryRecursively(target: string): void {
   }
   if (!stat.isFile()) return;
 
-  const descriptor = openSync(target, 'r');
+  // Windows FlushFileBuffers requires a handle opened with write access. The
+  // staged file is owned by this transaction, so opening it read/write retains
+  // the durability guarantee instead of treating EPERM as an unsupported sync.
+  const descriptor = openSync(target, process.platform === 'win32' ? 'r+' : 'r');
   try {
     fsyncSync(descriptor);
   } finally {
