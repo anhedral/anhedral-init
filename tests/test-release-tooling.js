@@ -17,6 +17,7 @@ import {
   checkReleasePolicy,
   isValidSemver,
   validateReleaseDeclaration,
+  validateWorkflowPolicy,
 } from '../scripts/check-release-policy.mjs';
 import { scanTarball, scanText } from '../scripts/secret-scanner.mjs';
 import { resolveSpawnCommand } from '../scripts/spawn-command.mjs';
@@ -103,6 +104,16 @@ try {
   assert.match(validateReleaseDeclaration({ version: '2.3' }, '## Unreleased\n').join('\n'), /SemVer/);
   assert.match(validateReleaseDeclaration({ version: '2.3.4' }, '## Unreleased\n').join('\n'), /2\.3\.4/);
   assert.deepEqual(checkReleasePolicy(repoRoot), []);
+
+  const workflowPolicyRoot = path.join(temporaryRoot, 'workflow-policy');
+  const workflowPolicyDirectory = path.join(workflowPolicyRoot, '.github', 'workflows');
+  mkdirSync(workflowPolicyDirectory, { recursive: true });
+  const releaseWorkflow = readFileSync(path.join(repoRoot, '.github', 'workflows', 'release.yml'), 'utf8');
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('npm publish "./release-artifact/$TARBALL"', 'npm publish "release-artifact/$TARBALL"'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /explicit local release-artifact tarball path/);
 
   const token = ['ghp', '_', 'A'.repeat(32)].join('');
   const clerkSecret = ['sk', '_test_', 'B'.repeat(28)].join('');

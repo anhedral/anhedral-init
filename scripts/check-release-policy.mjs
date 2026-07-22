@@ -127,6 +127,9 @@ export function validateWorkflowPolicy(root) {
   if (/Install generator dependencies|pnpm install --frozen-lockfile/.test(runtimeAcceptance)) {
     failures.push('.github/workflows/release.yml: runtime acceptance must not rebuild or execute the checkout generator');
   }
+  if (!/npm publish "\.\/release-artifact\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
+    failures.push('.github/workflows/release.yml: npm publish must use an explicit local release-artifact tarball path');
+  }
   return failures;
 }
 

@@ -297,7 +297,7 @@ jobs:
           trap cleanup_auth EXIT
           printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$NPM_CONFIG_USERCONFIG"
           chmod 600 "$NPM_CONFIG_USERCONFIG"
-          npm publish "release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
+          npm publish "./release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
 
       - name: Verify npm registry integrity
         run: node scripts/check-release-registry.mjs verify release-artifact/metadata.json
