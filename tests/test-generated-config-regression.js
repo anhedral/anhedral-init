@@ -20,7 +20,7 @@ assert.match(scaffold, /runStagedTransaction/);
 assert.match(scaffold, /createManifest/);
 assert.match(scaffold, /Refusing to overwrite unowned path/);
 assert.match(scaffold, /Managed file has user modifications/);
-assert.match(scaffold, /anhedral add <module> --dry-run/);
+assert.match(scaffold, /pnpm anhedral:add <module> --dry-run/);
 assert.match(scaffold, /\.github\/workflows\/anhedral-ci\.yml/);
 
 assert.match(api, /webhookEvents/);
@@ -66,7 +66,7 @@ assert.doesNotMatch(web, /pnpm dlx|exec\(/);
 assert.match(web, /if \(!options\.features\.auth\)/);
 assert.match(web, /@theme inline/);
 assert.match(web, /http:\/\/localhost:8787\/api/);
-assert.match(web, /new URL\(candidate, window\.location\.origin\)/);
+assert.match(web, /new URL\(candidate, origin\)/);
 assert.match(web, /candidate\.startsWith\('\/\/'\)/);
 assert.match(mobile, /http:\/\/localhost:8787\/api/);
 assert.match(extension, /http:\/\/localhost:8787\/api/);

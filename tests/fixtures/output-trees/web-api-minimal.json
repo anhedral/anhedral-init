@@ -35,36 +35,36 @@
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 485,
-      "sha256": "e79b268f9ed8abed42810690232f74fc08d46bf865ce260638361dd55d1c8b32"
+      "bytes": 514,
+      "sha256": "40384d1e2719007342e5eed9c97c65bea0cd515a09fc5bfab49c642ad538a8ab"
     },
     {
       "path": "PRODUCTION.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7407,
-      "sha256": "2dc622391821779eb374dfbad5197935be3ed72515f44176638c4cf09082f362"
+      "bytes": 5340,
+      "sha256": "911b1411db3002383b8bf3ef731356cdbf7a57c54d5e93f8bcff09c1a6a7066a"
     },
     {
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4048,
-      "sha256": "127fc4c0f740e9a62f89fbf71aed283fdf8d1a100f9e712af3f713af04c46aaf"
+      "bytes": 3778,
+      "sha256": "235a420a1f393bc807e316dd765bffda1d04ccf42a9d80019494634a07476cc5"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7593,
-      "sha256": "03ec7a5eb37c35685ce2232ae139988c9f363326ab479fc2c007f85230eeeab8"
+      "bytes": 7657,
+      "sha256": "36c7c09055b5aa78319733f9d32d4d1c522d3bec30d0bae0e54a6f6caa11ea8e"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 13064,
-      "sha256": "e639593e12f04defee82132c88e24714e29c470adacb2717caa728ebe55c7aeb"
+      "bytes": 13788,
+      "sha256": "f3e011ffea8f4c6910159a609251f658f7456b9515828ddb5617577554493cc8"
     },
     {
       "path": "apps/api/.env.example",
@@ -119,15 +119,15 @@
       "path": "apps/api/src/routes.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1015,
-      "sha256": "0dd93df7b2aa147d2b23ea95f49fd15220c1459e4351fa935d54da6ba2ba1eb5"
+      "bytes": 1020,
+      "sha256": "96c8a7051b99ed27e26c4f65919a612af2df4c1b03ddf70c008756f9cf05510a"
     },
     {
       "path": "apps/api/src/routes/app.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 206,
-      "sha256": "bc4f9b1510e9d9e6fc778f256166f324f77c61726e43372ab84eeec9c4f145bb"
+      "bytes": 1689,
+      "sha256": "a3cc3a87772c988bfed52531cf4c634f13ac175666903c0f7bb4c2f7fee0e0a6"
     },
     {
       "path": "apps/api/tests/env.test.ts",
@@ -175,15 +175,15 @@
       "path": "apps/web/app/layout.tsx",
       "type": "file",
       "mode": "0644",
-      "bytes": 788,
-      "sha256": "a7be79be28a340d68f8d22434502ad9ef32a92eff1e208d15ba762f826d55fe1"
+      "bytes": 822,
+      "sha256": "3188ba6d5f1b57d58caef5f0ec90696dfac766f341e7660ddd938585709bcddd"
     },
     {
       "path": "apps/web/app/page.tsx",
       "type": "file",
       "mode": "0644",
-      "bytes": 1229,
-      "sha256": "d200d93d2b1ea68b4f3ccd894081423c42e37f3f2f6ad934be568ad522997974"
+      "bytes": 1700,
+      "sha256": "feda8947a57687f68a1a0242308528fc0fbbc9e88752a0cb1b6a318e3c5a1bb1"
     },
     {
       "path": "apps/web/components.json",
@@ -198,6 +198,13 @@
       "mode": "0644",
       "bytes": 422,
       "sha256": "07c32ea3a1cfa8e5ee3dd9363923d93e14c596498fef9aa422cdcf395e0ba2db"
+    },
+    {
+      "path": "apps/web/components/item-list.tsx",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 4046,
+      "sha256": "56fa6fce44a325fcb8d0200663919ecc81d5ca015aa992efae958b4033fa484b"
     },
     {
       "path": "apps/web/components/ui/button.tsx",
@@ -224,8 +231,8 @@
       "path": "apps/web/lib/api.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1339,
-      "sha256": "7aa99985a93d9463348bcafa3b5b09adc4806882279a7e95f7d9dad4feb7ee01"
+      "bytes": 1569,
+      "sha256": "2700ff3413414dfcae6abde443df5a958a08b1f87c90aff09402d557210afbed"
     },
     {
       "path": "apps/web/lib/utils.ts",
@@ -273,22 +280,22 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4326,
-      "sha256": "cf24bcc587983e58cede5090701873d48614f0588d9454668e41dce162c4cc5d"
+      "bytes": 3713,
+      "sha256": "bf6d5b954a61df408343d0a44ae36c14798ef7c2e23f9d18601fbc6b282d63ab"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1588,
-      "sha256": "60768ecb9e36af6fe5327276c2826b3a33edf77feb3cf7ce939e6ebdfca0919f"
+      "bytes": 1620,
+      "sha256": "d1371082708db51bf91971fe3ba03b3e46f1e68d65b58b24d5368b99a01d509a"
     },
     {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 1526,
-      "sha256": "eb3151da74ff69b40fd27d5611596018eb90f4780749f81b5a3576e255d78837"
+      "bytes": 1838,
+      "sha256": "44744b47a63ca0d81453d06201ec75ee3352d6854b17c767f3b62c64e4c4556a"
     },
     {
       "path": "packages/api-client/package.json",
@@ -301,8 +308,8 @@
       "path": "packages/api-client/src/app.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 113,
-      "sha256": "e97dfb8de4bfdccc13eb3ea1f1ee0c5319d2e6a3167236d797baca3591fac648"
+      "bytes": 705,
+      "sha256": "0480018e6b89b8994d77779e81080c8fdd1d42fce3147e3a27c41ed9f2aa7d68"
     },
     {
       "path": "packages/api-client/src/generated.ts",
@@ -336,8 +343,8 @@
       "path": "packages/contracts/src/app.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 112,
-      "sha256": "4e1122d908d7af769c9cabc80f9d762ea2f8e51c8c3f1c57be641d011cf5a0e2"
+      "bytes": 524,
+      "sha256": "44a5a1c1aa31b686e39c93e4497967b30a30a011cc4a4cc1e38f33d9dfdeb706"
     },
     {
       "path": "packages/contracts/src/generated.ts",
@@ -392,8 +399,8 @@
       "path": "packages/db/src/app-schema.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 320,
-      "sha256": "a266996e6d82a129f025d1450a18f6bad9d409c11459a419a73ed832c444ba27"
+      "bytes": 452,
+      "sha256": "8cf057214b0680521866d52f856f4ab491ea973e0d72abf2a270c4b32864993a"
     },
     {
       "path": "packages/db/src/generated-schema.ts",
@@ -438,6 +445,13 @@
       "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
     },
     {
+      "path": "scripts/first-run.mjs",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3832,
+      "sha256": "6283dda3460287559b22cc85705748aca75d211912e1b27f559ea8fdec70a61f"
+    },
+    {
       "path": "scripts/verify-db-migrations.mjs",
       "type": "file",
       "mode": "0644",
@@ -448,8 +462,8 @@
       "path": "turbo.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 392,
-      "sha256": "7ecaf79bc90cbf0622407790974dce27f144dfea126e0e1bdeb9f4bfe9b7af60"
+      "bytes": 417,
+      "sha256": "ef2612ad0e3d249f6c04ef642d00c12aac1464168aafd0b61d2cc8336f0cb877"
     },
     {
       "path": "vercel.json",
@@ -459,5 +473,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "3311e164a5ec03c232dbfeabb35209f9c8206422c1864179d39a65d2d54cf443"
+  "digest": "c74a7fd5cab6a7d0f2f815d4915708f224c7c27ae1f64caa4eac7e397fc98d65"
 }

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  APP_MODULES,
   DEFAULT_MODULE_DEFINITIONS,
   DEFAULT_MODULE_REGISTRY,
+  FEATURE_MODULES,
+  MODULE_IDS,
   CompositionError,
   ManifestValidationError,
   ModuleRegistryError,
@@ -36,6 +39,19 @@ function definitionsWith(overrides) {
 
 assert.equal(Object.isFrozen(DEFAULT_MODULE_REGISTRY), true);
 assert.equal(Object.isFrozen(DEFAULT_MODULE_REGISTRY.auth.requires), true);
+assert.deepEqual(
+  [...APP_MODULES, ...FEATURE_MODULES],
+  MODULE_IDS,
+  'the architecture namespace must be the single source of truth for supported modules',
+);
+assert.deepEqual(
+  DEFAULT_MODULE_DEFINITIONS.filter(({ kind }) => kind === 'app').map(({ id }) => id),
+  APP_MODULES,
+);
+assert.deepEqual(
+  DEFAULT_MODULE_DEFINITIONS.filter(({ kind }) => kind === 'feature').map(({ id }) => id),
+  FEATURE_MODULES,
+);
 assert.equal(hashContent('rendered text'), hashContent(Buffer.from('rendered text', 'utf8')));
 assert.notEqual(
   hashContent(Buffer.from([0x80])),

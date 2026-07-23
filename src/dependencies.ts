@@ -10,7 +10,7 @@ export type DependencyGroup = {
   devDependencies?: DependencyMap;
 };
 
-const VERIFIED_AT = '2026-07-15';
+const VERIFIED_AT = '2026-07-23';
 
 export const TOOLCHAIN_DEPENDENCIES = {
   // renovate: datasource=npm depName=shadcn
@@ -195,6 +195,15 @@ export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   'react-native-purchases-ui': '10.4.2',
 };
 
+export const CLERK_SOLANA_PEER_DEPENDENCIES: DependencyMap = {
+  // Clerk's wallet adapters expect these peers to be explicit when pnpm's
+  // autoInstallPeers setting is disabled.
+  // renovate: datasource=npm depName=@solana/web3.js
+  '@solana/web3.js': '1.98.4',
+  // renovate: datasource=npm depName=bs58
+  bs58: '6.0.0',
+};
+
 export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     '@shared/api-client': 'workspace:*',
@@ -207,7 +216,7 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=expo
     expo: '56.0.16',
     // renovate: datasource=npm depName=expo-constants
-    'expo-constants': '56.0.21',
+    'expo-constants': '56.0.22',
     // renovate: datasource=npm depName=expo-linking
     'expo-linking': '56.0.15',
     // renovate: datasource=npm depName=expo-router
@@ -314,12 +323,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@clerk/clerk-js
     '@clerk/clerk-js': '6.25.3',
     '@clerk/ui': WEB_APP_DEPENDENCIES.dependencies!['@clerk/ui'],
-    // Clerk's browser bundle imports @solana/wallet-adapter-react, whose web3 peer must be explicit when autoInstallPeers is disabled.
-    // renovate: datasource=npm depName=@solana/web3.js
-    '@solana/web3.js': '1.98.4',
-    // Clerk's Solana wallet adapter expects the current bs58 peer alongside web3.js.
-    // renovate: datasource=npm depName=bs58
-    bs58: '6.0.0',
+    ...CLERK_SOLANA_PEER_DEPENDENCIES,
     react: EXTENSION_DEPENDENCIES.dependencies!.react,
     'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
     clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,

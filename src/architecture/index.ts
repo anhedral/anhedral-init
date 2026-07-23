@@ -1,6 +1,8 @@
 export {
+  APP_MODULES,
   DEFAULT_MODULE_DEFINITIONS,
   DEFAULT_MODULE_REGISTRY,
+  FEATURE_MODULES,
   MODULE_IDS,
   ModuleRegistryError,
   ModuleResolutionError,
@@ -9,7 +11,9 @@ export {
   resolveModules,
 } from './modules.js';
 export type {
+  AppModule,
   DependencyEdge,
+  FeatureModule,
   ModuleDefinition,
   ModuleId,
   ModuleKind,

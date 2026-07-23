@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 import { WEB_APP_DEPENDENCIES } from '../dependencies.js';
 import { childPackageName, jsString } from '../render.js';
 
@@ -146,10 +146,10 @@ function normalizeWebApiBaseUrl(value: string): string {
   if (candidate.startsWith('//') || candidate.includes('\\\\')) {
     throw new Error('NEXT_PUBLIC_API_URL must be a single-slash root-relative path or an absolute URL');
   }
-  if (typeof window === 'undefined') {
-    throw new Error('A root-relative NEXT_PUBLIC_API_URL can only be resolved in the browser');
-  }
-  return normalizeApiBaseUrl(new URL(candidate, window.location.origin).toString(), 'NEXT_PUBLIC_API_URL');
+  // Client components also render during Next.js builds. The server-only origin is
+  // never requested; hydration recreates the client with the browser's real origin.
+  const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+  return normalizeApiBaseUrl(new URL(candidate, origin).toString(), 'NEXT_PUBLIC_API_URL');
 }
 
 function apiBaseUrl(): string {
@@ -157,7 +157,8 @@ function apiBaseUrl(): string {
   const candidate = configured || (process.env.NODE_ENV === 'development' ? 'http://localhost:8787/api' : '/api');
   const normalized = normalizeWebApiBaseUrl(candidate);
   const url = new URL(normalized);
-  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:' && !loopback) {
     throw new Error('NEXT_PUBLIC_API_URL must use https: in production');
   }
   return normalized;
@@ -171,8 +172,8 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 }
 `);
 
-  if (options.apps.api && options.features.auth) {
-    writeFile(path.join(dir, 'hooks/use-api-client.ts'), `'use client';
+  if (options.apps.api) {
+    writeFile(path.join(dir, 'hooks/use-api-client.ts'), options.features.auth ? `'use client';
 
 import { useAuth } from '@clerk/nextjs';
 import { useMemo } from 'react';
@@ -181,6 +182,121 @@ import { createApiClient } from '@/lib/api';
 export function useApiClient() {
   const { getToken } = useAuth();
   return useMemo(() => createApiClient(() => getToken()), [getToken]);
+}
+` : `'use client';
+
+import { useMemo } from 'react';
+import { createApiClient } from '@/lib/api';
+
+export function useApiClient() {
+  return useMemo(() => createApiClient(), []);
+}
+`);
+  }
+
+  if (options.apps.api && options.features.database) {
+    const authImport = options.features.auth ? "import { useAuth } from '@clerk/nextjs';\n" : '';
+    const authState = options.features.auth ? '  const { isLoaded, isSignedIn, userId } = useAuth();\n' : '';
+    const identityState = options.features.auth
+      ? '  const identity = isLoaded && isSignedIn ? userId ?? null : null;\n'
+      : "  const identity = 'public';\n";
+    const authGuard = options.features.auth
+      ? `  if (!isLoaded || (isSignedIn && !userId)) return <p className="text-sm text-muted-foreground">Loading account…</p>;
+  if (!isSignedIn) return <p className="text-sm text-muted-foreground">Sign in to use the working starter feature.</p>;
+
+`
+      : '';
+    writeFile(path.join(dir, 'components/item-list.tsx'), `'use client';
+
+import { createItem, listItems, type Item } from '@shared/api-client';
+${authImport}import * as React from 'react';
+import { useApiClient } from '@/hooks/use-api-client';
+import { Button } from '@/components/ui/button';
+
+export function ItemList() {
+${authState}${identityState}  const api = useApiClient();
+  const [items, setItems] = React.useState<Item[]>([]);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
+  const [name, setName] = React.useState('');
+  const [status, setStatus] = React.useState<'loading' | 'ready' | 'saving'>('loading');
+  const [error, setError] = React.useState<string | null>(null);
+  const identityRef = React.useRef(identity);
+  const visibleItems = loadedIdentity === identity ? items : [];
+  const visibleError = loadedIdentity === identity ? error : null;
+  const isLoading = status === 'loading' || loadedIdentity !== identity;
+
+  React.useEffect(() => {
+    identityRef.current = identity;
+    if (!identity) return;
+    let active = true;
+    setLoadedIdentity(identity);
+    setItems([]);
+    setName('');
+    setError(null);
+    setStatus('loading');
+    void listItems(api).then((nextItems) => {
+      if (active) setItems(nextItems);
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Unable to load items');
+    }).finally(() => {
+      if (active) setStatus('ready');
+    });
+    return () => { active = false; };
+  }, [api, identity]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextName = name.trim();
+    if (!identity || !nextName || status !== 'ready' || loadedIdentity !== identity) return;
+    const submittedIdentity = identity;
+    setStatus('saving');
+    try {
+      const created = await createItem(api, { name: nextName });
+      if (identityRef.current !== submittedIdentity) return;
+      setItems((current) => [created, ...current]);
+      setName('');
+      setError(null);
+    } catch (cause) {
+      if (identityRef.current === submittedIdentity) {
+        setError(cause instanceof Error ? cause.message : 'Unable to create item');
+      }
+    } finally {
+      if (identityRef.current === submittedIdentity) setStatus('ready');
+    }
+  }
+
+${authGuard}  return (
+    <div className="space-y-4">
+      <form className="flex gap-2" onSubmit={(event) => void submit(event)}>
+        <label className="sr-only" htmlFor="item-name">Item name</label>
+        <input
+          id="item-name"
+          className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+          maxLength={120}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Your first item"
+          value={name}
+        />
+        <Button disabled={status !== 'ready' || loadedIdentity !== identity || !name.trim()} type="submit">
+          {status === 'saving' ? 'Adding…' : 'Add item'}
+        </Button>
+      </form>
+      {visibleError ? (
+        <p className="text-sm text-red-700" role="alert">
+          {visibleError}. Check DATABASE_URL, run pnpm db:migrate, and make sure the API is running.
+        </p>
+      ) : null}
+      {isLoading ? <p className="text-sm text-muted-foreground">Loading items…</p> : null}
+      {!isLoading && visibleItems.length === 0 && !visibleError
+        ? <p className="text-sm text-muted-foreground">Your database is connected. Add the first item.</p>
+        : null}
+      {visibleItems.length > 0 ? (
+        <ul className="divide-y rounded-md border">
+          {visibleItems.map((item) => <li className="px-3 py-2 text-sm" key={item.id}>{item.name}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 `);
   }
@@ -196,39 +312,62 @@ import { useApiClient } from './use-api-client';
 export function useEntitlement() {
   const api = useApiClient();
   const { isLoaded, isSignedIn, userId } = useAuth();
+  const identity = isLoaded && isSignedIn ? userId : null;
   const [state, setState] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const revision = React.useRef(0);
+  const identityRef = React.useRef(identity);
   const refresh = React.useCallback(async () => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!identity) return;
     try {
       const next = await api.getEntitlement();
+      if (identityRef.current !== identity) return;
       revision.current = Math.max(revision.current, next.revision);
       setState(next);
+      setLoadedIdentity(identity);
       setError(null);
     } catch (cause) {
+      if (identityRef.current !== identity) return;
+      setLoadedIdentity(identity);
       setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
     }
-  }, [api, isLoaded, isSignedIn]);
+  }, [api, identity]);
 
-  React.useEffect(() => { void refresh(); }, [refresh]);
+  React.useEffect(() => {
+    identityRef.current = identity;
+    revision.current = 0;
+    setState(null);
+    setLoadedIdentity(null);
+    setError(null);
+    void refresh();
+  }, [identity, refresh]);
   React.useEffect(() => {
     const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [refresh]);
   React.useEffect(() => {
-    if (!userId || !isSignedIn) return;
+    if (!identity) return;
     return subscribeToSubscriptionChanges({
-      userId,
+      userId: identity,
       getTokenRequest: () => api.getRealtimeToken(),
       onChange: (nextRevision) => {
         if (nextRevision > revision.current) void refresh();
       },
-      onError: (cause) => setError(cause.message),
+      onError: (cause) => {
+        if (identityRef.current === identity) {
+          setLoadedIdentity(identity);
+          setError(cause.message);
+        }
+      },
     });
-  }, [api, isSignedIn, refresh, userId]);
-  return { entitlement: state, error, refresh };
+  }, [api, identity, refresh]);
+  return {
+    entitlement: loadedIdentity === identity ? state : null,
+    error: loadedIdentity === identity ? error : null,
+    refresh,
+  };
 }
 `);
     writeFile(path.join(dir, 'components/subscription-status.tsx'), `'use client';
@@ -318,12 +457,22 @@ function writeAppFiles(dir: string, options: ProjectOptions): void {
     ? "import { AccountActions } from '@/components/account-actions';\n"
     : '';
   const accountAction = options.features.auth
-    ? `{process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+    ? `{process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes('***') ? (
             <AccountActions />
           ) : (
             <Button variant="outline" disabled>Configure Clerk to sign in</Button>
           )}`
-    : '<Button variant="outline">View account</Button>';
+    : '';
+  const starterLink = options.apps.api && options.features.database
+    ? '<a className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90" href="#starter-feature">Open starter feature</a>'
+    : '';
+  const heroActions = starterLink || accountAction
+    ? `        <div className="flex gap-3">
+          ${starterLink}
+          ${accountAction}
+        </div>
+`
+    : '';
   const clerkStyles = options.features.auth ? '@import "@clerk/ui/themes/shadcn.css";\n' : '';
   writeFile(path.join(dir, 'app/globals.css'), `@import "tailwindcss";
 ${clerkStyles}
@@ -368,7 +517,7 @@ body {
     : '';
   const providers = options.features.auth ? `function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  if (!publishableKey) return <>{children}</>;
+  if (!publishableKey || publishableKey.includes('***')) return <>{children}</>;
   return <ClerkProvider publishableKey={publishableKey} appearance={{ theme: shadcn }}>{children}</ClerkProvider>;
 }` : `function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
   return <>{children}</>;
@@ -395,11 +544,23 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 `);
 
   const subscriptionImport = options.features.billing ? "import { SubscriptionStatus } from '@/components/subscription-status';\n" : '';
+  const itemListImport = options.apps.api && options.features.database ? "import { ItemList } from '@/components/item-list';\n" : '';
   const subscriptionStatus = options.features.billing
-    ? '        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? <SubscriptionStatus /> : null}\n'
+    ? "        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes('***') ? <SubscriptionStatus /> : null}\n"
     : '';
-  writeFile(path.join(dir, 'app/page.tsx'), `${accountActionsImport}${subscriptionImport}import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+  const starterContent = options.apps.api && options.features.database
+    ? options.features.auth
+      ? `{process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes('***')
+            ? <ItemList />
+            : <p>Configure Clerk to activate the starter feature.</p>}`
+      : '<ItemList />'
+    : options.apps.api
+      ? 'Contracts, API access, and configuration are shared through workspace packages.'
+      : 'Add modules later with pnpm anhedral:add; user-owned source remains untouched.';
+  const starterTitle = options.apps.api && options.features.database ? 'Working starter feature' : 'Shared modules';
+  const buttonImport = options.features.auth ? "import { Button } from '@/components/ui/button';\n" : '';
+  writeFile(path.join(dir, 'app/page.tsx'), `${accountActionsImport}${subscriptionImport}${itemListImport}import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+${buttonImport}
 
 export default function Home() {
   return (
@@ -409,17 +570,14 @@ export default function Home() {
         <p className="max-w-2xl text-muted-foreground">
           ${options.apps.api ? 'Next.js + shadcn/ui web client connected to the shared Fastify API.' : 'Next.js + shadcn/ui web application.'}
         </p>
-        <div className="flex gap-3">
-          <Button>Open app</Button>
-          ${accountAction}
-        </div>
+${heroActions}
 ${subscriptionStatus}      </section>
-      <Card>
+      <Card id="starter-feature">
         <CardHeader>
-          <CardTitle>Shared modules</CardTitle>
+          <CardTitle>${starterTitle}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          ${options.apps.api ? 'Contracts, API access, and configuration are shared through workspace packages.' : 'Add modules later with anhedral add; user-owned source remains untouched.'}
+          ${starterContent}
         </CardContent>
       </Card>
     </main>

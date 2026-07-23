@@ -1,7 +1,7 @@
 # Anhedral
 
 [![npm version](https://img.shields.io/npm/v/anhedral.svg)](https://www.npmjs.com/package/anhedral)
-[![node](https://img.shields.io/node/v/anhedral.svg)](https://www.npmjs.com/package/anhedral)
+[![Node.js ^20.19.0 or >=22.12.0](https://img.shields.io/badge/Node.js-%5E20.19.0%20%7C%7C%20%3E%3D22.12.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
 Anhedral generates a complete, production-oriented TypeScript stack whose source code stays understandable and customizable.
 
@@ -14,6 +14,9 @@ Anhedral generates a complete, production-oriented TypeScript stack whose source
 ![Anhedral Init Stack architecture diagram](assets/anhedral-cli-init.svg)
 
 Anhedral is not a new programming language and generated applications do not run inside a proprietary application framework. It assembles well-documented tools, connects their difficult integration boundaries, and leaves developers with ordinary Next.js, Expo Router, Fastify, Drizzle, Electron, and WXT projects.
+
+The measurable product and developer-experience contract is documented in the
+[Anhedral DX north star](docs/NORTHSTAR.md).
 
 Anhedral is open source under the [Apache License 2.0](LICENSE). You may use,
 modify, and distribute it subject to that license, including its notice and
@@ -44,21 +47,33 @@ release submissions. Paste secrets directly into the instructed uncommitted
 
 ## Create an application directly
 
-Create the complete stack:
+In an interactive terminal, start Anhedral and choose the surfaces and
+capabilities you need:
 
 ```sh
 pnpm dlx anhedral@latest new my-product
 cd my-product
 ```
 
-The generated `README.md` contains the exact next steps for the selected stack.
-For the complete stack, copy the package-local environment examples, configure
-the selected managed providers—including a Neon `DATABASE_URL`—and create the
-reviewed initial migration before running `pnpm dev`. Anhedral intentionally
-does not generate a local Postgres substitute or pretend that production
-provider credentials already exist.
+The suggested selection is a focused web app, and Anhedral shows the complete
+resolved stack before it writes anything. To explicitly create every supported
+surface and capability, use:
 
-With no module flags, `new` includes every supported application surface and backend capability. Generate a focused stack by naming only what the product needs:
+```sh
+pnpm dlx anhedral@latest new my-product --all
+```
+
+The generated `README.md` contains the exact next steps for the selected stack.
+Run `pnpm first-run` to create missing local environment files without
+overwriting anything, then use `pnpm ready` for a secret-safe readiness check.
+For the complete stack, configure the selected managed providers—including a
+Neon `DATABASE_URL`—and create the reviewed initial migration before running
+`pnpm dev`. Anhedral intentionally does not generate a local Postgres substitute
+or pretend that production provider credentials already exist.
+
+In noninteractive environments, no module flags retain the complete-stack
+default for compatibility. Prefer `--all` when that is your intent, or name
+only what the product needs:
 
 ```sh
 pnpm dlx anhedral@latest new my-product --web --api --db --auth
@@ -106,47 +121,40 @@ Whole directories are omitted when their module is not selected. Generated docum
 
 ## Developer experience
 
-Developers use each tool normally:
+Database-backed client stacks include a working `items` feature on day one. It
+connects the Drizzle table, Zod request/response contracts, Fastify list/create
+routes, typed client calls, and an idiomatic UI for every selected surface. Use
+it to verify the stack, then rename or replace these ordinary user-owned files
+with the product idea:
 
-```tsx
-// apps/web/app/projects/page.tsx
-import { ProjectList } from '@/components/projects/project-list';
-
-export default function ProjectsPage() {
-  return <ProjectList />;
-}
+```text
+packages/db/src/app-schema.ts
+packages/contracts/src/app.ts
+apps/api/src/routes/app.ts
+packages/api-client/src/app.ts
+apps/web/components/item-list.tsx
+apps/mobile/components/item-list.tsx
+apps/desktop/src/renderer/components/item-list.tsx
+apps/extension/src/components/item-list.tsx
 ```
+
+Only paths for selected clients are generated. Shared contracts and API calls
+stay consistent while presentation follows Next.js, React Native, Electron, or
+browser-extension conventions.
 
 ```ts
 // packages/contracts/src/app.ts
 import { z } from 'zod';
 
-export const ProjectSchema = z.object({ id: z.string(), name: z.string() });
-export const ProjectListSchema = z.array(ProjectSchema);
-```
-
-```ts
-// packages/db/src/app-schema.ts
-import { pgTable, text } from 'drizzle-orm/pg-core';
-
-export const projects = pgTable('projects', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
+export const ItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  createdAt: z.string().datetime(),
 });
+export const ItemListSchema = z.array(ItemSchema);
 ```
 
-```ts
-// apps/api/src/routes/app.ts
-import type { FastifyPluginAsync } from 'fastify';
-import { db } from '@shared/db';
-import { projects } from '@shared/db/schema';
-
-export const appRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/projects', async () => db.select().from(projects));
-};
-```
-
-The convention is a conventional vertical flow, not an Anhedral DSL:
+The flow is a normal TypeScript architecture, not an Anhedral DSL:
 
 ```text
 contracts -> database/service -> Fastify route -> typed API client -> frontend
@@ -183,29 +191,32 @@ Anhedral does **not** generate or require local Postgres. Database-enabled proje
 ```text
 anhedral new <directory> [modules...]    Generate a new readable workspace
 anhedral init [modules...]               Generate in the current empty directory
-anhedral add <module...>                 Add connected stack capabilities
-anhedral ui add <component...>           Add source-owned UI components
-anhedral upgrade                         Transactionally upgrade a supported project
-anhedral doctor                          Check ownership and generator drift
+anhedral new <directory> --all           Explicitly select the complete stack
+pnpm anhedral:add <module...>             Add connected stack capabilities
+pnpm anhedral:ui <component...>           Add source-owned UI components
+pnpm anhedral:upgrade                     Transactionally upgrade a supported project
+pnpm anhedral:doctor                      Check ownership and generator drift
 ```
 
 Useful examples:
 
 ```sh
-anhedral add storage --dry-run
-anhedral add desktop extension
-anhedral add electron-updater
-anhedral ui add button dialog
-anhedral ui add data-table --target web --dry-run
-anhedral upgrade --dry-run
-anhedral doctor --json
+pnpm anhedral:add storage --dry-run
+pnpm anhedral:add desktop extension
+pnpm anhedral:add electron-updater
+pnpm anhedral:ui button dialog
+pnpm anhedral:ui data-table --target web --dry-run
+pnpm anhedral:upgrade --dry-run
+pnpm anhedral:doctor --json
 ```
 
-`--dry-run` builds the complete plan without changing the project. `--json` emits machine-readable output. `--verbose` streams child-tool diagnostics.
+`--dry-run` builds the structural plan without changing the project. For `ui add`, it also shows the exact provider command; registry-generated file paths are resolved only when the plan is applied. `--json` emits machine-readable output. `--verbose` streams child-tool diagnostics.
 
 Application lifecycle commands remain visible in the generated root `package.json`:
 
 ```sh
+pnpm first-run
+pnpm ready
 pnpm dev
 pnpm dev:all
 pnpm dev:web
@@ -229,18 +240,18 @@ Anhedral owns initial assembly and safe structural additions. It does not own pr
 
 - `README.md`, `PRODUCTION.md`, application features, pages, routes, services, and domain code are developer-owned.
 - Root workspace configuration is mergeable.
-- Integration substrate is recorded in `anhedral.json`; `anhedral add` refuses to overwrite modified managed files.
+- Integration substrate is recorded in `anhedral.json`; `pnpm anhedral:add` refuses to overwrite modified managed files.
 - UI components are copied into the application so developers can edit them normally.
 - Provider integrations use ordinary SDKs and configuration files with no hidden control plane.
 
 Before a structural change:
 
 ```sh
-anhedral doctor
-anhedral add <module> --dry-run
+pnpm anhedral:doctor
+pnpm anhedral:add <module> --dry-run
 ```
 
-When `doctor` reports that a project was generated by a supported older release, run `anhedral upgrade --dry-run`, inspect the plan, and then run `anhedral upgrade`. Version 0.4 supports transactional upgrades from 0.3 projects while preserving user-owned extension seams. If a 0.3 project changed a file that was generator-managed, the upgrade stops instead of overwriting it. Preserve the change in source control, restore that managed file to its recorded 0.3 content, run the upgrade, and then move the product behavior into the new user-owned `app.ts`, `app-schema.ts`, page, component, or `app-window.ts` seam.
+When `doctor` reports that a project was generated by a supported older release, run `pnpm anhedral:upgrade --dry-run`, inspect the plan, and then run `pnpm anhedral:upgrade`. Version 0.4 supports transactional upgrades from 0.3 projects while preserving user-owned extension seams. If a 0.3 project changed a file that was generator-managed, the upgrade stops instead of overwriting it. Preserve the change in source control, restore that managed file to its recorded 0.3 content, run the upgrade, and then move the product behavior into the new user-owned `app.ts`, `app-schema.ts`, page, component, or `app-window.ts` seam.
 
 ## Documentation contract
 
@@ -256,6 +267,8 @@ The generator's exact output contract is documented in [docs/output-tree-contrac
 
 The complete lifecycle, runtime, cloud, command, and coding-agent topology is in
 the [Anhedral master stack map](docs/master-stack-map.md).
+The repository's implementation policy is the
+[Zen of Anhedral](docs/engineering-principles.md).
 
 ## Module dependency rules
 

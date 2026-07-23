@@ -24,7 +24,9 @@ const requiredFiles = new Set([
   'favicon.ico',
   'package.json',
   'docs/conventions.md',
+  'docs/engineering-principles.md',
   'docs/master-stack-map.md',
+  'docs/NORTHSTAR.md',
   'assets/anhedral-cli-init.svg',
   'assets/images/svg/ably-symbol-color.svg',
   'assets/images/svg/logo-white-subtract.svg',
@@ -119,7 +121,25 @@ try {
   const skill = readFileSync(path.join(repoRoot, 'SKILL.md'), 'utf8');
   assert.match(skill, /docs\/master-stack-map\.md/);
   assert.match(skill, /1 select \+ plan -> 2 generate safely/);
+  assert.match(skill, /Bootstrap a blank workstation/);
+  assert.match(skill, /Node\.js 24 LTS/);
+  assert.match(skill, /npm is not the package manager for a generated\s+workspace/);
+  assert.match(skill, /does not implement Stripe Checkout/);
   assertPackedMarkdownLinks('SKILL.md', skill, files);
+
+  const provisioning = readFileSync(path.join(repoRoot, 'docs/references/provisioning.md'), 'utf8');
+  for (const requiredProvisioningPattern of [
+    /Bootstrap a workstation from zero/,
+    /Resolve accounts, CLIs, and unavoidable browser work/,
+    /RevenueCat's Test Store supports development purchases without Apple, Google, or\s+Stripe accounts/,
+    /Use this control sequence whenever a CLI opens a browser/,
+    /generated `billing` module supplies entitlement reconciliation/,
+    /Workstation ready/,
+    /Distribution ready/,
+  ]) {
+    assert.match(provisioning, requiredProvisioningPattern);
+  }
+  assertPackedMarkdownLinks('docs/references/provisioning.md', provisioning, files);
 
   const masterMapDocument = readFileSync(path.join(repoRoot, 'docs/master-stack-map.md'), 'utf8');
   const [masterMap = ''] = masterMapDocument.split('```text').slice(1);
@@ -176,7 +196,9 @@ try {
       || file.path === 'assets/images/svg/ably-symbol-color.svg'
       || file.path === 'assets/images/svg/logo-white-subtract.svg'
       || file.path === 'docs/conventions.md'
+      || file.path === 'docs/engineering-principles.md'
       || file.path === 'docs/master-stack-map.md'
+      || file.path === 'docs/NORTHSTAR.md'
       || file.path === 'docs/output-tree-contract.md'
       || file.path === 'docs/references/manual-scaffolding.md'
       || file.path === 'docs/references/provisioning.md';

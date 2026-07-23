@@ -1,6 +1,4 @@
 export {
-  APP_MODULES,
-  FEATURE_MODULES,
   USAGE,
   buildAddOptions,
   buildOptions,
@@ -12,7 +10,7 @@ export {
   buildOptionsForRoot,
   parseUiAddOptions,
 } from './cli.js';
-export type { AppModule, FeatureModule, ParsedFlags, SupportedModule } from './cli.js';
+export type { ParsedFlags, SupportedModule } from './cli.js';
 
 export {
   doctorProject,

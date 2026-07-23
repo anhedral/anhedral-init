@@ -1,9 +1,12 @@
-export const MODULE_IDS = [
+export const APP_MODULES = [
   'web',
   'mobile',
   'api',
   'desktop',
   'extension',
+] as const;
+
+export const FEATURE_MODULES = [
   'db',
   'auth',
   'billing',
@@ -12,6 +15,10 @@ export const MODULE_IDS = [
   'electron-updater',
 ] as const;
 
+export const MODULE_IDS = [...APP_MODULES, ...FEATURE_MODULES] as const;
+
+export type AppModule = (typeof APP_MODULES)[number];
+export type FeatureModule = (typeof FEATURE_MODULES)[number];
 export type ModuleId = (typeof MODULE_IDS)[number];
 export type ModuleKind = 'app' | 'feature';
 

@@ -60,8 +60,8 @@ Clerk owns identity and sessions. The API derives identity from a verified serve
 DOM clients use source-owned shadcn/ui components. Expo uses React Native Reusables with the selected NativeWind or Uniwind configuration.
 
 ```sh
-anhedral ui add button dialog
-anhedral ui add data-table --target web
+pnpm anhedral:ui button dialog
+pnpm anhedral:ui data-table --target web
 ```
 
 Generated UI files are application source and can be customized. Preserve accessibility, keyboard/focus behavior, and platform conventions.
@@ -76,7 +76,7 @@ Generated UI files are application source and can be customized. Preserve access
 
 ## Structural changes
 
-Run `anhedral doctor` before changing generated structure. Preview new modules or UI with `--dry-run`. Anhedral refuses managed-file drift, symlinks, and unowned collisions instead of overwriting source.
+Run `pnpm anhedral:doctor` before changing generated structure. Preview new modules or UI with `--dry-run`. Anhedral refuses managed-file drift, symlinks, and unowned collisions instead of overwriting source.
 
 Application product files are developer-owned. `README.md` and `PRODUCTION.md` become user-owned after initialization. Root configuration is mergeable. Integration substrate and generated guidance are recorded in `anhedral.json`.
 
@@ -85,8 +85,10 @@ Application product files are developer-owned. `README.md` and `PRODUCTION.md` b
 Run the smallest relevant package check while iterating, then the generated root verification before handoff:
 
 ```sh
+pnpm first-run
+pnpm ready
 pnpm typecheck
 pnpm verify
 pnpm build
-anhedral doctor
+pnpm anhedral:doctor
 ```

@@ -80,8 +80,8 @@ try {
 
   assert.deepEqual(
     JSON.parse(readFileSync(path.join(project, 'turbo.json'), 'utf8')).tasks.build.outputs,
-    ['.next/**', '!.next/cache/**', '.output/**', 'dist/**'],
-    'Turbo must restore every generated application build-artifact namespace from cache',
+    [],
+    'shared packages should not claim application build artifacts',
   );
 
   assert.equal(readFileSync(path.join(project, 'pnpm-workspace.yaml'), 'utf8'), [
@@ -181,8 +181,8 @@ try {
   assert.match(productionGuide, /Presigned URLs do \*\*not\*\* work on custom domains/);
   assert.match(productionGuide, /TestFlight Beta App Review/);
   assert.match(productionGuide, /Google Play Console/);
-  assert.match(productionGuide, /GoDaddy/);
-  assert.match(productionGuide, /DNS only/);
+  assert.match(productionGuide, /registrar of your choice/);
+  assert.match(productionGuide, /DNS-only/);
   assert.match(productionGuide, /assets-private-proxy/);
   assert.match(productionGuide, /storage\/confirmed\//);
   assert.match(productionGuide, /authenticated private reads/i);
@@ -225,7 +225,7 @@ try {
   const mobileApiRootPackage = JSON.parse(readFileSync(path.join(mobileStorageProject, 'package.json'), 'utf8'));
   assert.equal(
     mobileApiRootPackage.scripts.dev,
-    'turbo dev --parallel --filter=./apps/mobile --filter=./apps/api',
+    'turbo run dev --filter=./apps/mobile --filter=./apps/api',
     'the primary loop must start the selected client and its API together',
   );
   assert.equal(mobileApiRootPackage.scripts['dev:all'], undefined);
@@ -321,7 +321,17 @@ try {
   );
 
   const currentUpgrade = JSON.parse(run(['upgrade', '--skip-install', '--json'], upgradeProject).stdout);
-  assert.deepEqual(currentUpgrade, { operation: 'upgrade', paths: [] });
+  assert.deepEqual({
+    ...currentUpgrade,
+    rootDirectory: path.basename(currentUpgrade.rootDirectory),
+  }, {
+    operation: 'upgrade',
+    status: 'unchanged',
+    generatorVersion: currentGeneratorVersion,
+    rootDirectory: 'upgrade-project',
+    paths: [],
+    nextSteps: [],
+  });
 
   const updaterProject = path.join(workspace, 'updater-project');
   mkdirSync(updaterProject);
@@ -599,14 +609,39 @@ try {
   const healthyProject = path.join(workspace, 'doctor-project');
   mkdirSync(healthyProject);
   run(['init', '--web', '--skip-install'], healthyProject);
-  run(['doctor', '--json'], healthyProject);
+  const healthyDoctor = JSON.parse(run(['doctor', '--json'], healthyProject).stdout);
+  assert.deepEqual(healthyDoctor.recommendedActions, []);
+  assert.deepEqual(healthyDoctor.project, { name: 'doctor-project', displayName: 'doctor-project' });
+  assert.deepEqual(healthyDoctor.modules, ['web']);
+  assert.equal(healthyDoctor.toolchain, 'stable');
+  assert.equal(
+    healthyDoctor.ownership.total,
+    healthyDoctor.ownership.user + healthyDoctor.ownership.mergeable + healthyDoctor.ownership.managed,
+  );
   const orphanLockTemp = path.join(healthyProject, '.anhedral.lock.orphan.tmp');
+  const earlierOrphanLockTemp = path.join(healthyProject, '.anhedral.lock.alpha.tmp');
   writeFileSync(orphanLockTemp, 'incomplete lock owner\n');
+  writeFileSync(earlierOrphanLockTemp, 'incomplete lock owner\n');
   const artifactDoctor = run(['doctor', '--json'], healthyProject, 1);
   const artifactReport = JSON.parse(artifactDoctor.stdout);
   assert.equal(artifactReport.ok, false);
   assert.ok(artifactReport.issues.some((issue) => issue.path === '.anhedral.lock.orphan.tmp'));
+  assert.deepEqual(
+    artifactReport.issues.map((issue) => issue.path),
+    [...artifactReport.issues.map((issue) => issue.path)].sort(),
+    'doctor issues must have deterministic path ordering',
+  );
+  assert.ok(artifactReport.recommendedActions.some((action) => action.includes('interrupted Anhedral command')));
   rmSync(orphanLockTemp);
+  rmSync(earlierOrphanLockTemp);
+  const doctorRootPackagePath = path.join(healthyProject, 'package.json');
+  const doctorRootPackage = readFileSync(doctorRootPackagePath, 'utf8');
+  rmSync(doctorRootPackagePath);
+  mkdirSync(doctorRootPackagePath);
+  const mergeableDoctor = JSON.parse(run(['doctor', '--json'], healthyProject, 1).stdout);
+  assert.ok(mergeableDoctor.recommendedActions.some((action) => action.includes('Restore mergeable workspace configuration')));
+  rmSync(doctorRootPackagePath, { recursive: true });
+  writeFileSync(doctorRootPackagePath, doctorRootPackage);
   const recordedFileReplacedByDirectory = path.join(healthyProject, 'apps/web/app/page.tsx');
   rmSync(recordedFileReplacedByDirectory);
   mkdirSync(recordedFileReplacedByDirectory);
@@ -616,6 +651,7 @@ try {
     issue.path === 'apps/web/app/page.tsx'
       && issue.message === 'Recorded path is not a regular file.'
   )));
+  assert.ok(nonRegularReport.recommendedActions.some((action) => action.includes('Restore recorded user-owned paths')));
 
   const binaryIntegrityProject = path.join(workspace, 'binary-integrity-project');
   mkdirSync(binaryIntegrityProject);

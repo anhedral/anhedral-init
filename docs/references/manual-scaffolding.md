@@ -106,11 +106,13 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/web/components/ui/{button.tsx,card.tsx}               [web]
   apps/web/lib/utils.ts                                     [web]
   apps/web/{lib/api.ts,hooks/use-api-client.ts}              [web + api]
+  apps/web/components/item-list.tsx                          [web + api + db]
   apps/web/components/account-actions.tsx                   [web + auth]
   apps/web/{hooks/use-entitlement.ts,components/subscription-status.tsx} [web + billing]
   apps/mobile/{package.json,app.json,tsconfig.json,expo-env.d.ts,eas.json,.env.example,.gitignore} [mobile]
   apps/mobile/app/{_layout.tsx,index.tsx}                    [mobile]
   apps/mobile/{lib/api.ts,hooks/use-api-client.ts}           [mobile + api]
+  apps/mobile/components/item-list.tsx                       [mobile + api + db]
   apps/mobile/components/account-controls.tsx               [mobile + auth]
   apps/mobile/hooks/use-entitlement.ts                      [mobile + billing]
   apps/mobile/lib/subscriptions.ts                           [native-subscriptions]
@@ -120,6 +122,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/desktop/src/renderer/{main.tsx,styles.css,lib/utils.ts} [desktop]
   apps/desktop/src/renderer/components/ui/button.tsx        [desktop]
   apps/desktop/src/renderer/lib/api.ts                       [desktop + api]
+  apps/desktop/src/renderer/components/item-list.tsx         [desktop + api + db]
   apps/desktop/src/renderer/lib/auth.ts                      [desktop + auth]
   apps/desktop/src/renderer/hooks/use-entitlement.ts        [desktop + billing]
   apps/desktop/electron-builder.env.example                 [electron-updater]
@@ -133,6 +136,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/extension/src/entrypoints/{background.ts,sidepanel/index.html,sidepanel/main.tsx,sidepanel/app.tsx} [extension]
   apps/extension/src/contexts/auth-context.tsx              [extension + auth]
   apps/extension/src/lib/api.ts                              [extension + api]
+  apps/extension/src/components/item-list.tsx                [extension + api + db]
   apps/extension/src/hooks/use-entitlement.ts               [extension + billing]
 ```
 
@@ -148,7 +152,7 @@ Always add `build: turbo build` and `typecheck: turbo typecheck`. Set `dev` to
 the primary product loop: run the first selected client in canonical module
 order plus API when present, or API alone for a backend-only project. When the
 project has additional app surfaces, add `dev:all` to run every selected app in
-parallel. Each command uses `turbo dev --parallel` with explicit
+parallel. Each command uses `turbo run dev` with explicit
 `--filter=./apps/<surface>` arguments. Add only selected scripts:
 
 ```text
@@ -203,7 +207,7 @@ Pin current security overrides for `@vitejs/plugin-react`, `postcss`, vulnerable
 Create `turbo.json` using `https://turborepo.dev/schema.json` with:
 
 - `build.dependsOn = ["^build"]` and outputs `.next/**`, `!.next/cache/**`, `.output/**`, `dist/**`.
-- `typecheck.dependsOn = ["^build"]`.
+- `typecheck.dependsOn = ["^typecheck"]`.
 - `dev.cache = false` and `dev.persistent = true`.
 
 Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, desktop release output, `apps/assets-private-proxy`, and `apps/desktop-updater-worker` in `.vercelignore`.
@@ -211,6 +215,12 @@ Ignore `node_modules`, framework/build caches, coverage, release output, every `
 Create the single root `vercel.json` using `https://openapi.vercel.sh/vercel.json`. Add service `api` rooted at `apps/api` and service `web` rooted at `apps/web` as selected. Put the `/api/(.*)` rewrite before the web `/(.*)` catch-all. If billing is selected, add `*/5 * * * *` for `/api/internal/realtime/flush`; if storage is selected, add `0 3 * * *` for `/api/internal/storage/cleanup`. Protect both internal routes with the same high-entropy `CRON_SECRET` bearer token.
 
 Create `.github/workflows/anhedral-ci.yml` with read-only contents permission, concurrency cancellation, pinned action commit SHAs, pnpm setup, Node `22.13.0` for mobile or `20.19.0` otherwise, and frozen installation. Run `pnpm typecheck`, API coverage tests when API exists, and `pnpm build`. For database workspaces also run `pnpm verify:db`, run `pnpm db:generate`, fail on any migration diff, and fail on untracked migration artifacts.
+
+Create `scripts/first-run.mjs` and root `first-run`/`ready` scripts. `first-run`
+must copy only missing package-local environment files and never overwrite
+existing values. `ready` must identify missing files and required blank or
+placeholder variables without printing values, return nonzero when blocked,
+and treat explicitly documented optional variables as optional.
 
 Create `README.md` containing selected modules and first-run commands. Create `PRODUCTION.md` containing provider and deployment requirements from sections 8 and 9. These two files become user-owned; do not rewrite them during later manual module additions.
 
@@ -234,6 +244,11 @@ Create `@shared/api-client` when API and at least one client surface are selecte
 - timeout and caller-abort composition with listener/timer cleanup;
 - JSON parsing and Zod response validation;
 - typed methods for health/readiness and only selected auth, billing, and storage routes.
+
+When database is selected, also create user-owned item request/response
+contracts and `listItems`/`createItem` methods. Render that same feature with
+idiomatic, accessible UI in every selected client so the first end-to-end proof
+is cross-platform rather than web-only.
 
 Do not make server-only provider SDKs dependencies of clients.
 
@@ -341,10 +356,12 @@ Run from the root:
 
 ```sh
 pnpm install
-pnpm typecheck
+pnpm first-run
+pnpm ready
 ```
 
-For a database workspace, copy its environment, generate and review the initial migration, and add it to Git before the gate:
+For a database workspace, generate and review the initial migration, and add it
+to Git before the gate:
 
 ```sh
 pnpm db:generate
@@ -356,6 +373,7 @@ pnpm db:migrate
 Then run every selected package verification, root verification, and build:
 
 ```sh
+pnpm typecheck
 pnpm verify
 pnpm build
 ```

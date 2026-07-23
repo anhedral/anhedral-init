@@ -3,7 +3,7 @@ import { anhedralPrint } from '../print.js';
 import { appendGitignore, writeFile } from '../util.js';
 import { childPackageName, jsString } from '../render.js';
 import { BACKEND_DEPENDENCIES } from '../dependencies.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 
 function pick(source: Record<string, string>, names: readonly string[]): Record<string, string> {
   return Object.fromEntries(names.map((name) => [name, source[name]]).filter((entry): entry is [string, string] => Boolean(entry[1])));
@@ -1649,6 +1649,9 @@ function routesSource(options: ProjectOptions): string {
   const storageService = options.features.storage
     ? '    const storageService = dependencies.storageService ?? createStorageService(env);\n'
     : '';
+  const appRoutesRegistration = options.features.database && options.features.auth
+    ? 'await app.register(appRoutes(env));'
+    : 'await app.register(appRoutes);';
   return `${imports.join('\n')}
 import type { AppEnv } from './env';
 
@@ -1682,7 +1685,7 @@ export function routes(env: AppEnv, dependencies: RouteDependencies = {}): Fasti
 ${billingStore}${storageService}    const serviceState = dependencies.serviceState ?? { readiness: async () => 'ready' as const };
   ${routes.join('\n\n  ')}
 
-  await app.register(appRoutes);
+  ${appRoutesRegistration}
   };
 }
 `;
@@ -2958,7 +2961,69 @@ export default defineConfig({
   if (options.features.billing) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
   if (options.features.storage) writeFile(path.join(dir, 'src/storage.ts'), storageSource());
   if (options.features.billing) writeFile(path.join(dir, 'src/billing.ts'), billingSource());
-  writeFile(path.join(dir, 'src/routes/app.ts'), `import type { FastifyPluginAsync } from 'fastify';
+  const appRouteAuthImports = options.features.auth
+    ? `import { authenticatedUserId } from '../auth';
+import type { AppEnv } from '../env';
+`
+    : '';
+  const appRouteRegistrationStart = options.features.auth
+    ? `export function appRoutes(env: AppEnv): FastifyPluginAsync {
+  return async function registerAppRoutes(app) {`
+    : 'export const appRoutes: FastifyPluginAsync = async (app) => {';
+  const appRouteRegistrationEnd = options.features.auth ? '  };\n}' : '};';
+  const listOwner = options.features.auth
+    ? `    const userId = authenticatedUserId(request, env);
+    const rows = await db.select().from(items)
+      .where(eq(items.userId, userId))
+      .orderBy(desc(items.createdAt))
+      .limit(50);`
+    : `    const rows = await db.select().from(items)
+      .orderBy(desc(items.createdAt))
+      .limit(50);`;
+  const createOwner = options.features.auth
+    ? '      userId: authenticatedUserId(request, env),\n'
+    : '';
+  writeFile(path.join(dir, 'src/routes/app.ts'), options.features.database
+    ? `import { randomUUID } from 'node:crypto';
+import type { FastifyPluginAsync } from 'fastify';
+import { CreateItemRequestSchema, ItemListSchema, ItemSchema } from '@shared/contracts';
+import { db } from '@shared/db';
+import { items } from '@shared/db/schema';
+import { desc${options.features.auth ? ', eq' : ''} } from 'drizzle-orm';
+${appRouteAuthImports}
+
+// A complete starter feature. Keep the boundary or replace it with your product model.
+${appRouteRegistrationStart}
+  app.get('/items', async (request) => {
+${listOwner}
+    return ItemListSchema.parse(rows.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    })));
+  });
+
+  app.post('/items', async (request, reply) => {
+    const parsed = CreateItemRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'invalid_item_request',
+        message: 'Item name must contain 1 to 120 characters',
+        details: parsed.error.flatten(),
+      });
+    }
+    const [created] = await db.insert(items).values({
+      id: randomUUID(),
+${createOwner}      name: parsed.data.name,
+    }).returning();
+    if (!created) throw new Error('Database did not return the created item');
+    return reply.code(201).send(ItemSchema.parse({
+      ...created,
+      createdAt: created.createdAt.toISOString(),
+    }));
+  });
+${appRouteRegistrationEnd}
+`
+    : `import type { FastifyPluginAsync } from 'fastify';
 
 // Register product-owned routes here. Anhedral never rewrites this file after creation.
 export const appRoutes: FastifyPluginAsync = async (_app) => {};

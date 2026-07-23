@@ -1,7 +1,8 @@
-import { APP_MODULES, FEATURE_MODULES, normalizeModuleName } from './cli.js';
+import { isModuleId } from './architecture/modules.js';
 
 function hasModuleSelection(args: readonly string[]): boolean {
-  return args.some((arg) => normalizeModuleName(arg.startsWith('--') ? arg.slice(2) : arg) != null);
+  return args.some((arg) =>
+    arg === '--all' || isModuleId(arg.startsWith('--') ? arg.slice(2) : arg));
 }
 
 export function shouldPromptForInitModules(args: readonly string[], isTTY: boolean): boolean {
@@ -12,13 +13,37 @@ export function hasUiSelection(args: readonly string[]): boolean {
   return args.some((arg) => arg === '--ui' || arg.startsWith('--ui='));
 }
 
-export function parsePromptModules(input: string, fallback: readonly string[]): string[] {
+export function parsePromptModuleSelection(
+  input: string,
+  fallback: readonly string[],
+  all: readonly string[],
+): string[] {
   const tokens = input
     .split(/[\s,]+/)
-    .map((entry) => entry.trim())
+    .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
-  return tokens.length > 0 ? tokens : [...fallback];
+  const specialTokens = tokens.filter((token) => token === 'all' || token === 'none');
+  if (specialTokens.length > 0 && tokens.length > 1) {
+    throw new Error(`"${specialTokens[0]}" must be used by itself.`);
+  }
+  if (tokens[0] === 'none') return [];
+  if (tokens[0] === 'all') return [...all];
+
+  const selected = tokens.length > 0 ? tokens : [...fallback];
+  const allowed = new Set(all);
+  const unknown = selected.filter((token) => !allowed.has(token));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown selection: ${unknown.join(', ')}. Choose from: ${all.join(', ')}, all, or none.`);
+  }
+  return [...new Set(selected)];
 }
 
-export const DEFAULT_PROMPT_APP_MODULES = APP_MODULES;
-export const DEFAULT_PROMPT_FEATURE_MODULES = FEATURE_MODULES;
+export function parsePromptConfirmation(input: string): boolean {
+  const answer = input.trim().toLowerCase();
+  if (answer === '' || answer === 'y' || answer === 'yes') return true;
+  if (answer === 'n' || answer === 'no') return false;
+  throw new Error('Enter yes or no.');
+}
+
+export const DEFAULT_PROMPT_APP_MODULES = ['web'] as const;
+export const DEFAULT_PROMPT_FEATURE_MODULES = [] as const;

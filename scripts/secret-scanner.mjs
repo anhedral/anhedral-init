@@ -6,6 +6,14 @@ import { gunzipSync } from 'node:zlib';
 // Keep this list intentionally high-confidence. Examples and tests construct tokens
 // from fragments so the repository itself never has to allowlist a secret-shaped value.
 const SECRET_PATTERNS = Object.freeze([
+  {
+    id: 'local-home-path',
+    pattern: /(?:\/Users\/|\/home\/)[A-Za-z0-9._-]+(?:\/[^\s"'<>]*)?|[A-Za-z]:\\Users\\[A-Za-z0-9._-]+(?:\\[^\s"'<>]*)?/g,
+  },
+  {
+    id: 'email-address',
+    pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+  },
   { id: 'private-key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g },
   { id: 'github-token', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/g },
   { id: 'npm-token', pattern: /\bnpm_[A-Za-z0-9]{30,}\b/g },
@@ -55,6 +63,10 @@ export function scanText(relativePath, contents) {
   for (const { id, pattern } of SECRET_PATTERNS) {
     pattern.lastIndex = 0;
     for (const match of text.matchAll(pattern)) {
+      if (
+        id === 'email-address'
+        && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
+      ) continue;
       const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
       if (assignedValue && PLACEHOLDER_VALUES.has(assignedValue.toLowerCase())) continue;
       const line = text.slice(0, match.index).split('\n').length;

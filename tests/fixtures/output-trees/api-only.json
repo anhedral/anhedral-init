@@ -35,36 +35,36 @@
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 470,
-      "sha256": "c07c5cc0f3e3c28cc5bec9b45f5235112ca72cb17222ad5393974aa3e323f9cb"
+      "bytes": 499,
+      "sha256": "16a553900118c01204fd464e57b9a981ee4791b2ce1934322b740cbf139845dd"
     },
     {
       "path": "PRODUCTION.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4929,
-      "sha256": "d8ca560cb8b96cecda7169f44303fe7af8d553da5815bb1ab48d53c51fd4e69e"
+      "bytes": 2865,
+      "sha256": "e542c2eea36494260fe60412b465b3b332c4266108821650666b1ccc3ca09c23"
     },
     {
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3315,
-      "sha256": "81187fb7e54d8a1f3c294a7360ca7084e91dcf6da773f0ee7d21d621d852b980"
+      "bytes": 2834,
+      "sha256": "aa5a9f0ac0a31d477902659be647e234d26d0d31fa8c2d2d8cc5e6ea7657f281"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 6697,
-      "sha256": "c884fbbf2d01b7fe297f1be2af6484bfe83d9726822ff09492bff0c4fd5040a5"
+      "bytes": 6761,
+      "sha256": "34273539d8d01b6df318e8ef3f8b0d242ae3b561d7037a1b8787b8b3f99ad1fb"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 6314,
-      "sha256": "ad451d15e94265aefd13eec989570262a5c9750a80098b018d3f323c2719ea8e"
+      "bytes": 6505,
+      "sha256": "f66ae9798633e0b419f1f51d76ec76dfbda707a8f5785e6e317e43a1fb06a3fe"
     },
     {
       "path": "apps/api/.env.example",
@@ -154,22 +154,22 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1483,
-      "sha256": "60f7c913b816033622e9cdd09cf13a00dd9fc1783e0a36f0df9f4014d5e45bae"
+      "bytes": 1503,
+      "sha256": "9aff4868877624edee6228bd823815b26d07faf24d8f067bcfcb634913a5df84"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1014,
-      "sha256": "5329fe7512f2aa7b9cbd084f012a8e76d4d01cd5eccc8f9a8bd046122394819e"
+      "bytes": 1046,
+      "sha256": "fbd6fb8edf86c0da610d6abcb41768d21e4d1e59c17db1b1e38d43e2551de2fa"
     },
     {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 906,
-      "sha256": "3b8182f00159be8ad2a708c58b39a6771b191a85d985268ddcb74237aaa9b20d"
+      "bytes": 1218,
+      "sha256": "727fdae5c5bad8aae239cd6ca86c4499e11b965d395a51086145f9c5824527be"
     },
     {
       "path": "packages/contracts/package.json",
@@ -214,11 +214,18 @@
       "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
     },
     {
+      "path": "scripts/first-run.mjs",
+      "type": "file",
+      "mode": "0644",
+      "bytes": 3454,
+      "sha256": "dc90216ba7fe638d7029264a6a0cba70c8a167a257fe77ba5ca56e15ab7121f1"
+    },
+    {
       "path": "turbo.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 392,
-      "sha256": "7ecaf79bc90cbf0622407790974dce27f144dfea126e0e1bdeb9f4bfe9b7af60"
+      "bytes": 302,
+      "sha256": "820d9d4c023707c0e480c93cbb99ac5e8a2acc5b1d7af0a079d435ae5b6c6cab"
     },
     {
       "path": "vercel.json",
@@ -228,5 +235,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "3f0c4317a7c3aa06d5e51f7196dc835c6f47ec34c0a4d6daf8d17355a541baaa"
+  "digest": "f26477f518e937273b778c0b5f11c8213afa44e30693d7d9e615d7b6a84161e5"
 }

@@ -1,5 +1,9 @@
 # Contributing
 
+Changes should follow the repository's
+[engineering principles](docs/engineering-principles.md): explicit behavior,
+one source of truth, narrow namespaces, visible failures, and focused tests.
+
 ## Local setup
 
 Anhedral requires Node.js 20.19+ or 22.12+ and pnpm 10.34.5.

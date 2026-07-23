@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 145 | `bc2ffd2b31666349e9fbf385b5c8e2df520968a6a2ef1eeba9c431f3b1690ed2` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 65 | `3311e164a5ec03c232dbfeabb35209f9c8206422c1864179d39a65d2d54cf443` |
-| `api-only` | api |  | deterministic golden | 32 | `3f0c4317a7c3aa06d5e51f7196dc835c6f47ec34c0a4d6daf8d17355a541baaa` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 67 | `f78d74dc4d32688ebb5b88bbe16bc01f68590254c1799be8b7b18f3566ed8c7a` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 150 | `c1b57eedc6e4c3518adc1fcc4165750cc5e0668a11e0b56bb5c260c26d40f1e5` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 67 | `c74a7fd5cab6a7d0f2f815d4915708f224c7c27ae1f64caa4eac7e397fc98d65` |
+| `api-only` | api |  | deterministic golden | 33 | `f26477f518e937273b778c0b5f11c8213afa44e30693d7d9e615d7b6a84161e5` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 69 | `d305cd9115727402cfceb3815ba5923185851b2c6c31921232cfd9a7338a33f8` |
 
 ## expo-extension
 
@@ -88,6 +88,7 @@ expo-extension-sample/
 │   │   │   │   └── preload.cts
 │   │   │   └── renderer/
 │   │   │       ├── components/
+│   │   │       │   ├── item-list.tsx
 │   │   │       │   └── ui/
 │   │   │       │       └── button.tsx
 │   │   │       ├── hooks/
@@ -116,6 +117,7 @@ expo-extension-sample/
 │   │   ├── postcss.config.cjs
 │   │   ├── src/
 │   │   │   ├── components/
+│   │   │   │   ├── item-list.tsx
 │   │   │   │   └── ui/
 │   │   │   │       └── button.tsx
 │   │   │   ├── contexts/
@@ -145,7 +147,8 @@ expo-extension-sample/
 │   │   ├── app.json
 │   │   ├── babel.config.js
 │   │   ├── components/
-│   │   │   └── account-controls.tsx
+│   │   │   ├── account-controls.tsx
+│   │   │   └── item-list.tsx
 │   │   ├── components.json
 │   │   ├── eas.json
 │   │   ├── expo-env.d.ts
@@ -170,6 +173,7 @@ expo-extension-sample/
 │       │   └── page.tsx
 │       ├── components/
 │       │   ├── account-actions.tsx
+│       │   ├── item-list.tsx
 │       │   ├── subscription-status.tsx
 │       │   └── ui/
 │       │       ├── button.tsx
@@ -229,6 +233,7 @@ expo-extension-sample/
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
 ├── scripts/
+│   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
 ├── turbo.json
 └── vercel.json
@@ -277,6 +282,7 @@ web-api-minimal/
 │       │   └── page.tsx
 │       ├── components/
 │       │   ├── account-actions.tsx
+│       │   ├── item-list.tsx
 │       │   └── ui/
 │       │       ├── button.tsx
 │       │       └── card.tsx
@@ -325,6 +331,7 @@ web-api-minimal/
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
 ├── scripts/
+│   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
 ├── turbo.json
 └── vercel.json
@@ -377,6 +384,8 @@ api-only/
 │       │   └── index.ts
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
+├── scripts/
+│   └── first-run.mjs
 ├── turbo.json
 └── vercel.json
 ```
@@ -431,6 +440,7 @@ add-desktop-flow/
 │       │   │   └── preload.cts
 │       │   └── renderer/
 │       │       ├── components/
+│       │       │   ├── item-list.tsx
 │       │       │   └── ui/
 │       │       │       └── button.tsx
 │       │       ├── lib/
@@ -476,6 +486,7 @@ add-desktop-flow/
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
 ├── scripts/
+│   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
 ├── turbo.json
 └── vercel.json

@@ -94,8 +94,11 @@ try {
     if (app === 'desktop') {
       assert.ok(authPackage.dependencies['@clerk/ui']);
       assert.ok(authPackage.dependencies['@solana/web3.js']);
+      assert.ok(authPackage.dependencies.bs58);
       assert.equal(appOnlyPackage.dependencies['@solana/web3.js'], undefined);
+      assert.equal(appOnlyPackage.dependencies.bs58, undefined);
       assert.equal(apiPackage.dependencies['@solana/web3.js'], undefined);
+      assert.equal(apiPackage.dependencies.bs58, undefined);
     }
   }
 
@@ -116,6 +119,8 @@ try {
 
   const authMobilePackage = packageJson(roots.auth, 'mobile');
   assert.ok(authMobilePackage.dependencies['@clerk/expo']);
+  assert.equal(authMobilePackage.dependencies['@solana/web3.js'], '1.98.4');
+  assert.equal(authMobilePackage.dependencies.bs58, '6.0.0');
   assert.ok(authMobilePackage.dependencies['expo-secure-store']);
   assert.equal(authMobilePackage.dependencies['react-native-purchases'], undefined);
   assert.equal(authMobilePackage.dependencies['react-native-purchases-ui'], undefined);
@@ -142,7 +147,6 @@ try {
       assert.equal(manifest.dependencies['lucide-react'], undefined);
     }
     assert.equal(packageJson(root, 'desktop').devDependencies['@vitejs/plugin-react'], '5.2.0');
-    assert.equal(packageJson(root, 'desktop').dependencies.bs58, '6.0.0');
     assert.equal(packageJson(root, 'desktop').scripts.dev, 'tsc -p tsconfig.main.json && node scripts/dev.mjs');
     assert.equal(packageJson(root, 'desktop').build.linux.executableName, 'conditional-app');
     assert.match(read(root, 'apps/desktop/scripts/dev.mjs'), /electronCommand/);
@@ -161,6 +165,10 @@ try {
   assert.equal(existsSync(path.join(roots.appOnly, 'apps/desktop/src/renderer/lib/auth.ts')), false);
   assert.doesNotMatch(read(roots.appOnly, 'apps/desktop/src/renderer/main.tsx'), /shared API|Clerk|Open account/);
   assert.equal(existsSync(path.join(roots.appOnly, 'apps/web/components/account-actions.tsx')), false);
+  assert.equal(existsSync(path.join(roots.appOnly, 'apps/web/components/item-list.tsx')), false);
+  assert.equal(existsSync(path.join(roots.appOnly, 'apps/mobile/components/item-list.tsx')), false);
+  assert.equal(existsSync(path.join(roots.appOnly, 'apps/desktop/src/renderer/components/item-list.tsx')), false);
+  assert.equal(existsSync(path.join(roots.appOnly, 'apps/extension/src/components/item-list.tsx')), false);
   assert.equal(existsSync(path.join(roots.appOnly, 'apps/web/hooks/use-api-client.ts')), false);
   assert.equal(existsSync(path.join(roots.appOnly, 'apps/mobile/hooks/use-api-client.ts')), false);
   assert.equal(existsSync(path.join(roots.appOnly, 'apps/mobile/lib/subscriptions.ts')), false);
@@ -170,8 +178,31 @@ try {
   assert.match(read(roots.api, 'apps/desktop/src/renderer/lib/api.ts'), /@shared\/api-client/);
   assert.doesNotMatch(read(roots.api, 'apps/desktop/src/renderer/lib/api.ts'), /getAuthToken/);
   assert.equal(existsSync(path.join(roots.api, 'apps/desktop/src/renderer/lib/auth.ts')), false);
-  assert.equal(existsSync(path.join(roots.api, 'apps/web/hooks/use-api-client.ts')), false);
-  assert.equal(existsSync(path.join(roots.api, 'apps/mobile/hooks/use-api-client.ts')), false);
+  assert.equal(existsSync(path.join(roots.api, 'apps/web/hooks/use-api-client.ts')), true);
+  assert.equal(existsSync(path.join(roots.api, 'apps/mobile/hooks/use-api-client.ts')), true);
+  assert.doesNotMatch(read(roots.api, 'apps/web/hooks/use-api-client.ts'), /useAuth/);
+  assert.doesNotMatch(read(roots.api, 'apps/mobile/hooks/use-api-client.ts'), /useAuth/);
+  for (const itemListPath of [
+    'apps/web/components/item-list.tsx',
+    'apps/mobile/components/item-list.tsx',
+    'apps/desktop/src/renderer/components/item-list.tsx',
+    'apps/extension/src/components/item-list.tsx',
+  ]) {
+    const itemList = read(roots.api, itemListPath);
+    assert.match(itemList, /createItem/);
+    assert.match(itemList, /listItems/);
+    if (!itemListPath.startsWith('apps/web/')) assert.match(itemList, /Working starter feature/);
+    assert.match(itemList, /identity = 'public'/);
+    assert.match(itemList, /loadedIdentity === identity/);
+    assert.match(itemList, /let active = true/);
+    assert.match(itemList, /identityRef\.current !== submittedIdentity/);
+    assert.match(itemList, /status !== 'ready'/);
+  }
+  assert.match(read(roots.api, 'apps/mobile/app/index.tsx'), /<ItemList \/>/);
+  assert.match(read(roots.api, 'apps/desktop/src/renderer/main.tsx'), /<ItemList \/>/);
+  assert.match(read(roots.api, 'apps/extension/src/entrypoints/sidepanel/app.tsx'), /<ItemList \/>/);
+  assert.match(read(roots.api, 'packages/contracts/src/app.ts'), /ItemListSchema/);
+  assert.match(read(roots.api, 'packages/api-client/src/app.ts'), /listItems/);
   assert.doesNotMatch(read(roots.api, 'apps/web/lib/api.ts'), /platform:/);
   assert.doesNotMatch(read(roots.api, 'apps/mobile/lib/api.ts'), /platform:/);
   assert.match(read(roots.api, 'apps/web/lib/api.ts'), /NODE_ENV === 'production' && url\.protocol !== 'https:'/);
@@ -312,8 +343,10 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(read(roots.auth, 'apps/desktop/.env.example'), /VITE_CLERK_PUBLISHABLE_KEY/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /Open account/);
   assert.doesNotMatch(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /initializeClerk/);
-  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /Account services load only when you open your account/);
-  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /useEntitlement\(clerkState === 'ready'\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /Sign in to use account-backed features/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /subscribeToAuthState/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /useEntitlement\(clerkState === 'ready' \? clerkUserId : null\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /<ItemList identity=\{clerkState === 'ready' \? clerkUserId : null\} \/>/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /onClick=\{\(\) => void handleAccount\(\)\}/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/main.tsx'), /role=\{clerkState/);
   assert.doesNotMatch(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /^import \{ Clerk \}/m);
@@ -322,11 +355,14 @@ function normalizeApiBaseUrl(value, label) {
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /new Clerk\(publishableKey\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.load\(\{ ui \}\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /session\?\.getToken\(\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.addListener\(synchronize\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.openUserProfile\(\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /clerk\.openSignIn\(\)/);
+  assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/auth.ts'), /!publishableKey\.includes\('\*\*\*'\)/);
   assert.match(read(roots.auth, 'apps/desktop/src/renderer/lib/api.ts'), /getToken: getAuthToken/);
-  assert.match(read(roots.auth, 'apps/desktop/src/renderer/hooks/use-entitlement.ts'), /useEntitlement\(enabled: boolean\)/);
-  assert.match(read(roots.auth, 'apps/desktop/src/renderer/hooks/use-entitlement.ts'), /if \(!enabled\) return/);
+  const desktopEntitlement = read(roots.auth, 'apps/desktop/src/renderer/hooks/use-entitlement.ts');
+  assert.match(desktopEntitlement, /useEntitlement\(identity: string \| null\)/);
+  assert.doesNotMatch(desktopEntitlement, /getAuthUserId|initializeClerk/);
 
   const webAccountActions = read(roots.auth, 'apps/web/components/account-actions.tsx');
   assert.match(webAccountActions, /Show when="signed-in"/);
@@ -346,9 +382,38 @@ function normalizeApiBaseUrl(value, label) {
   assert.doesNotMatch(read(roots.auth, 'apps/mobile/app/_layout.tsx'), /initializeRevenueCat/);
   assert.doesNotMatch(read(roots.auth, 'apps/mobile/.env.example'), /EXPO_PUBLIC_RC_/);
   assert.match(read(roots.auth, 'apps/mobile/hooks/use-api-client.ts'), /createApiClient\(\(\) => getToken\(\)\)/);
+  assert.match(read(roots.auth, 'apps/mobile/app/_layout.tsx'), /publishableKey\.includes\('\*\*\*'\)/);
   assert.match(read(roots.auth, 'apps/mobile/app/index.tsx'), /<AccountControls \/>/);
+  assert.match(read(roots.auth, 'apps/mobile/app/index.tsx'), /<ItemList \/>/);
+  assert.match(read(roots.auth, 'apps/mobile/components/item-list.tsx'), /Sign in to use the working starter feature/);
   assert.match(read(roots.auth, 'apps/mobile/components/account-controls.tsx'), /clerk\.openSignIn\(\{\}\)/);
   assert.match(read(roots.auth, 'apps/mobile/components/account-controls.tsx'), /clerk\.signOut\(\)/);
+  assert.match(read(roots.auth, 'apps/extension/src/contexts/auth-context.tsx'), /CLERK_PUBLISHABLE_KEY\.includes\('\*\*\*'\)/);
+  assert.match(read(roots.auth, 'apps/extension/src/entrypoints/background.ts'), /publishableKey\.includes\('\*\*\*'\)/);
+
+  for (const itemListPath of [
+    'apps/web/components/item-list.tsx',
+    'apps/mobile/components/item-list.tsx',
+    'apps/desktop/src/renderer/components/item-list.tsx',
+    'apps/extension/src/components/item-list.tsx',
+  ]) {
+    const itemList = read(roots.auth, itemListPath);
+    assert.match(itemList, /loadedIdentity === identity/);
+    assert.match(itemList, /identityRef\.current !== submittedIdentity/);
+  }
+
+  for (const entitlementPath of [
+    'apps/web/hooks/use-entitlement.ts',
+    'apps/mobile/hooks/use-entitlement.ts',
+    'apps/desktop/src/renderer/hooks/use-entitlement.ts',
+    'apps/extension/src/hooks/use-entitlement.ts',
+  ]) {
+    const entitlementHook = read(roots.auth, entitlementPath);
+    assert.match(entitlementHook, /identityRef\.current !== identity/);
+    assert.match(entitlementHook, /loadedIdentity === identity/);
+    assert.match(entitlementHook, /revision\.current = 0/);
+    assert.match(entitlementHook, /userId: identity/);
+  }
 
   const mobileSubscriptions = read(roots.native, 'apps/mobile/lib/subscriptions.ts');
   assert.match(mobileSubscriptions, /Platform\.OS === 'web'/);

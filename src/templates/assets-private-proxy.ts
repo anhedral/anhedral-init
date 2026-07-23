@@ -3,7 +3,7 @@ import { anhedralPrint } from '../print.js';
 import { childPackageName } from '../render.js';
 import { TOOLCHAIN_DEPENDENCIES } from '../dependencies.js';
 import { writeFile } from '../util.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 
 export function r2BucketName(projectName: string): string {
   const unscoped = projectName.replace(/^@[^/]+\//, '');

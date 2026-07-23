@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- Add idempotent `pnpm first-run` setup plus a secret-safe `pnpm ready` gate with
+  human and JSON output, required/optional variable awareness, and truthful exit
+  status.
+- Generate a working items feature across Drizzle, Zod contracts, Fastify
+  routes, the shared API client, and idiomatic Next.js, Expo, Electron, and WXT
+  interfaces for every selected client.
+- Add explicit `--all`, automatic Git initialization for `new`, dependency-resolution previews, confirmation, exact generated lifecycle scripts, UI-provider command previews, and actionable `doctor` recommendations.
+- Add a published DX north star that defines measurable discovery, creation,
+  configuration, development, extension, diagnosis, upgrade, and shipping
+  journeys.
+
+### Changed
+
+- Default interactive creation to a focused web app with optional capabilities while preserving the complete-stack default for noninteractive compatibility.
+- Replace deprecated Turborepo development commands, make cache outputs package-specific, and let typechecks depend on upstream typechecks instead of builds.
+- Track bundled UI primitives in the project manifest and make generated onboarding, deployment, provider, and source-location guidance selection-aware.
+- Include status, generator version, project root, resolved modules, and next
+  steps in machine-readable plans; make human lifecycle output concise unless a
+  dry-run or verbose path listing is requested.
+
+### Fixed
+
+- Allow Next.js client API factories to render safely during production prerendering while preserving HTTPS enforcement for non-loopback production endpoints.
+- Make generated lifecycle commands reproducible even though Anhedral is intentionally not installed in application dependencies.
+- Forward arguments through generated pnpm lifecycle scripts without inserting a literal `--` that the Anhedral or provider CLI would reject.
+- Treat generated Clerk placeholder keys as unconfigured on every client instead
+  of mounting providers with knowingly invalid values.
+- Keep Electron starter features synchronized with Clerk sign-in changes instead
+  of treating an opened account dialog as an authenticated session.
+- Put reviewed database migration generation, Git staging, verification, and
+  application in one consistent onboarding order.
+- Detect required environment variables that were deleted from an existing
+  package-local configuration file.
+
+### Security
+
+- Scope generated starter-item reads and writes to the authenticated Clerk user
+  whenever authentication is selected.
+- Reject local home-directory paths and email addresses in source and packed
+  release artifacts while continuing to allow documentation placeholders and
+  public GitHub noreply contributor identities.
+
 ## 0.4.1 - 2026-07-22
 
 ### Added

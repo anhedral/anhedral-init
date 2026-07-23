@@ -219,6 +219,24 @@ try {
     'postgresql', '://', 'app_owner', ':', 'LongSyntheticCredential123', '@', 'db.internal', '/app',
   ].join('');
   assert.deepEqual(scanText('safe.env.example', Buffer.from('TOKEN=replace-me\n')), []);
+  const localHomePath = ['', 'Users', 'local-developer', 'project', 'output.log'].join('/');
+  const personalEmail = ['project-owner', 'private-domain.dev'].join('@');
+  assert.equal(
+    scanText('debug.txt', Buffer.from(`${localHomePath}\n`))[0].pattern,
+    'local-home-path',
+  );
+  assert.equal(
+    scanText('notes.md', Buffer.from(`Contact ${personalEmail}\n`))[0].pattern,
+    'email-address',
+  );
+  assert.deepEqual(
+    scanText('CONTRIBUTORS.md', Buffer.from('Contributor <12345+user@users.noreply.github.com>\n')),
+    [],
+  );
+  assert.deepEqual(
+    scanText('example.md', Buffer.from('Placeholder <developer@example.com>\n')),
+    [],
+  );
   assert.equal(scanText('fixture.txt', Buffer.from(`TOKEN=${token}\n`))[0].pattern, 'github-token');
   assert.ok(scanText('clerk.env', Buffer.from(`CLERK_SECRET_KEY=${clerkSecret}\n`)).some((finding) => finding.pattern === 'clerk-secret-key'));
   assert.ok(scanText('r2.env', Buffer.from(`R2_SECRET_ACCESS_KEY=${r2Secret}\n`)).some((finding) => finding.pattern === 'credential-assignment'));

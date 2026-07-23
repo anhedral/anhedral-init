@@ -25,6 +25,8 @@ const { assertPackageName, childPackageName } = await import(
 const {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  parsePromptConfirmation,
+  parsePromptModuleSelection,
   shouldPromptForInitModules,
 } = await import(pathToFileURL(path.join(repoRoot, 'dist', 'prompts.js')).href);
 const usageLine = USAGE.trim().split('\n')[0];
@@ -98,6 +100,48 @@ const cases = [
     stderrIncludes: 'Unknown flag: --next',
   },
   {
+    name: 'rejects ignored Git options on add',
+    args: ['add', 'desktop', '--no-git'],
+    expectedExit: 1,
+    stderrIncludes: 'Git initialization options are only supported by anhedral new and anhedral init',
+  },
+  {
+    name: 'routes UI additions to the UI command',
+    args: ['add', 'desktop', '--ui=dialog'],
+    expectedExit: 1,
+    stderrIncludes: 'Use anhedral ui add <component...> to add UI components',
+  },
+  {
+    name: 'routes separated UI additions to the UI command',
+    args: ['add', 'desktop', '--ui', 'dialog'],
+    expectedExit: 1,
+    stderrIncludes: 'Use anhedral ui add <component...> to add UI components',
+  },
+  {
+    name: 'rejects native styling changes on add',
+    args: ['add', 'mobile', '--native-styling=uniwind'],
+    expectedExit: 1,
+    stderrIncludes: '--native-styling is only supported while creating a project',
+  },
+  {
+    name: 'rejects separated native styling changes on add',
+    args: ['add', 'mobile', '--native-styling', 'uniwind'],
+    expectedExit: 1,
+    stderrIncludes: '--native-styling is only supported while creating a project',
+  },
+  {
+    name: 'rejects contradictory Git options',
+    args: ['init', '--web', '--git', '--no-git'],
+    expectedExit: 1,
+    stderrIncludes: 'Conflicting values for --git/--no-git',
+  },
+  {
+    name: 'rejects contradictory toolchain options',
+    args: ['init', '--web', '--toolchain=stable', '--toolchain=latest'],
+    expectedExit: 1,
+    stderrIncludes: 'Conflicting values for --toolchain',
+  },
+  {
     name: 'rejects invalid toolchain values',
     args: ['init', '--toolchain', 'preview'],
     expectedExit: 1,
@@ -154,9 +198,22 @@ try {
   const created = runCli(['new', newProject, '--web', '--api', '--db', '--auth', '--skip-install', '--json']);
   assert.equal(created.status, 0, `${created.stdout}\n${created.stderr}`);
   assert.equal(created.stderr, '');
-  assert.doesNotThrow(() => JSON.parse(created.stdout));
+  const createdPlan = JSON.parse(created.stdout);
+  assert.deepEqual(createdPlan.nextSteps, ['pnpm install', 'pnpm first-run', 'pnpm ready']);
+  assert.equal(createdPlan.rootDirectory, newProject);
   assert.equal(existsSync(path.join(newProject, 'apps/web/app/page.tsx')), true);
   assert.equal(existsSync(path.join(newProject, 'apps/api/src/application.ts')), true);
+  assert.equal(existsSync(path.join(newProject, 'apps/web/components/item-list.tsx')), true);
+  const starterApiRoute = readFileSync(path.join(newProject, 'apps/api/src/routes/app.ts'), 'utf8');
+  assert.match(starterApiRoute, /app\.post\('\/items'/);
+  assert.match(starterApiRoute, /authenticatedUserId\(request, env\)/);
+  assert.match(starterApiRoute, /\.where\(eq\(items\.userId, userId\)\)/);
+  assert.match(readFileSync(path.join(newProject, 'packages/db/src/app-schema.ts'), 'utf8'), /userId: text\('user_id'\)\.notNull\(\)/);
+  assert.match(readFileSync(path.join(newProject, 'apps/web/components/item-list.tsx'), 'utf8'), /Sign in to use the working starter feature/);
+  assert.match(readFileSync(path.join(newProject, 'packages/api-client/src/app.ts'), 'utf8'), /export function createItem/);
+  assert.match(readFileSync(path.join(newProject, 'packages/contracts/src/app.ts'), 'utf8'), /CreateItemRequestSchema/);
+  assert.equal(existsSync(path.join(newProject, 'scripts/first-run.mjs')), true);
+  assert.equal(existsSync(path.join(newProject, '.git')), true, '`new` should initialize Git by default');
   assert.equal(existsSync(path.join(newProject, 'docs/DEVELOPMENT.md')), true);
   assert.equal(existsSync(path.join(newProject, 'docs/STACK.md')), true);
   assert.match(readFileSync(path.join(newProject, 'README.md'), 'utf8'), /There is no hidden Anhedral application runtime/);
@@ -164,11 +221,78 @@ try {
   assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /Agent-assisted provisioning/);
   assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /Computer Use\/browser control and subagents/);
   assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /stop before the final button/i);
+  const missingReady = spawnSync('node', ['scripts/first-run.mjs', '--check', '--json'], {
+    cwd: newProject,
+    encoding: 'utf8',
+  });
+  assert.equal(missingReady.status, 1, missingReady.stderr);
+  assert.ok(JSON.parse(missingReady.stdout).missing.includes('packages/db/.env'));
+  const firstRun = spawnSync('node', ['scripts/first-run.mjs'], { cwd: newProject, encoding: 'utf8' });
+  assert.equal(firstRun.status, 0, firstRun.stderr);
+  assert.match(firstRun.stdout, /created packages\/db\/\.env/);
+  const repeatedFirstRun = spawnSync('node', ['scripts/first-run.mjs'], { cwd: newProject, encoding: 'utf8' });
+  assert.equal(repeatedFirstRun.status, 0, repeatedFirstRun.stderr);
+  assert.match(repeatedFirstRun.stdout, /kept    packages\/db\/\.env/);
+  const blockedReady = spawnSync('node', ['scripts/first-run.mjs', '--check', '--json'], {
+    cwd: newProject,
+    encoding: 'utf8',
+  });
+  assert.equal(blockedReady.status, 1, blockedReady.stderr);
+  const blockedReadyReport = JSON.parse(blockedReady.stdout);
+  assert.equal(blockedReadyReport.operation, 'ready');
+  assert.equal(blockedReadyReport.ok, false);
+  assert.deepEqual(blockedReadyReport.missing, []);
+  assert.ok(blockedReadyReport.unresolved.includes('packages/db/.env: DATABASE_URL'));
+  assert.ok(blockedReadyReport.unresolved.includes('apps/api/.env: CLERK_SECRET_KEY'));
+  const databaseEnvironmentPath = path.join(newProject, 'packages/db/.env');
+  writeFileSync(
+    databaseEnvironmentPath,
+    readFileSync(databaseEnvironmentPath, 'utf8').replace(/^DATABASE_URL=.*\n?/m, ''),
+  );
+  const deletedVariableReady = spawnSync('node', ['scripts/first-run.mjs', '--check', '--json'], {
+    cwd: newProject,
+    encoding: 'utf8',
+  });
+  assert.equal(deletedVariableReady.status, 1, deletedVariableReady.stderr);
+  assert.ok(
+    JSON.parse(deletedVariableReady.stdout).unresolved.includes('packages/db/.env: DATABASE_URL'),
+    'readiness must report required variables that were deleted from an existing environment file',
+  );
   const humanProject = path.join(newRoot, 'human-readable-next-step');
   const humanCreated = runCli(['new', humanProject, '--web', '--skip-install']);
   assert.equal(humanCreated.status, 0, `${humanCreated.stdout}\n${humanCreated.stderr}`);
-  assert.match(humanCreated.stdout, /Then follow README\.md to configure the selected providers and start the app\./);
+  assert.match(humanCreated.stdout, /pnpm first-run/);
+  assert.match(humanCreated.stdout, /pnpm ready/);
+  assert.match(humanCreated.stdout, /Then follow README\.md for verification, development, and deployment\./);
   assert.doesNotMatch(humanCreated.stdout, /&& pnpm dev/);
+  const firstRunWeb = spawnSync('node', ['scripts/first-run.mjs'], { cwd: humanProject, encoding: 'utf8' });
+  assert.equal(firstRunWeb.status, 0, firstRunWeb.stderr);
+  const readyWeb = spawnSync('node', ['scripts/first-run.mjs', '--check', '--json'], {
+    cwd: humanProject,
+    encoding: 'utf8',
+  });
+  assert.equal(readyWeb.status, 0, readyWeb.stderr);
+  assert.equal(JSON.parse(readyWeb.stdout).ok, true);
+  const extensionProject = path.join(newRoot, 'optional-extension-config');
+  const extensionCreated = runCli([
+    'new',
+    extensionProject,
+    '--extension',
+    '--skip-install',
+    '--no-git',
+    '--json',
+  ]);
+  assert.equal(extensionCreated.status, 0, extensionCreated.stderr);
+  assert.equal(spawnSync('node', ['scripts/first-run.mjs'], {
+    cwd: extensionProject,
+    encoding: 'utf8',
+  }).status, 0);
+  const extensionReady = spawnSync('node', ['scripts/first-run.mjs', '--check', '--json'], {
+    cwd: extensionProject,
+    encoding: 'utf8',
+  });
+  assert.equal(extensionReady.status, 0, extensionReady.stderr);
+  assert.equal(JSON.parse(extensionReady.stdout).ok, true, 'optional CRX key should not block local readiness');
 } finally {
   rmSync(newRoot, { recursive: true, force: true });
 }
@@ -234,6 +358,7 @@ assert.equal(
   'toolchain assignment flags should be accepted',
 );
 assert.deepEqual([...parseCli(['web', 'api']).modules], ['web', 'api'], 'init should accept positional modules');
+assert.equal(parseCli(['--all']).modules.size, 11, '--all should explicitly select every supported module');
 assert.deepEqual(parseNewProjectRequest(['my-app', '--web']), { directory: 'my-app', moduleArgs: ['--web'] });
 assert.equal(buildOptionsForRoot(parseCli(['--web']), '/tmp/My Product').projectName, 'my-product');
 
@@ -264,10 +389,27 @@ assert.deepEqual(
   ['mobile', 'extension'],
 );
 assert.deepEqual([...DEFAULT_PROMPT_APP_MODULES, ...DEFAULT_PROMPT_FEATURE_MODULES], [
-  'web', 'mobile', 'api', 'desktop', 'extension',
-  'db', 'auth', 'billing', 'storage', 'native-subscriptions',
-  'electron-updater',
+  'web',
 ]);
+assert.deepEqual(parsePromptModuleSelection('none', ['web'], ['web', 'api']), []);
+assert.deepEqual(parsePromptModuleSelection('all', ['web'], ['web', 'api']), ['web', 'api']);
+assert.deepEqual(parsePromptModuleSelection('WEB, web', ['web'], ['web', 'api']), ['web']);
+assert.throws(
+  () => parsePromptModuleSelection('none,web', ['web'], ['web', 'api']),
+  /"none" must be used by itself/,
+);
+assert.throws(
+  () => parsePromptModuleSelection('auth', ['web'], ['web', 'api']),
+  /Unknown selection: auth/,
+);
+assert.equal(parsePromptConfirmation(''), true);
+assert.equal(parsePromptConfirmation('YES'), true);
+assert.equal(parsePromptConfirmation('no'), false);
+assert.throws(() => parsePromptConfirmation('maybe'), /Enter yes or no/);
+assert.throws(
+  () => parseCli(['--native-styling=nativewind', '--native-styling=uniwind']),
+  /Conflicting values for --native-styling/,
+);
 assert.deepEqual(
   buildAddOptions(['electron-updater'], parseCli(['--skip-install'])).modules,
   ['electron-updater'],
@@ -275,6 +417,7 @@ assert.deepEqual(
 assert.equal(shouldPromptForInitModules([], true), true);
 assert.equal(shouldPromptForInitModules(['--json'], true), false, '--json must never open interactive prompts');
 assert.equal(shouldPromptForInitModules(['--web'], true), false);
+assert.equal(shouldPromptForInitModules(['--all'], true), false);
 assert.equal(shouldPromptForInitModules([], false), false);
 assert.deepEqual(
   buildAddOptions(['billing'], parseCli(['--skip-install'])).modules,

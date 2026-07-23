@@ -72,7 +72,25 @@ try {
   const manifestPath = path.join(project, 'anhedral.json');
   const before = readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(before);
-  assert.deepEqual(manifest.ui, { nativeStyling: 'uniwind', components: [] });
+  assert.deepEqual(manifest.ui, {
+    nativeStyling: 'uniwind',
+    components: [
+      {
+        name: 'button',
+        target: 'web',
+        provider: 'shadcn',
+        source: 'anhedral:bundled/button',
+        variant: null,
+      },
+      {
+        name: 'card',
+        target: 'web',
+        provider: 'shadcn',
+        source: 'anhedral:bundled/card',
+        variant: null,
+      },
+    ],
+  });
   assert.match(readFileSync(path.join(project, 'apps/mobile/metro.config.js'), 'utf8'), /withUniwindConfig/);
   assert.match(readFileSync(path.join(project, 'apps/mobile/global.css'), 'utf8'), /@import "uniwind"/);
   assert.equal(JSON.parse(readFileSync(path.join(project, 'apps/mobile/components.json'), 'utf8')).rsc, false);
@@ -83,6 +101,8 @@ try {
   });
   assert.equal(dryRun.status, 0, dryRun.stderr);
   assert.match(dryRun.stdout, /mobile: button \(react-native-reusables\)/);
+  assert.match(dryRun.stdout, /Registry file paths are resolved by the UI provider only when you apply this plan/);
+  assert.match(dryRun.stdout, /apps\/mobile: pnpm dlx shadcn@/);
   assert.equal(readFileSync(manifestPath, 'utf8'), before, 'UI dry-run must not mutate the manifest');
 
   const missingTarget = spawnSync('node', [cliEntry, 'ui', 'add', 'button', '--target', 'desktop', '--dry-run'], {

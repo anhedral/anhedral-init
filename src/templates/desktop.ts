@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 import { DESKTOP_DEPENDENCIES, ELECTRON_UPDATER_DEPENDENCIES } from '../dependencies.js';
 import { childPackageName, htmlText, identifierSegment, jsString } from '../render.js';
 
@@ -13,6 +13,7 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
     delete dependencies['@clerk/clerk-js'];
     delete dependencies['@clerk/ui'];
     delete dependencies['@solana/web3.js'];
+    delete dependencies.bs58;
   }
   if (options.features.electronUpdater) {
     Object.assign(dependencies, ELECTRON_UPDATER_DEPENDENCIES.dependencies);
@@ -263,7 +264,6 @@ function writeSourceFiles(dir: string, displayName: string, options: ProjectOpti
   const description = options.apps.api
     ? 'Electron + shadcn/ui desktop client using the same shared API client as web, mobile, and extension.'
     : 'Electron + shadcn/ui desktop client ready for your application.';
-  const buttonLabel = options.features.auth ? 'Open account' : options.apps.api ? 'Explore API' : 'Get started';
   const updaterImport = options.features.electronUpdater
     ? "import electronUpdater, { type AppUpdater } from 'electron-updater';\n"
     : '';
@@ -454,11 +454,11 @@ const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 let initialization: Promise<ClerkInstance | null> | null = null;
 
 export function isClerkConfigured(): boolean {
-  return publishableKey.length > 0;
+  return publishableKey.length > 0 && !publishableKey.includes('***');
 }
 
 export function initializeClerk(): Promise<ClerkInstance | null> {
-  if (!publishableKey) return Promise.resolve(null);
+  if (!isClerkConfigured()) return Promise.resolve(null);
   if (!initialization) {
     initialization = Promise.all([
       import('@clerk/clerk-js'),
@@ -485,6 +485,17 @@ export async function getAuthUserId(): Promise<string | null> {
   return clerk?.user?.id ?? null;
 }
 
+export async function subscribeToAuthState(listener: (userId: string | null) => void): Promise<() => void> {
+  const clerk = await initializeClerk();
+  if (!clerk) {
+    listener(null);
+    return () => undefined;
+  }
+  const synchronize = () => listener(clerk.user?.id ?? null);
+  synchronize();
+  return clerk.addListener(synchronize);
+}
+
 export async function openAccount(): Promise<boolean> {
   const clerk = await initializeClerk();
   if (!clerk) return false;
@@ -500,51 +511,59 @@ export async function openAccount(): Promise<boolean> {
     writeFile(path.join(dir, 'src/renderer/hooks/use-entitlement.ts'), `import { subscribeToSubscriptionChanges } from '@shared/realtime';
 import * as React from 'react';
 import { api } from '../lib/api';
-import { getAuthUserId, initializeClerk } from '../lib/auth';
-
-export function useEntitlement(enabled: boolean) {
-  const [userId, setUserId] = React.useState<string | null>(null);
+export function useEntitlement(identity: string | null) {
   const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const revision = React.useRef(0);
+  const identityRef = React.useRef(identity);
   const refresh = React.useCallback(async () => {
-    const currentUserId = await getAuthUserId();
-    setUserId(currentUserId);
-    if (!currentUserId) return;
+    if (!identity) return;
     try {
       const next = await api.getEntitlement();
+      if (identityRef.current !== identity) return;
       revision.current = Math.max(revision.current, next.revision);
       setEntitlement(next);
+      setLoadedIdentity(identity);
       setError(null);
     } catch (cause) {
+      if (identityRef.current !== identity) return;
+      setLoadedIdentity(identity);
       setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
     }
-  }, []);
+  }, [identity]);
   React.useEffect(() => {
-    if (!enabled) return;
-    let unsubscribe: (() => void) | undefined;
-    void initializeClerk().then((clerk) => {
-      unsubscribe = clerk?.addListener(() => { void refresh(); });
-      void refresh();
-    });
-    return () => unsubscribe?.();
-  }, [enabled, refresh]);
+    identityRef.current = identity;
+    revision.current = 0;
+    setEntitlement(null);
+    setLoadedIdentity(null);
+    setError(null);
+    void refresh();
+  }, [identity, refresh]);
   React.useEffect(() => {
-    if (!enabled) return;
+    if (!identity) return;
     const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [enabled, refresh]);
+  }, [identity, refresh]);
   React.useEffect(() => {
-    if (!enabled || !userId) return;
+    if (!identity) return;
     return subscribeToSubscriptionChanges({
-      userId,
+      userId: identity,
       getTokenRequest: () => api.getRealtimeToken(),
       onChange: (nextRevision) => { if (nextRevision > revision.current) void refresh(); },
-      onError: (cause) => setError(cause.message),
+      onError: (cause) => {
+        if (identityRef.current === identity) {
+          setLoadedIdentity(identity);
+          setError(cause.message);
+        }
+      },
     });
-  }, [enabled, refresh, userId]);
-  return { entitlement, error };
+  }, [identity, refresh]);
+  return {
+    entitlement: loadedIdentity === identity ? entitlement : null,
+    error: loadedIdentity === identity ? error : null,
+  };
 }
 `);
   }
@@ -563,22 +582,148 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
 }
 `);
 
-  const authImport = options.features.auth ? "import { isClerkConfigured, openAccount } from '@/lib/auth';\n" : '';
+  if (options.apps.api && options.features.database) {
+    writeFile(path.join(dir, 'src/renderer/components/item-list.tsx'), `import { createItem, listItems, type Item } from '@shared/api-client';
+import * as React from 'react';
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+
+export function ItemList({ identity = 'public' }: { identity?: string | null }) {
+  const [items, setItems] = React.useState<Item[]>([]);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
+  const [name, setName] = React.useState('');
+  const [status, setStatus] = React.useState<'idle' | 'loading' | 'ready' | 'saving'>('idle');
+  const [error, setError] = React.useState<string | null>(null);
+  const identityRef = React.useRef(identity);
+  const visibleItems = loadedIdentity === identity ? items : [];
+  const visibleError = loadedIdentity === identity ? error : null;
+  const isLoading = status === 'loading' || loadedIdentity !== identity;
+
+  React.useEffect(() => {
+    identityRef.current = identity;
+    if (!identity) return;
+    let active = true;
+    setLoadedIdentity(identity);
+    setItems([]);
+    setName('');
+    setError(null);
+    setStatus('loading');
+    void listItems(api).then((nextItems) => {
+      if (active) setItems(nextItems);
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Unable to load items');
+    }).finally(() => {
+      if (active) setStatus('ready');
+    });
+    return () => { active = false; };
+  }, [identity]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextName = name.trim();
+    if (!identity || !nextName || status !== 'ready' || loadedIdentity !== identity) return;
+    const submittedIdentity = identity;
+    setStatus('saving');
+    try {
+      const created = await createItem(api, { name: nextName });
+      if (identityRef.current !== submittedIdentity) return;
+      setItems((current) => [created, ...current]);
+      setName('');
+      setError(null);
+    } catch (cause) {
+      if (identityRef.current === submittedIdentity) {
+        setError(cause instanceof Error ? cause.message : 'Unable to create item');
+      }
+    } finally {
+      if (identityRef.current === submittedIdentity) setStatus('ready');
+    }
+  }
+
+  if (!identity) {
+    return <p className="text-muted-foreground">Open your account and sign in to use the working starter feature.</p>;
+  }
+
+  return (
+    <section aria-labelledby="starter-feature-title" className="flex max-w-2xl flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+      <h2 className="text-xl font-semibold" id="starter-feature-title">Working starter feature</h2>
+      <form className="flex gap-2" onSubmit={(event) => void submit(event)}>
+        <label className="sr-only" htmlFor="item-name">Item name</label>
+        <input
+          className="h-9 flex-1 rounded-md border border-slate-300 bg-background px-3 text-sm"
+          id="item-name"
+          maxLength={120}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Your first item"
+          value={name}
+        />
+        <Button disabled={status !== 'ready' || loadedIdentity !== identity || !name.trim()} type="submit">
+          {status === 'saving' ? 'Adding…' : 'Add item'}
+        </Button>
+      </form>
+      {visibleError ? (
+        <p className="text-sm text-red-700" role="alert">
+          {visibleError}. Check DATABASE_URL, run pnpm db:migrate, and make sure the API is running.
+        </p>
+      ) : null}
+      {isLoading ? <p className="text-sm text-muted-foreground">Loading items…</p> : null}
+      {!isLoading && visibleItems.length === 0 && !visibleError
+        ? <p className="text-sm text-muted-foreground">Your database is connected. Add the first item.</p>
+        : null}
+      {visibleItems.length > 0 ? (
+        <ul className="divide-y rounded-md border border-slate-200">
+          {visibleItems.map((item) => <li className="px-3 py-2 text-sm" key={item.id}>{item.name}</li>)}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+`);
+  }
+
+  const authImport = options.features.auth
+    ? "import { getAuthUserId, isClerkConfigured, openAccount, subscribeToAuthState } from '@/lib/auth';\n"
+    : '';
   const entitlementImport = options.features.billing ? "import { useEntitlement } from '@/hooks/use-entitlement';\n" : '';
-  const entitlementState = options.features.billing ? "  const { entitlement, error: entitlementError } = useEntitlement(clerkState === 'ready');\n" : '';
+  const itemListImport = options.apps.api && options.features.database ? "import { ItemList } from '@/components/item-list';\n" : '';
+  const entitlementState = options.features.billing ? "  const { entitlement, error: entitlementError } = useEntitlement(clerkState === 'ready' ? clerkUserId : null);\n" : '';
   const entitlementStatus = options.features.billing ? `      {entitlement ? <p className="text-muted-foreground">Plan: {entitlement.entitlement} ({entitlement.status})</p> : null}
       {entitlementError ? <p role="alert" className="text-red-700">{entitlementError}</p> : null}
 ` : '';
-  const authState = options.features.auth ? `  const [clerkState, setClerkState] = React.useState<'unconfigured' | 'idle' | 'loading' | 'ready' | 'error'>(
-    () => isClerkConfigured() ? 'idle' : 'unconfigured',
+  const authState = options.features.auth ? `  const [clerkState, setClerkState] = React.useState<'unconfigured' | 'signed-out' | 'loading' | 'ready' | 'error'>(
+    () => isClerkConfigured() ? 'loading' : 'unconfigured',
   );
+  const [clerkUserId, setClerkUserId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isClerkConfigured()) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void subscribeToAuthState((userId) => {
+      if (!disposed) {
+        setClerkUserId(userId);
+        setClerkState(userId ? 'ready' : 'signed-out');
+      }
+    }).then((stop) => {
+      if (disposed) stop();
+      else unsubscribe = stop;
+    }).catch(() => {
+      if (!disposed) setClerkState('error');
+    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, []);
 
   const handleAccount = async () => {
     setClerkState('loading');
     try {
       const opened = await openAccount();
-      setClerkState(opened ? 'ready' : 'unconfigured');
+      const userId = opened ? await getAuthUserId() : null;
+      setClerkUserId(userId);
+      setClerkState(opened ? (userId ? 'ready' : 'signed-out') : 'unconfigured');
     } catch {
+      setClerkUserId(null);
       setClerkState('error');
     }
   };
@@ -590,19 +735,27 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
         className={clerkState === 'error' || clerkState === 'unconfigured' ? 'text-red-700' : 'text-muted-foreground'}
       >
         {clerkState === 'unconfigured' ? 'Set VITE_CLERK_PUBLISHABLE_KEY to enable accounts.' : null}
-        {clerkState === 'idle' ? 'Account services load only when you open your account.' : null}
+        {clerkState === 'signed-out' ? 'Sign in to use account-backed features.' : null}
         {clerkState === 'loading' ? 'Loading account services…' : null}
-        {clerkState === 'ready' ? 'Account services are ready.' : null}
+        {clerkState === 'ready' ? 'Signed in. Account-backed features are ready.' : null}
         {clerkState === 'error' ? 'Clerk could not initialize. Check the publishable key and network connection.' : null}
       </p>
 ` : '';
   const buttonAction = options.features.auth
     ? " disabled={clerkState === 'loading' || clerkState === 'unconfigured'} onClick={() => void handleAccount()}"
     : '';
+  const accountButton = options.features.auth
+    ? `      <Button${buttonAction}>Open account</Button>\n`
+    : '';
+  const buttonImport = options.features.auth ? "import { Button } from '@/components/ui/button';\n" : '';
+  const itemList = options.apps.api && options.features.database
+    ? options.features.auth
+      ? "      <ItemList identity={clerkState === 'ready' ? clerkUserId : null} />\n"
+      : "      <ItemList />\n"
+    : '';
   writeFile(path.join(dir, 'src/renderer/main.tsx'), `import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Button } from '@/components/ui/button';
-${authImport}${entitlementImport}import './styles.css';
+${buttonImport}${authImport}${entitlementImport}${itemListImport}import './styles.css';
 
 function App() {
 ${authState}${entitlementState}  return (
@@ -615,7 +768,8 @@ ${authState}${entitlementState}  return (
       </section>
 ${authStatus}
 ${entitlementStatus}
-      <Button${buttonAction}>${buttonLabel}</Button>
+${accountButton}
+${itemList}
     </main>
   );
 }

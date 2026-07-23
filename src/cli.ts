@@ -2,7 +2,15 @@ import path from 'node:path';
 import { env } from 'node:process';
 import type { AddOptions, InitOptions } from './scaffold.js';
 import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
-import { resolveModules } from './architecture/modules.js';
+import {
+  APP_MODULES,
+  FEATURE_MODULES,
+  isModuleId,
+  resolveModules,
+  type AppModule,
+  type FeatureModule,
+  type ModuleId,
+} from './architecture/modules.js';
 import { packageNameFromText } from './render.js';
 import {
   isNativeStylingLibrary,
@@ -14,9 +22,9 @@ import {
 import type { UiAddOptions } from './scaffold.js';
 
 export const USAGE = `
-anhedral new <directory> [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
-anhedral init [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
-anhedral add <module...> [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral new <directory> [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
+anhedral init [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
+anhedral add <module...|--all> [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral upgrade [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral doctor [--json] [--verbose]
@@ -24,7 +32,7 @@ anhedral --version
 
 Commands:
   anhedral new my-app
-    Generate the complete TypeScript stack in a new directory. With no module flags, every module is included.
+    Interactively choose a focused stack in a terminal. In noninteractive use, pass module flags; no flags explicitly means the complete stack.
   anhedral new my-app --web --api --db --auth
     Generate a web app, Fastify API, shared database package, and auth wiring.
   anhedral init --web --api --db --auth
@@ -35,6 +43,28 @@ Commands:
     Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
   anhedral upgrade
     Transactionally upgrade a supported older Anhedral project before adding modules.
+
+App surfaces:
+  web                    Next.js App Router application
+  mobile                 Expo Router application for iOS, Android, and web
+  api                    Fastify HTTP API
+  desktop                Electron desktop application
+  extension              WXT browser extension
+
+Capabilities:
+  db                     Neon Postgres + Drizzle
+  auth                   Clerk; adds api + db
+  billing                RevenueCat + Stripe + Ably; adds auth
+  storage                Private Cloudflare R2; adds auth
+  native-subscriptions   Native RevenueCat client; adds mobile + billing
+  electron-updater       Private Electron update channel; adds desktop
+
+Behavior:
+  --all explicitly selects every app surface and capability.
+  new initializes Git when Git is available; use --no-git to opt out.
+  init preserves the current directory's repository state; use --git to initialize Git.
+  --dry-run never writes the destination. --json emits stable machine-readable plans.
+  Expo selections require Node ^22.13.0 or ^24.3.0. Other stacks support Node ^20.19.0 or newer supported releases.
 `;
 
 export type NewProjectRequest = {
@@ -48,12 +78,9 @@ export function parseNewProjectRequest(args: readonly string[]): NewProjectReque
   return Object.freeze({ directory, moduleArgs: Object.freeze(moduleArgs) });
 }
 
-export const APP_MODULES = ['web', 'mobile', 'api', 'desktop', 'extension'] as const;
-export const FEATURE_MODULES = ['db', 'auth', 'billing', 'storage', 'native-subscriptions', 'electron-updater'] as const;
-
-export type AppModule = (typeof APP_MODULES)[number];
-export type FeatureModule = (typeof FEATURE_MODULES)[number];
-export type SupportedModule = AppModule | FeatureModule;
+export { APP_MODULES, FEATURE_MODULES };
+export type { AppModule, FeatureModule };
+export type SupportedModule = ModuleId;
 
 export type ParsedFlags = {
   toolchain?: string;
@@ -61,12 +88,24 @@ export type ParsedFlags = {
   dryRun?: boolean;
   json?: boolean;
   verbose?: boolean;
+  initializeGit?: boolean;
   uiComponents: string[];
   nativeStyling?: NativeStylingLibrary;
   modules: Set<SupportedModule>;
 };
 
-export function parseCli(args: string[]): ParsedFlags {
+function assignOption<T extends string | boolean>(
+  option: string,
+  current: T | undefined,
+  next: T,
+): T {
+  if (current !== undefined && current !== next) {
+    throw new Error(`Conflicting values for ${option}: ${String(current)} and ${String(next)}`);
+  }
+  return next;
+}
+
+export function parseCli(args: readonly string[]): ParsedFlags {
   const flags: ParsedFlags = { modules: new Set(), uiComponents: [] };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -101,6 +140,21 @@ export function parseCli(args: string[]): ParsedFlags {
       continue;
     }
 
+    if (token === '--git') {
+      flags.initializeGit = assignOption('--git/--no-git', flags.initializeGit, true);
+      continue;
+    }
+
+    if (token === '--no-git') {
+      flags.initializeGit = assignOption('--git/--no-git', flags.initializeGit, false);
+      continue;
+    }
+
+    if (token === '--all') {
+      for (const moduleName of [...APP_MODULES, ...FEATURE_MODULES]) flags.modules.add(moduleName);
+      continue;
+    }
+
     if (token === '--ui') {
       const value = args[index + 1];
       if (!value || value.startsWith('--')) throw new Error('Missing value for --ui');
@@ -117,7 +171,7 @@ export function parseCli(args: string[]): ParsedFlags {
     if (token === '--native-styling') {
       const value = args[index + 1];
       if (!isNativeStylingLibrary(value)) throw new Error('--native-styling must be nativewind or uniwind');
-      flags.nativeStyling = value;
+      flags.nativeStyling = assignOption('--native-styling', flags.nativeStyling, value);
       index += 1;
       continue;
     }
@@ -125,7 +179,7 @@ export function parseCli(args: string[]): ParsedFlags {
     if (token.startsWith('--native-styling=')) {
       const value = token.slice('--native-styling='.length);
       if (!isNativeStylingLibrary(value)) throw new Error('--native-styling must be nativewind or uniwind');
-      flags.nativeStyling = value;
+      flags.nativeStyling = assignOption('--native-styling', flags.nativeStyling, value);
       continue;
     }
 
@@ -134,7 +188,7 @@ export function parseCli(args: string[]): ParsedFlags {
       if (!value || value.startsWith('--')) {
         throw new Error('Missing value for --toolchain');
       }
-      flags.toolchain = value;
+      flags.toolchain = assignOption('--toolchain', flags.toolchain, value);
       index += 1;
       continue;
     }
@@ -144,7 +198,7 @@ export function parseCli(args: string[]): ParsedFlags {
       if (!value) {
         throw new Error('Missing value for --toolchain');
       }
-      flags.toolchain = value;
+      flags.toolchain = assignOption('--toolchain', flags.toolchain, value);
       continue;
     }
 
@@ -161,9 +215,7 @@ export function parseCli(args: string[]): ParsedFlags {
 }
 
 export function normalizeModuleName(raw: string): SupportedModule | null {
-  if ((APP_MODULES as readonly string[]).includes(raw)) return raw as AppModule;
-  if ((FEATURE_MODULES as readonly string[]).includes(raw)) return raw as FeatureModule;
-  return null;
+  return isModuleId(raw) ? raw : null;
 }
 
 export function deriveProjectName(cwd: string): string {
@@ -204,6 +256,7 @@ export function buildOptionsForRoot(flags: ParsedFlags, root: string): InitOptio
     json: flags.json === true,
     toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN),
     rootDirectory: resolvedRoot,
+    initializeGit: flags.initializeGit,
   };
 }
 
@@ -250,6 +303,15 @@ export function parseUiAddOptions(args: readonly string[]): UiAddOptions {
 }
 
 export function buildAddOptions(modules: string[], flags: ParsedFlags): AddOptions {
+  if (flags.initializeGit !== undefined) {
+    throw new Error('Git initialization options are only supported by anhedral new and anhedral init');
+  }
+  if (flags.uiComponents.length > 0) {
+    throw new Error('Use anhedral ui add <component...> to add UI components');
+  }
+  if (flags.nativeStyling !== undefined) {
+    throw new Error('--native-styling is only supported while creating a project');
+  }
   const requestedModules = [...modules, ...flags.modules];
 
   if (requestedModules.length === 0) {

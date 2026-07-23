@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
 import { childPackageName, htmlText, jsString, markdownHeading } from '../render.js';
 
@@ -42,11 +42,17 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
   writeButtonComponent(dir);
   if (options.features.auth) writeAuthContext(dir);
   if (options.apps.api) writeApiClient(dir);
+  if (options.apps.api && options.features.database) writeItemList(dir, options.features.auth);
   if (options.features.billing) writeEntitlementHook(dir);
   writeBackground(dir, options.features.auth);
   writeSidepanelEntry(dir, options.features.auth);
   writeSidepanelHtml(dir, displayName);
-  writeSidepanelApp(dir, options.features.auth, options.features.billing);
+  writeSidepanelApp(
+    dir,
+    options.features.auth,
+    options.features.billing,
+    options.apps.api && options.features.database,
+  );
   writeStyles(dir);
 
   anhedralPrint.done('Extension source files written');
@@ -442,7 +448,7 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const backgroundError = useBackgroundAuthError();
-  if (!CLERK_PUBLISHABLE_KEY) {
+  if (!CLERK_PUBLISHABLE_KEY || CLERK_PUBLISHABLE_KEY.includes('***')) {
     return <ConfigurationError message="Set VITE_CLERK_PUBLISHABLE_KEY before building the extension." />;
   }
   const apiError = apiConfigurationError();
@@ -502,6 +508,105 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 `);
 }
 
+function writeItemList(dir: string, hasAuth: boolean): void {
+  const apiImport = hasAuth
+    ? "import { useAuth } from '../contexts/auth-context';\n"
+    : "import { createApiClient } from '../lib/api';\n";
+  const apiState = hasAuth
+    ? '  const { api, userId } = useAuth();\n  const identity = userId;\n'
+    : "  const api = React.useMemo(() => createApiClient(), []);\n  const identity = 'public';\n";
+  writeFile(path.join(dir, 'src/components/item-list.tsx'), `import { createItem, listItems, type Item } from '@shared/api-client';
+${apiImport}import * as React from 'react';
+import { Button } from './ui/button';
+
+export function ItemList() {
+${apiState}  const [items, setItems] = React.useState<Item[]>([]);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
+  const [name, setName] = React.useState('');
+  const [status, setStatus] = React.useState<'loading' | 'ready' | 'saving'>('loading');
+  const [error, setError] = React.useState<string | null>(null);
+  const identityRef = React.useRef(identity);
+  const visibleItems = loadedIdentity === identity ? items : [];
+  const visibleError = loadedIdentity === identity ? error : null;
+  const isLoading = status === 'loading' || loadedIdentity !== identity;
+
+  React.useEffect(() => {
+    identityRef.current = identity;
+    if (!identity) return;
+    let active = true;
+    setLoadedIdentity(identity);
+    setItems([]);
+    setName('');
+    setError(null);
+    setStatus('loading');
+    void listItems(api).then((nextItems) => {
+      if (active) setItems(nextItems);
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Unable to load items');
+    }).finally(() => {
+      if (active) setStatus('ready');
+    });
+    return () => { active = false; };
+  }, [api, identity]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextName = name.trim();
+    if (!identity || !nextName || status !== 'ready' || loadedIdentity !== identity) return;
+    const submittedIdentity = identity;
+    setStatus('saving');
+    try {
+      const created = await createItem(api, { name: nextName });
+      if (identityRef.current !== submittedIdentity) return;
+      setItems((current) => [created, ...current]);
+      setName('');
+      setError(null);
+    } catch (cause) {
+      if (identityRef.current === submittedIdentity) {
+        setError(cause instanceof Error ? cause.message : 'Unable to create item');
+      }
+    } finally {
+      if (identityRef.current === submittedIdentity) setStatus('ready');
+    }
+  }
+
+  return (
+    <section aria-labelledby="starter-feature-title" style={{ display: 'grid', gap: 10, marginTop: 20 }}>
+      <h3 id="starter-feature-title" style={{ margin: 0 }}>Working starter feature</h3>
+      <form onSubmit={(event) => void submit(event)} style={{ display: 'grid', gap: 8 }}>
+        <label htmlFor="item-name">Item name</label>
+        <input
+          id="item-name"
+          maxLength={120}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Your first item"
+          style={{ minHeight: 36, border: '1px solid hsl(var(--input))', borderRadius: 6, padding: '0 10px' }}
+          value={name}
+        />
+        <Button disabled={status !== 'ready' || loadedIdentity !== identity || !name.trim()} type="submit">
+          {status === 'saving' ? 'Adding…' : 'Add item'}
+        </Button>
+      </form>
+      {visibleError ? (
+        <p aria-live="assertive" role="alert" style={{ color: 'hsl(var(--destructive))' }}>
+          {visibleError}. Check DATABASE_URL, run pnpm db:migrate, and make sure the API is running.
+        </p>
+      ) : null}
+      {isLoading ? <p role="status">Loading items…</p> : null}
+      {!isLoading && visibleItems.length === 0 && !visibleError
+        ? <p>Your database is connected. Add the first item.</p>
+        : null}
+      {visibleItems.length > 0 ? (
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          {visibleItems.map((item) => <li key={item.id}>{item.name}</li>)}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+`);
+}
+
 function writeEntitlementHook(dir: string): void {
   writeFile(path.join(dir, 'src/hooks/use-entitlement.ts'), `import { subscribeToSubscriptionChanges } from '@shared/realtime';
 import * as React from 'react';
@@ -509,36 +614,58 @@ import { useAuth } from '../contexts/auth-context';
 
 export function useEntitlement() {
   const { api, isSignedIn, userId } = useAuth();
+  const identity = isSignedIn ? userId : null;
   const [entitlement, setEntitlement] = React.useState<Awaited<ReturnType<typeof api.getEntitlement>> | null>(null);
+  const [loadedIdentity, setLoadedIdentity] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const revision = React.useRef(0);
+  const identityRef = React.useRef(identity);
   const refresh = React.useCallback(async () => {
-    if (!isSignedIn) return;
+    if (!identity) return;
     try {
       const next = await api.getEntitlement();
+      if (identityRef.current !== identity) return;
       revision.current = Math.max(revision.current, next.revision);
       setEntitlement(next);
+      setLoadedIdentity(identity);
       setError(null);
     } catch (cause) {
+      if (identityRef.current !== identity) return;
+      setLoadedIdentity(identity);
       setError(cause instanceof Error ? cause.message : 'Unable to load subscription');
     }
-  }, [api, isSignedIn]);
-  React.useEffect(() => { void refresh(); }, [refresh]);
+  }, [api, identity]);
+  React.useEffect(() => {
+    identityRef.current = identity;
+    revision.current = 0;
+    setEntitlement(null);
+    setLoadedIdentity(null);
+    setError(null);
+    void refresh();
+  }, [identity, refresh]);
   React.useEffect(() => {
     const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [refresh]);
   React.useEffect(() => {
-    if (!userId || !isSignedIn) return;
+    if (!identity) return;
     return subscribeToSubscriptionChanges({
-      userId,
+      userId: identity,
       getTokenRequest: () => api.getRealtimeToken(),
       onChange: (nextRevision) => { if (nextRevision > revision.current) void refresh(); },
-      onError: (cause) => setError(cause.message),
+      onError: (cause) => {
+        if (identityRef.current === identity) {
+          setLoadedIdentity(identity);
+          setError(cause.message);
+        }
+      },
     });
-  }, [api, isSignedIn, refresh, userId]);
-  return { entitlement, error };
+  }, [api, identity, refresh]);
+  return {
+    entitlement: loadedIdentity === identity ? entitlement : null,
+    error: loadedIdentity === identity ? error : null,
+  };
 }
 `);
 }
@@ -550,7 +677,7 @@ function writeBackground(dir: string, hasAuth: boolean): void {
   const clerkInitialization = hasAuth
     ? `  const backgroundAuthErrorKey = 'anhedralClerkBackgroundError';
   const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
-  if (!publishableKey) {
+  if (!publishableKey || publishableKey.includes('***')) {
     void chrome.storage.local.set({
       [backgroundAuthErrorKey]: 'Set VITE_CLERK_PUBLISHABLE_KEY before building the extension.',
     });
@@ -627,7 +754,7 @@ function writeSidepanelHtml(dir: string, displayName: string): void {
 `);
 }
 
-function writeSidepanelApp(dir: string, hasAuth: boolean, hasBilling: boolean): void {
+function writeSidepanelApp(dir: string, hasAuth: boolean, hasBilling: boolean, hasItems: boolean): void {
   const authImports = hasAuth
     ? "import { useAuth } from '../../contexts/auth-context';\nimport { SignIn } from '@clerk/chrome-extension';\n"
     : '';
@@ -659,9 +786,11 @@ function writeSidepanelApp(dir: string, hasAuth: boolean, hasBilling: boolean): 
       {entitlementError ? <p role="alert" style={{ color: 'hsl(var(--destructive))' }}>{entitlementError}</p> : null}
 `
     : '';
+  const itemListImport = hasItems ? "import { ItemList } from '../../components/item-list';\n" : '';
+  const itemList = hasItems ? '      <ItemList />\n' : '';
 
   writeFile(path.join(dir, 'src/entrypoints/sidepanel/app.tsx'), `import * as React from 'react';
-${authImports}${entitlementImport}import { Button } from '../../components/ui/button';
+${authImports}${entitlementImport}${itemListImport}import { Button } from '../../components/ui/button';
 
 type PageSnapshot = {
   title: string;
@@ -704,7 +833,7 @@ ${authGuards}
         </div>
       ) : null}
       {pageError ? <p role="alert" aria-live="assertive" style={{ color: 'hsl(var(--destructive))' }}>{pageError}</p> : null}
-${entitlementStatus}${signOutButton}    </div>
+${itemList}${entitlementStatus}${signOutButton}    </div>
   );
 }
 `);

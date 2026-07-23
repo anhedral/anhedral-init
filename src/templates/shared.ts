@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { writeFile } from '../util.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 import {
   API_CLIENT_DEPENDENCIES,
   CONTRACTS_DEPENDENCIES,
@@ -117,14 +117,18 @@ export const realtimeOutbox = pgTable('realtime_outbox', {
 ` : '';
   writeFile(path.join(dir, 'src/generated-schema.ts'), `import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 ${storageTables}${billingTables}`);
-  writeFile(path.join(dir, 'src/app-schema.ts'), `import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+  const itemOwnerColumn = options.features.auth ? "  userId: text('user_id').notNull(),\n" : '';
+  const itemIndexes = options.features.auth
+    ? "}, (table) => [\n  index('items_user_created_at_idx').on(table.userId, table.createdAt),\n]"
+    : '\n}';
+  writeFile(path.join(dir, 'src/app-schema.ts'), `import { ${options.features.auth ? 'index, ' : ''}pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 // Product-owned tables belong here. Anhedral never rewrites this file after creation.
 export const items = pgTable('items', {
   id: text('id').primaryKey(),
-  name: text('name').notNull(),
+${itemOwnerColumn}  name: text('name').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+${itemIndexes});
 `);
   writeFile(path.join(dir, 'src/schema.ts'), `export * from './generated-schema';
 export * from './app-schema';
@@ -432,6 +436,64 @@ export class ApiClient {
 `;
 }
 
+function appContractSource(options: ProjectOptions): string {
+  if (!options.features.database) {
+    return `// Product-owned network contracts belong here.
+// Anhedral never rewrites this file after creation.
+export {};
+`;
+  }
+  return `import { z } from 'zod';
+
+// A complete starter feature: edit or replace it with your product model.
+export const ItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+  createdAt: z.string().datetime(),
+});
+export const ItemListSchema = z.array(ItemSchema);
+export const CreateItemRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+}).strict();
+
+export type Item = z.infer<typeof ItemSchema>;
+export type CreateItemRequest = z.infer<typeof CreateItemRequestSchema>;
+`;
+}
+
+function appApiClientSource(options: ProjectOptions): string {
+  if (!options.features.database) {
+    return `// Product-owned API client helpers belong here.
+// Anhedral never rewrites this file after creation.
+export {};
+`;
+  }
+  return `import {
+  CreateItemRequestSchema,
+  ItemListSchema,
+  ItemSchema,
+  type CreateItemRequest,
+} from '@shared/contracts';
+import { ApiClient } from './generated';
+
+export type { Item } from '@shared/contracts';
+
+// These calls complete the starter feature across contracts, API, database, and clients.
+export function listItems(client: ApiClient, init: RequestInit = {}) {
+  return client.request('/items', init, ItemListSchema);
+}
+
+export function createItem(client: ApiClient, input: CreateItemRequest, init: RequestInit = {}) {
+  const body = CreateItemRequestSchema.parse(input);
+  return client.request('/items', {
+    ...init,
+    method: 'POST',
+    body: JSON.stringify(body),
+  }, ItemSchema);
+}
+`;
+}
+
 function writeApiPackages(root: string, options: ProjectOptions): void {
   if (!options.apps.api) return;
   const hasClientConsumer = options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension;
@@ -456,10 +518,10 @@ function writeApiPackages(root: string, options: ProjectOptions): void {
     }, null, 2) + '\n');
     writeTsConfig(dir);
     writeFile(path.join(dir, 'src/generated.ts'), source);
-    writeFile(path.join(dir, 'src/app.ts'), `// Product-owned ${name === 'contracts' ? 'network contracts' : 'API client helpers'} belong here.
-// Anhedral never rewrites this file after creation.
-export {};
-`);
+    writeFile(
+      path.join(dir, 'src/app.ts'),
+      name === 'contracts' ? appContractSource(options) : appApiClientSource(options),
+    );
     writeFile(path.join(dir, 'src/index.ts'), `export * from './generated';
 export * from './app';
 `);

@@ -11,7 +11,70 @@ For every new project or provisioning request, begin by asking for the project
 name and whether the user already owns a custom domain for it. Do not run init
 or create provider resources until those answers establish canonical names.
 
-Use Node.js 20.19+ or 22.12+ and pnpm. `new` creates a destination directory; `init` works in an empty current directory where `.git`, `.gitignore`, and `.DS_Store` are allowed.
+`new` creates a destination directory; `init` works in an empty current
+directory where `.git`, `.gitignore`, and `.DS_Store` are allowed.
+
+## Bootstrap a blank workstation
+
+Do not assume Node.js, npm, pnpm, Git, a browser, provider CLIs, or native build
+tools are installed. After collecting the project name and domain status, audit
+the workstation before generation:
+
+```sh
+node --version
+npm --version
+pnpm --version
+git --version
+```
+
+For a new installation, recommend the current Node.js 24 LTS release. The
+generator itself accepts `^20.19.0 || >=22.12.0`, but mobile projects require
+`^22.13.0 || ^24.3.0 || >=25`; Node.js 24 LTS is the single supported choice
+that covers every Anhedral module without using an end-of-life line.
+
+If Node.js is absent, use Computer Use to open `https://nodejs.org/en/download`,
+select the current Node.js 24 LTS installer for the user's operating system and
+architecture, and stop for the user at the installer, administrator-password,
+or operating-system approval boundary. npm is bundled with Node.js and may be
+used to install pnpm, but npm is not the package manager for a generated
+workspace. Installing the public Anhedral package does not require an npm
+account or `npm login`.
+
+Install the exact pnpm release recorded by this generator's
+`package.json#packageManager` (currently `pnpm@10.34.5`):
+
+```sh
+npm install --global pnpm@10.34.5
+```
+
+Ask before a global or administrator-level installation. Verify the four
+commands above again after installation. Install Git with the operating-system
+package manager or official installer when it is missing; stop for UAC,
+administrator credentials, Xcode Command Line Tools approval, or a license
+prompt. Configure the user's real Git name and email only after asking what
+identity they want commits to use.
+
+A modern browser is required for OAuth device flows and provider dashboards.
+No global Vercel, Neon, Wrangler, EAS, shadcn, or Anhedral installation is
+required: generated scripts invoke reviewed CLI versions through `pnpm dlx`.
+GitHub CLI is recommended for repository creation. Clerk CLI and Ably CLI are
+optional supplemental control planes; use them only after the corresponding
+module is selected, record the resolved version, and do not run `clerk init`
+inside an Anhedral project because the integration source already exists.
+
+Native tools are conditional:
+
+- EAS cloud builds do not require local Xcode or Android Studio.
+- Local iOS builds and manual App Store uploads require macOS and Xcode.
+- Local Android builds/emulators require Android Studio and a compatible JDK.
+- Signed Electron releases must be built on each target OS; macOS notarization
+  needs Xcode tooling and Apple credentials, while Windows distribution needs
+  an organization-owned code-signing certificate and Windows runner.
+- Extension development requires a Chromium browser; store publication does
+  not require another build CLI beyond the generated WXT scripts.
+
+Anhedral intentionally requires neither Docker nor local Postgres. Database
+modules use managed Neon.
 
 ## Choose the construction path
 
@@ -38,7 +101,10 @@ native-subscriptions -> mobile + billing
 electron-updater     -> desktop
 ```
 
-With no module flags, generate the full stack.
+With no module flags in an interactive terminal, Anhedral prompts and suggests
+a focused web app. In a noninteractive environment, no flags retain the full
+stack for compatibility. Use `--all` when the complete stack is intentional,
+or pass explicit modules for reproducible automation.
 
 ## Master stack map
 
@@ -78,10 +144,12 @@ domain, provider-order, and verification gates.
 The lead agent must:
 
 1. Ask for project name and existing/custom-domain status first.
-2. Discover whether Computer Use/browser control and subagents are available.
-3. Resolve modules and show the user canonical project/resource names.
-4. Run the explicit CLI command, then read the generated `PRODUCTION.md`.
-5. Provision only selected providers, pausing for sign-in, MFA, secret
+2. Audit and bootstrap the workstation, then discover whether Computer
+   Use/browser control and subagents are available.
+3. Resolve modules, required accounts, and canonical project/resource names.
+4. Run the explicit CLI command, then read the generated `PRODUCTION.md`,
+   `anhedral.json`, root scripts, and package-local environment examples.
+5. Provision only selected providers in dependency order, pausing for sign-in, MFA, secret
    generation, purchases, and final submissions exactly as the reference says.
 6. Keep secrets out of chat and tool output; have the user paste them directly
    into uncommitted environment files and protected provider fields.
@@ -92,7 +160,14 @@ The lead agent must:
 ```sh
 pnpm dlx anhedral@latest new my-product
 cd my-product
+pnpm first-run
+pnpm ready
 ```
+
+`first-run` creates only missing package-local environment files and never
+overwrites existing configuration. `ready` reports missing filenames and
+required variable names without printing values; resolve every blocker before
+starting affected services.
 
 Prefer explicit modules when the user requests a smaller stack:
 
@@ -131,7 +206,7 @@ Use the native source conventions:
 - Product client-safe HTTP methods belong in `packages/api-client/src/app.ts`.
 - Product Drizzle tables belong in `packages/db/src/app-schema.ts`; generate and review SQL migrations.
 
-Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
+Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. The generated `items` feature demonstrates that same path on every selected client—Next.js, Expo, Electron, and WXT—using one contract and API client with platform-native UI. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
 
 ## Add modules safely
 
@@ -151,6 +226,13 @@ For a 0.3 upgrade blocked by a modified managed file, preserve the change in sou
 Require the manifest generator version to match the running CLI. Regenerate projects created by another version; do not add compatibility branches.
 
 Do not rewrite a generated project's README or custom workflows while adding modules. Preserve custom package fields and mergeable root configuration.
+
+`README.md` and `PRODUCTION.md` are user-owned and are not regenerated by
+`anhedral add`. After adding modules, do not assume those two files describe the
+new provider set. Reconcile them against `anhedral.json`, the managed project
+`SKILL.md`, root `package.json` scripts, and every package-local `.env.example`;
+then update the user-owned documentation explicitly with the developer's
+approval.
 
 For manual projects without a trustworthy schema-v5 `anhedral.json`, add modules with the manual reference instead. Never fabricate manifest ownership records, template provenance, UI installation records, or hashes. A manually authored workspace is valid as an application workspace but is not CLI-managed until it has been regenerated by a matching Anhedral version.
 
@@ -181,16 +263,20 @@ Explain that warnings can represent mergeable or user-owned drift, while modifie
 
 ## Configure the generated project
 
-Copy environment examples, fill only selected provider values, install, and verify:
+Create only missing local environment files, fill selected provider values, and
+verify readiness:
 
 ```sh
-cp apps/api/.env.example apps/api/.env
-cp packages/db/.env.example packages/db/.env
 pnpm install
+pnpm first-run
+pnpm ready
 pnpm verify
 ```
 
-Copy only examples that exist for the selected surfaces. Client packages use package-local runtime files (for example, copy `apps/web/.env.example` to `apps/web/.env.local` and `apps/desktop/.env.example` to `apps/desktop/.env`); the root `.env.example` is an inventory, not a runtime environment file.
+`first-run` copies only examples that exist for selected surfaces and never
+overwrites an existing file. Client packages use package-local runtime files
+(for example, `apps/web/.env.local` and `apps/desktop/.env`); the root
+`.env.example` is an inventory, not a runtime environment file.
 
 Common selected keys are:
 
@@ -218,6 +304,15 @@ Treat the root `vercel.json` as the only Vercel Services configuration. It uses 
 
 For billing, keep Neon authoritative: RevenueCat reconciliation writes the subscription revision and realtime outbox atomically, Ably carries only per-user invalidations, and every client refetches the entitlement. Schedule the authenticated outbox flush every five minutes and verify purchase, webhook, reconnect, and foreground recovery paths.
 
+The generated billing substrate does not implement Stripe Checkout, Stripe
+webhooks, or a web purchase screen. RevenueCat's Test Store can exercise the
+entitlement flow without Apple, Google, or Stripe accounts. Native purchases
+require `native-subscriptions` plus Apple/Google store setup. If the user wants
+web subscriptions through RevenueCat Billing or a manual Stripe integration,
+treat that as an explicit product feature with additional account, checkout,
+webhook, tax, and customer-portal work; do not claim the generated billing
+module already completed it.
+
 Use `apps/mobile` for EAS, `pnpm desktop:build` for a current-host Electron artifact, matching platform-specific desktop scripts in CI, and `pnpm extension:zip` for the WXT archive.
 
 For `electron-updater`, provision the generated private R2 bucket and
@@ -227,7 +322,7 @@ platform and publish artifacts before mutable channel metadata.
 
 For storage, generate `apps/assets-private-proxy` plus `cloudflare/r2-cors.template.json` and keep the R2 bucket private. The Worker must be named `assets-private-proxy`, bind the normalized `<project>-assets` bucket as `ASSETS`, disable `workers.dev`, and own `assets.<domain>` as a Worker Custom Domain. Presigned uploads continue on the R2 S3 API hostname. Root every key below `R2_PREFIX=storage`; expose only `storage/confirmed/` through the Worker and reject staging plus `generation-inputs`. Authenticated private reads must verify upload ownership and return a presigned GET URL bounded by `R2_PROXY_READ_URL_TTL_SECONDS`.
 
-When explaining domains, distinguish DNS delegation from registrar transfer. A GoDaddy registration can use Cloudflare authoritative nameservers immediately; transferring registration/billing to Cloudflare Registrar is optional and subject to eligibility locks. Keep Vercel app/API A or CNAME records DNS-only in Cloudflare, while Worker Custom Domains stay Cloudflare-managed and proxied.
+When explaining domains, distinguish DNS delegation from registrar transfer. A domain can use Cloudflare authoritative nameservers while remaining with its current registrar; transferring registration/billing to Cloudflare Registrar is optional and subject to eligibility locks. Keep Vercel app/API A or CNAME records DNS-only in Cloudflare, while Worker Custom Domains stay Cloudflare-managed and proxied.
 
 ## Verify outcomes
 

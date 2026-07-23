@@ -2,7 +2,7 @@ import path from 'node:path';
 import { TOOLCHAIN_DEPENDENCIES } from '../dependencies.js';
 import { anhedralPrint } from '../print.js';
 import { childPackageName } from '../render.js';
-import type { ProjectOptions } from '../scaffold.js';
+import type { ProjectOptions } from '../project.js';
 import { writeFile } from '../util.js';
 
 function normalizedResourceName(projectName: string): string {
@@ -356,7 +356,7 @@ pnpm desktop:updates:cloudflare:login
 pnpm desktop:updates:first-provision
 cp apps/desktop/electron-builder.env.example apps/desktop/electron-builder.env
 pnpm desktop:updates:build:mac
-pnpm desktop:updates:publish -- --platform mac --arch arm64
+pnpm desktop:updates:publish --platform mac --arch arm64
 \`\`\`
 
 Build each operating system on its native, signing-enabled CI runner. Increase
