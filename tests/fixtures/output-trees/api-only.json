@@ -36,7 +36,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 499,
-      "sha256": "16a553900118c01204fd464e57b9a981ee4791b2ce1934322b740cbf139845dd"
+      "sha256": "d07751f2983ef2213c2e0f5863977013c6e4afc65f599de8dd7905fa134bcb9b"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,7 +50,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 2834,
-      "sha256": "aa5a9f0ac0a31d477902659be647e234d26d0d31fa8c2d2d8cc5e6ea7657f281"
+      "sha256": "ddf962f8e05a5abc50bcafbb6e4da9428442690f530ffca326392c9fbee1640f"
     },
     {
       "path": "SKILL.md",
@@ -64,7 +64,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 6505,
-      "sha256": "f66ae9798633e0b419f1f51d76ec76dfbda707a8f5785e6e317e43a1fb06a3fe"
+      "sha256": "d7bda2e74e2a4295954eb0e16200473a11b9fa9486db29c8d7472d6f868a0d77"
     },
     {
       "path": "apps/api/.env.example",
@@ -169,7 +169,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1218,
-      "sha256": "727fdae5c5bad8aae239cd6ca86c4499e11b965d395a51086145f9c5824527be"
+      "sha256": "62c517027c5e852c3de1302cef6ec33958015f2ee8ffa22c6b56f6fa5da038bf"
     },
     {
       "path": "packages/contracts/package.json",
@@ -235,5 +235,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "f26477f518e937273b778c0b5f11c8213afa44e30693d7d9e615d7b6a84161e5"
+  "digest": "3d4c80296467bb735456fc2e2485889b6583e9daac8934e6c3205a0dc47ad04e"
 }
