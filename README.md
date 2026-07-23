@@ -5,7 +5,11 @@
 
 Anhedral generates a complete, production-oriented TypeScript stack whose source code stays understandable and customizable.
 
-> **Three-second version:** Start with the full TypeScript stack. Keep every escape hatch.
+> **Build once. Ship everywhere. Scale is built in.** Pick the platforms,
+> frameworks, and features your product needs; Anhedral assembles them into a
+> production-ready TypeScript workspace for web, iOS, Android, desktop, APIs,
+> and browser extensions. Start free, skip months of repetitive setup and
+> integration work, and focus on what makes your app unique.
 
 ![Anhedral Init Stack architecture diagram](assets/anhedral-cli-init.svg)
 
