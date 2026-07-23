@@ -25,9 +25,11 @@ const requiredFiles = new Set([
   'package.json',
   'docs/conventions.md',
   'docs/master-stack-map.md',
+  'docs/anhedral-cli-init.svg',
   'docs/output-tree-contract.md',
   'docs/references/manual-scaffolding.md',
   'docs/references/provisioning.md',
+  'scripts/render-master-stack-map.mjs',
   'templates/catalog.json',
   'templates/web-next/apps/web/next-env.d.ts',
 ]);
@@ -139,19 +141,40 @@ try {
     assert.match(masterMapAscii, new RegExp(requiredMapText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 
+  const renderedMapPath = path.join(npmCache, 'anhedral-cli-init.svg');
+  const renderResult = spawnSyncPortable(
+    process.execPath,
+    [path.join(repoRoot, 'scripts/render-master-stack-map.mjs'), '--output', renderedMapPath],
+    { cwd: repoRoot, encoding: 'utf8' },
+  );
+  assert.equal(renderResult.status, 0, `stack map render failed: ${renderResult.stderr ?? ''}`);
+  const checkedInSvg = readFileSync(path.join(repoRoot, 'docs/anhedral-cli-init.svg'), 'utf8');
+  assert.equal(readFileSync(renderedMapPath, 'utf8'), checkedInSvg, 'generated stack map SVG must be current');
+  for (const requiredSvgText of [
+    'One Codebase. Complete Product Infrastructure.',
+    'ONE PNPM + TURBOREPO WORKSPACE',
+    'PRIVATE R2',
+    'Updater Worker',
+    'updates.example.com',
+    'electron-updater · Desktop',
+    'Computer use + optional subagents',
+  ]) assert.match(checkedInSvg, new RegExp(requiredSvgText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
   for (const file of packed.files) {
     const allowedBin = file.path === 'bin/anhedral.js';
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
     const allowedTemplate = file.path.startsWith('templates/')
       && /(?:\.json|\.d\.ts)$/.test(file.path);
     const allowedDocumentation = file.path === 'docs/conventions.md'
+      || file.path === 'docs/anhedral-cli-init.svg'
       || file.path === 'docs/master-stack-map.md'
       || file.path === 'docs/output-tree-contract.md'
       || file.path === 'docs/references/manual-scaffolding.md'
       || file.path === 'docs/references/provisioning.md';
-    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate || allowedDocumentation;
+    const allowedDiagramSource = file.path === 'scripts/render-master-stack-map.mjs';
+    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate || allowedDocumentation || allowedDiagramSource;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
-    if (!allowedDocumentation) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
+    if (!allowedDocumentation && !allowedDiagramSource) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
     assert.doesNotMatch(file.path, /\.(?:map|tgz|tsbuildinfo)$/);
   }
 

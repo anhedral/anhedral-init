@@ -5,6 +5,13 @@ from skill-led planning through deterministic generation, source layout,
 connected capabilities, cloud provisioning, command-driven operations, agent
 experience, and production verification.
 
+![Anhedral master stack diagram](anhedral-cli-init.svg)
+
+The diagram is generated from `scripts/render-master-stack-map.mjs`. Change the
+content or geometry there, then run `pnpm docs:stack-map`; do not hand-edit the
+SVG. The fixed-width map below remains the detailed text and accessibility
+reference.
+
 Read top to bottom. Arrows represent lifecycle order, not runtime network calls.
 Runtime and provider connections are stated explicitly inside each stage.
 

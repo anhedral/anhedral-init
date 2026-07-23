@@ -18,9 +18,11 @@
     "bin",
     "dist",
     "docs/conventions.md",
+    "docs/anhedral-cli-init.svg",
     "docs/master-stack-map.md",
     "docs/output-tree-contract.md",
     "docs/references",
+    "scripts/render-master-stack-map.mjs",
     "templates",
     "SKILL.md",
     "CHANGELOG.md",
@@ -84,7 +86,8 @@
     "release:pack": "pnpm build && node scripts/create-release-artifact.mjs && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
     "release:artifact:verify": "node scripts/verify-release-artifact.mjs release-artifact/metadata.json && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
     "release:artifact:smoke": "node tests/test-packed-cli.js release-artifact/metadata.json",
-    "demo:refresh": "pnpm build && node tests/refresh-demo.js"
+    "demo:refresh": "pnpm build && node tests/refresh-demo.js",
+    "docs:stack-map": "node scripts/render-master-stack-map.mjs"
   },
   "keywords": [
     "cli",

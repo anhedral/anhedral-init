@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const bundledRoot = path.join(repoRoot, 'templates');
 const tempRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-template-source-'));
+
+const gitAttributes = readFileSync(path.join(repoRoot, '.gitattributes'), 'utf8');
+const templateAttributes = gitAttributes
+  .split(/\r?\n/u)
+  .map((line) => line.trim())
+  .filter((line) => line && !line.startsWith('#'));
+assert.equal(
+  templateAttributes.includes('/templates/** text eol=lf'),
+  true,
+  'Bundled templates must be checked out with LF endings so byte-level integrity hashes are portable.',
+);
 
 try {
   const destination = path.join(tempRoot, 'project');
