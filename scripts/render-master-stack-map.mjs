@@ -42,7 +42,7 @@ const markPaths = [...anhedralMarkSource.matchAll(/<path\b[^>]*\bd="([^"]+)"[^>]
 const W = 1920;
 const H = 1180;
 const palette = {
-  background: '#06111d',
+  background: '#0c1117',
   panel: '#0a1724',
   panelEnd: '#07121d',
   border: '#73777b',
@@ -291,11 +291,6 @@ svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" vie
 svg.push('<title id="title">Anhedral Init Stack</title>');
 svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, RevenueCat and Stripe billing, Ably realtime, backend services, and a dedicated private R2 updater Worker.</desc>');
 svg.push(`<defs>
-  <linearGradient id="background-fill" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#071724"/>
-    <stop offset=".58" stop-color="#06111d"/>
-    <stop offset="1" stop-color="#030a12"/>
-  </linearGradient>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
     <stop offset="1" stop-color="#07121d"/>
@@ -304,18 +299,13 @@ svg.push(`<defs>
     <stop offset="0" stop-color="#24c7fa"/>
     <stop offset="1" stop-color="#0878f9"/>
   </linearGradient>
-  <radialGradient id="header-glow" cx="36%" cy="0%" r="68%">
-    <stop offset="0" stop-color="#12364d" stop-opacity=".52"/>
-    <stop offset="1" stop-color="#06111d" stop-opacity="0"/>
-  </radialGradient>
   <filter id="endpoint-glow" x="-100%" y="-100%" width="300%" height="300%">
     <feGaussianBlur in="SourceGraphic" stdDeviation="1.7"/>
   </filter>
   <marker id="arrow-white" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="${palette.text}"/></marker>
   <marker id="arrow-yellow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="${palette.yellow}"/></marker>
 </defs>`);
-svg.push(`<rect width="${W}" height="${H}" fill="url(#background-fill)"/>`);
-svg.push(`<rect width="${W}" height="310" fill="url(#header-glow)"/>`);
+svg.push(`<rect width="${W}" height="${H}" fill="${palette.background}"/>`);
 
 // Official Anhedral asset plus wordmark.
 const renderedMarkWidth = anhedralMark(28, 34, 58);

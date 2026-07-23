@@ -2,11 +2,6 @@
 <title id="title">Anhedral Init Stack</title>
 <desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, RevenueCat and Stripe billing, Ably realtime, backend services, and a dedicated private R2 updater Worker.</desc>
 <defs>
-  <linearGradient id="background-fill" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#071724"/>
-    <stop offset=".58" stop-color="#06111d"/>
-    <stop offset="1" stop-color="#030a12"/>
-  </linearGradient>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
     <stop offset="1" stop-color="#07121d"/>
@@ -15,18 +10,13 @@
     <stop offset="0" stop-color="#24c7fa"/>
     <stop offset="1" stop-color="#0878f9"/>
   </linearGradient>
-  <radialGradient id="header-glow" cx="36%" cy="0%" r="68%">
-    <stop offset="0" stop-color="#12364d" stop-opacity=".52"/>
-    <stop offset="1" stop-color="#06111d" stop-opacity="0"/>
-  </radialGradient>
   <filter id="endpoint-glow" x="-100%" y="-100%" width="300%" height="300%">
     <feGaussianBlur in="SourceGraphic" stdDeviation="1.7"/>
   </filter>
   <marker id="arrow-white" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#f7f5f0"/></marker>
   <marker id="arrow-yellow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#e9f600"/></marker>
 </defs>
-<rect width="1920" height="1180" fill="url(#background-fill)"/>
-<rect width="1920" height="310" fill="url(#header-glow)"/>
+<rect width="1920" height="1180" fill="#0c1117"/>
 <g transform="translate(28 34) scale(0.0263756252842201)">
 <path d="M1604.59 26.7414C1694.33 -39.6752 1821.31 25.3379 1819.89 136.971L1809.28 971.026C1774.28 969.39 1738.87 969.434 1703.15 971.237C1334.16 989.855 1017.8 1191.61 837.641 1484.06L122.496 1416.65C-0.793297 1405.03 -44.6847 1247.41 54.8543 1173.73L1604.59 26.7414Z" fill="#f7f5f0"/>
 <path d="M1795.36 2064.84C1793.79 2188.66 1640.25 2245.21 1558.74 2151.98L1083.84 1608.79C1214.01 1305.09 1479.98 1071.11 1809.07 987.262L1795.36 2064.84Z" fill="#f7f5f0"/>
