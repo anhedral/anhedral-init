@@ -25,7 +25,9 @@ const requiredFiles = new Set([
   'package.json',
   'docs/conventions.md',
   'docs/master-stack-map.md',
-  'docs/anhedral-cli-init.svg',
+  'assets/anhedral-cli-init.svg',
+  'assets/images/svg/ably-symbol-color.svg',
+  'assets/images/svg/logo-white-subtract.svg',
   'docs/output-tree-contract.md',
   'docs/references/manual-scaffolding.md',
   'docs/references/provisioning.md',
@@ -148,16 +150,21 @@ try {
     { cwd: repoRoot, encoding: 'utf8' },
   );
   assert.equal(renderResult.status, 0, `stack map render failed: ${renderResult.stderr ?? ''}`);
-  const checkedInSvg = readFileSync(path.join(repoRoot, 'docs/anhedral-cli-init.svg'), 'utf8');
+  const checkedInSvg = readFileSync(path.join(repoRoot, 'assets/anhedral-cli-init.svg'), 'utf8');
   assert.equal(readFileSync(renderedMapPath, 'utf8'), checkedInSvg, 'generated stack map SVG must be current');
   for (const requiredSvgText of [
-    'One Codebase. Complete Product Infrastructure.',
-    'ONE PNPM + TURBOREPO WORKSPACE',
-    'PRIVATE R2',
+    'Anhedral Init Stack',
+    'CLIENT SURFACES',
+    'Fastify Backend',
+    'RevenueCat + Stripe',
+    'Ably Realtime',
+    'Assets Worker',
     'Updater Worker',
-    'updates.example.com',
-    'electron-updater · Desktop',
-    'Computer use + optional subagents',
+    'updates.example.com → electron-updater',
+    'Cloudflare DNS + Vercel',
+    'Desktop Releases',
+    'electron-updater enabled',
+    'backend service connection',
   ]) assert.match(checkedInSvg, new RegExp(requiredSvgText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   for (const file of packed.files) {
@@ -165,8 +172,10 @@ try {
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
     const allowedTemplate = file.path.startsWith('templates/')
       && /(?:\.json|\.d\.ts)$/.test(file.path);
-    const allowedDocumentation = file.path === 'docs/conventions.md'
-      || file.path === 'docs/anhedral-cli-init.svg'
+    const allowedDocumentation = file.path === 'assets/anhedral-cli-init.svg'
+      || file.path === 'assets/images/svg/ably-symbol-color.svg'
+      || file.path === 'assets/images/svg/logo-white-subtract.svg'
+      || file.path === 'docs/conventions.md'
       || file.path === 'docs/master-stack-map.md'
       || file.path === 'docs/output-tree-contract.md'
       || file.path === 'docs/references/manual-scaffolding.md'

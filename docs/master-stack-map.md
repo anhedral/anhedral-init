@@ -5,7 +5,7 @@ from skill-led planning through deterministic generation, source layout,
 connected capabilities, cloud provisioning, command-driven operations, agent
 experience, and production verification.
 
-![Anhedral master stack diagram](anhedral-cli-init.svg)
+![Anhedral master stack diagram](../assets/anhedral-cli-init.svg)
 
 The diagram is generated from `scripts/render-master-stack-map.mjs`. Change the
 content or geometry there, then run `pnpm docs:stack-map`; do not hand-edit the

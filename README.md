@@ -7,6 +7,8 @@ Anhedral generates a complete, production-oriented TypeScript stack whose source
 
 > **Three-second version:** Start with the full TypeScript stack. Keep every escape hatch.
 
+![Anhedral Init Stack architecture diagram](assets/anhedral-cli-init.svg)
+
 Anhedral is not a new programming language and generated applications do not run inside a proprietary application framework. It assembles well-documented tools, connects their difficult integration boundaries, and leaves developers with ordinary Next.js, Expo Router, Fastify, Drizzle, Electron, and WXT projects.
 
 Anhedral is open source under the [Apache License 2.0](LICENSE). You may use,
@@ -164,7 +166,7 @@ contracts -> database/service -> Fastify route -> typed API client -> frontend
 | Authentication | Clerk | Connected frontend and backend identity/session flows |
 | UI | shadcn/ui + React Native Reusables | Accessible source code the application owns |
 | Storage | private Cloudflare R2 | Signed uploads and controlled asset delivery |
-| Billing/realtime | RevenueCat + Ably | Durable entitlements and client invalidation |
+| Billing/realtime | RevenueCat + Stripe + Ably | Unified billing entitlements and realtime invalidation |
 | Desktop | Electron | Predictable cross-platform TypeScript desktop runtime |
 | Desktop updates | electron-updater + private R2 + Worker | Signed automatic updates through a product-owned custom domain |
 | Extension | WXT | Browser-extension entrypoints, builds, and packaging |
