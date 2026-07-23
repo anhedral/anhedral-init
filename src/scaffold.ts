@@ -306,7 +306,21 @@ function toolchainChannelFromManifest(manifest: ProjectManifest): ToolchainChann
 }
 
 export function isSupportedProjectUpgrade(fromVersion: string, toVersion: string): boolean {
-  return fromVersion === '0.3.0' && toVersion === '0.4.0';
+  const parseStableVersion = (version: string): readonly [number, number, number] | undefined => {
+    const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+    return match
+      ? [Number(match[1]), Number(match[2]), Number(match[3])]
+      : undefined;
+  };
+  const from = parseStableVersion(fromVersion);
+  const to = parseStableVersion(toVersion);
+  if (!from || !to) return false;
+
+  const supportedOwnershipMigration = fromVersion === '0.3.0' && to[0] === 0 && to[1] === 4;
+  const compatiblePatchUpgrade = from[0] === to[0]
+    && from[1] === to[1]
+    && from[2] < to[2];
+  return supportedOwnershipMigration || compatiblePatchUpgrade;
 }
 
 function ensureScaffoldRoot(root: string): void {

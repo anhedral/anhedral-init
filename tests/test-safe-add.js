@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
+const currentGeneratorVersion = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')).version;
 const { writeFile: writeGeneratedFile } = await import(
   pathToFileURL(path.join(repoRoot, 'dist', 'util.js')).href
 );
@@ -303,10 +304,22 @@ try {
   assert.equal(readFileSync(upgradeManifestPath, 'utf8'), beforeUpgradeDryRun, 'upgrade dry-run must not mutate the project');
   run(['upgrade', '--skip-install'], upgradeProject);
   const upgradedManifest = JSON.parse(readFileSync(upgradeManifestPath, 'utf8'));
-  assert.equal(upgradedManifest.generatorVersion, '0.4.0');
+  assert.equal(upgradedManifest.generatorVersion, currentGeneratorVersion);
   assert.equal(upgradedManifest.files['apps/web/app/page.tsx'].ownership, 'user');
   assert.equal(readFileSync(upgradePage, 'utf8'), customUpgradePage);
   assert.match(readFileSync(path.join(upgradeProject, 'packages/contracts/src/index.ts'), 'utf8'), /\.\/generated/);
+
+  const [upgradeMajor, upgradeMinor, upgradePatch] = currentGeneratorVersion.split('.').map(Number);
+  assert.ok(upgradePatch > 0, 'safe-add compatibility coverage requires a patch release');
+  upgradedManifest.generatorVersion = `${upgradeMajor}.${upgradeMinor}.${upgradePatch - 1}`;
+  writeFileSync(upgradeManifestPath, JSON.stringify(upgradedManifest, null, 2) + '\n');
+  run(['upgrade', '--skip-install'], upgradeProject);
+  assert.equal(
+    JSON.parse(readFileSync(upgradeManifestPath, 'utf8')).generatorVersion,
+    currentGeneratorVersion,
+    'the current generator must upgrade projects from its previous patch',
+  );
+
   const currentUpgrade = JSON.parse(run(['upgrade', '--skip-install', '--json'], upgradeProject).stdout);
   assert.deepEqual(currentUpgrade, { operation: 'upgrade', paths: [] });
 

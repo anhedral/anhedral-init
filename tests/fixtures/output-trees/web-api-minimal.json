@@ -36,7 +36,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 485,
-      "sha256": "92e74baa804a97cbfe66c3e676b189e0ae02509495ea1d322e950e8b3bf0276c"
+      "sha256": "e79b268f9ed8abed42810690232f74fc08d46bf865ce260638361dd55d1c8b32"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,21 +50,21 @@
       "type": "file",
       "mode": "0644",
       "bytes": 4048,
-      "sha256": "e7d943326c74ec1e727bffee8548af36019100d3cebed063be8840d3744d96a7"
+      "sha256": "127fc4c0f740e9a62f89fbf71aed283fdf8d1a100f9e712af3f713af04c46aaf"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
       "bytes": 7593,
-      "sha256": "8400bdf7b9a9eb84343646f949adbd23575d615901cefa5b421a6e303d93a40d"
+      "sha256": "03ec7a5eb37c35685ce2232ae139988c9f363326ab479fc2c007f85230eeeab8"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
       "bytes": 13064,
-      "sha256": "f43fd04865cc98b7bfe888c02509898c6fb87c0464cbd208ff33e9535c9feb38"
+      "sha256": "e639593e12f04defee82132c88e24714e29c470adacb2717caa728ebe55c7aeb"
     },
     {
       "path": "apps/api/.env.example",
@@ -459,5 +459,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "25303118c1ee766afbfd9a707b5b16c25ad587021a62a68238696dda7cbc4385"
+  "digest": "3311e164a5ec03c232dbfeabb35209f9c8206422c1864179d39a65d2d54cf443"
 }

@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_call:
+    inputs:
+      release_sha:
+        description: Exact commit containing the prepared release version
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,11 +36,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ inputs.release_sha }}
 
       - name: Require a commit from main
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/main"; then
-            echo "Release commit $GITHUB_SHA is not contained in origin/main"
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" "refs/remotes/origin/main"; then
+            echo "Release commit $RELEASE_SHA is not contained in origin/main"
             exit 1
           fi
 
@@ -78,13 +86,14 @@ jobs:
 
       - name: Refuse an existing tag from another commit
         env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
           VERSION: ${{ steps.metadata.outputs.version }}
         run: |
           TAG="v$VERSION"
           if git rev-parse --quiet --verify "refs/tags/$TAG" >/dev/null; then
             TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")
-            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
-              echo "$TAG already points to $TAG_COMMIT; refusing to publish $GITHUB_SHA"
+            if [ "$TAG_COMMIT" != "$RELEASE_SHA" ]; then
+              echo "$TAG already points to $TAG_COMMIT; refusing to publish $RELEASE_SHA"
               exit 1
             fi
           fi
@@ -124,6 +133,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -166,6 +176,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
@@ -246,6 +257,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -285,7 +297,7 @@ jobs:
         if: steps.registry.outputs.state == 'missing'
         env:
           TARBALL: ${{ needs.verify.outputs.tarball }}
-        run: npm publish "./release-artifact/$TARBALL" --ignore-scripts --provenance=false --registry=https://registry.npmjs.org
+        run: npm publish "./release-artifact/$TARBALL" --ignore-scripts --provenance --registry=https://registry.npmjs.org
 
       - name: Verify npm registry integrity
         run: node scripts/check-release-registry.mjs verify release-artifact/metadata.json
@@ -309,7 +321,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -343,20 +355,21 @@ jobs:
 
       - name: Create or verify tag
         env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           TAG="v$VERSION"
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")
-            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
-              echo "$TAG points to $TAG_COMMIT instead of published commit $GITHUB_SHA"
+            if [ "$TAG_COMMIT" != "$RELEASE_SHA" ]; then
+              echo "$TAG points to $TAG_COMMIT instead of published commit $RELEASE_SHA"
               exit 1
             fi
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Release $TAG" "$GITHUB_SHA"
+            git tag -a "$TAG" -m "Release $TAG" "$RELEASE_SHA"
             git push origin "refs/tags/$TAG"
           fi
 

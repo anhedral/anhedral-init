@@ -20,6 +20,11 @@ import {
   validateReleaseDeclaration,
   validateWorkflowPolicy,
 } from '../scripts/check-release-policy.mjs';
+import {
+  compareStableVersions,
+  resolveReleaseVersion,
+  updateChangelog,
+} from '../scripts/prepare-auto-release.mjs';
 import { scanTarball, scanText } from '../scripts/secret-scanner.mjs';
 import { resolveSpawnCommand } from '../scripts/spawn-command.mjs';
 
@@ -98,6 +103,33 @@ try {
   assert.equal(isValidSemver('1.0'), false);
   assert.equal(isValidSemver('01.0.0'), false);
   assert.equal(isValidSemver('1.0.0-01'), false);
+  assert.equal(compareStableVersions('0.4.1', '0.4.0') > 0, true);
+  assert.equal(compareStableVersions('1.0.0', '0.99.99') > 0, true);
+  assert.deepEqual(resolveReleaseVersion('0.4.0', '0.4.0'), {
+    version: '0.4.1',
+    automatic: true,
+  });
+  assert.deepEqual(resolveReleaseVersion('0.5.0', '0.4.0'), {
+    version: '0.5.0',
+    automatic: false,
+  });
+  assert.deepEqual(resolveReleaseVersion('0.4.0', '0.4.0', false), {
+    version: '0.4.0',
+    automatic: false,
+  });
+  assert.throws(
+    () => resolveReleaseVersion('0.3.0', '0.4.0'),
+    /behind npm version/,
+  );
+  assert.match(
+    updateChangelog(
+      '# Changelog\n\n## Unreleased\n\n## 0.4.0 - 2026-07-22\n',
+      '0.4.1',
+      '2026-07-23',
+      ['Improve the generated README', 'Improve the generated README'],
+    ),
+    /## 0\.4\.1 - 2026-07-23\n\n### Changed\n\n- Improve the generated README\./,
+  );
   assert.deepEqual(validateReleaseDeclaration(
     { version: '2.3.4' },
     '# Changelog\n\n## Unreleased\n\n## 2.3.4 - 2026-07-15\n',

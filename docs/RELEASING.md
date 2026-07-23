@@ -2,12 +2,12 @@
 
 ## Release model
 
-The repository does not bump versions inside the publishing workflow. A release version must already be reviewed and committed in `package.json`.
+Every ordinary change merged to `main` becomes a patch release after the matching `CI` run succeeds. `Release On Main` compares the committed package version with npm, creates the next patch version when they match, synchronizes `package.json`, `src/version.ts`, `CHANGELOG.md`, and the version-dependent output-tree contracts, and pushes a release commit with `[skip ci]`. If a reviewed change already declares a newer version, the workflow preserves it so maintainers can intentionally choose a minor or major release.
 
-When a committed `package.json` version change reaches `main`, `Release On Main` calls the canonical `Release` workflow. Other `package.json` edits are detected and skipped. The canonical workflow:
+Release preparation is serialized, always refreshes the latest `main`, ignores a successful CI run superseded by a newer commit, skips a commit that already has its matching version tag, and passes the exact prepared commit to the canonical `Release` workflow. The canonical workflow:
 
-1. Checks out the declared commit without persisted credentials.
-2. Verifies that the commit is contained in `main`.
+1. Checks out the exact prepared release commit without persisted credentials.
+2. Verifies that the prepared commit is contained in `main`.
 3. Runs the complete release checks.
 4. Builds one tarball and records its SHA-1 and SHA-512 integrity.
 5. Scans tracked files, built output, and the exact tarball for high-confidence secret formats.
@@ -20,16 +20,15 @@ When a committed `package.json` version change reaches `main`, `Release On Main`
 12. Confirms that npm reports the exact local integrity.
 13. Creates the Git tag and GitHub release only after registry verification, attaching both the npm tarball and its integrity metadata.
 
-Manual and recovery runs must dispatch **Release On Main**, which calls the reusable `Release` workflow under the filename trusted by npm. Never dispatch the reusable workflow directly. Every run uses the same `npm-publish-anhedral` concurrency group, and the selected commit must be contained in `main`.
+Manual and recovery runs must dispatch **Release On Main**, which preserves the current declared version and calls the reusable `Release` workflow under the filename trusted by npm. Never dispatch the reusable workflow directly. Release preparation and publication use non-cancelling concurrency groups, and the selected commit must be contained in `main`.
 
 The release workflow pins an exact Node.js release, including its bundled npm version, so rebuilding the same source for recovery does not silently change the tarball packer. Update that pin only in a reviewed workflow change.
 
 ## Preparing a normal release
 
 1. Start from an up-to-date clean branch.
-2. Choose the intended semantic version.
-3. Update `package.json` and `CHANGELOG.md` in a reviewable pull request. The declared version must be valid SemVer and must have its own level-two changelog heading.
-4. Run:
+2. For a normal patch, leave the current version unchanged; the workflow creates the next patch release after merge. For a minor or major release, update `package.json`, `src/version.ts`, and `CHANGELOG.md` together in the reviewed change.
+3. Run:
 
    ```sh
    pnpm install --frozen-lockfile
@@ -39,9 +38,9 @@ The release workflow pins an exact Node.js release, including its bundled npm ve
    pnpm release:artifact:smoke
    ```
 
-5. Inspect `release-artifact/metadata.json` and the dry-run packlist.
-6. Merge the version pull request after required checks pass.
-7. Confirm the npm version, integrity, Git tag, and GitHub release agree.
+4. Inspect `release-artifact/metadata.json` and the dry-run packlist.
+5. Merge after required checks pass.
+6. Confirm the generated release commit, npm version, integrity, Git tag, and GitHub release agree.
 
 Before merging, also confirm:
 
@@ -61,7 +60,7 @@ The release uses npm Trusted Publishing. GitHub obtains a short-lived OIDC crede
 
 The npm package settings must contain exactly one GitHub Actions trusted publisher with organization/user `anhedral`, repository `anhedral-init`, workflow filename `release-on-main.yml`, environment `npm`, and permission `npm publish`. The publishing job uses a GitHub-hosted runner, configures `registry.npmjs.org`, and requires npm 11.5.1 or newer. No `NODE_AUTH_TOKEN`, `NPM_TOKEN`, or npm authentication file is permitted in the release workflows.
 
-The repository is not publicly accessible, so publication explicitly disables npm provenance. If the source repository becomes public, remove `--provenance=false` in a reviewed change so npm can generate provenance automatically.
+The repository is public, so npm publication includes provenance generated from the trusted GitHub Actions identity.
 
 Trusted publication was established with the 0.3 release. Keep npm package **Publishing access** set to **Require two-factor authentication and disallow tokens**, keep the GitHub `npm` environment and repository free of `NPM_TOKEN`, and do not create a fallback automation token. If trusted-publisher recovery is required, repair the OIDC identity or workflow configuration instead of weakening publishing access.
 
@@ -79,7 +78,7 @@ The workflow also stops before publication when the intended tag already points 
 
 ### Verification or packing failed
 
-Fix the source and checks. Do not change the version unless a package was actually published.
+Fix the source and checks. Re-run **Release On Main** for the prepared release commit; do not reuse a version after npm has published it.
 
 ### npm publish failed and the version is still absent
 

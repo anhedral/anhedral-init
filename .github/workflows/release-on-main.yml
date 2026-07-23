@@ -1,56 +1,116 @@
 name: Release On Main
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - package.json
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-on-main
+  cancel-in-progress: false
+
 jobs:
-  version-change:
-    name: Detect declared version change
+  prepare:
+    name: Prepare release version
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
     outputs:
-      changed: ${{ steps.version.outputs.changed }}
+      changed: ${{ steps.prepare.outputs.changed }}
+      release_sha: ${{ steps.prepare.outputs.release_sha }}
+      version: ${{ steps.prepare.outputs.version }}
     steps:
-      - name: Checkout version commit
+      - name: Checkout latest main
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
+          ref: main
 
-      - name: Compare package versions
-        id: version
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.18.0'
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 10.34.5
+
+      - name: Prepare automatic patch version
+        id: prepare
         env:
-          BEFORE_SHA: ${{ github.event.before }}
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          CURRENT_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ] && [ "$(git rev-parse HEAD)" != "$TRIGGER_SHA" ]; then
+            SUPERSEDED_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=$SUPERSEDED_VERSION" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit superseded CI commit $TRIGGER_SHA; its own successful CI run will release it" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          PREVIOUS_VERSION=$(git show "$BEFORE_SHA:package.json" | node -e "process.stdout.write(JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version)")
-          if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
+
+          CURRENT_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+          PUBLISHED_VERSION=$(npm view anhedral version --json --registry=https://registry.npmjs.org | node -e "process.stdout.write(JSON.parse(require('node:fs').readFileSync(0, 'utf8')))")
+
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && [ "$CURRENT_VERSION" = "$PUBLISHED_VERSION" ] && git tag --points-at HEAD | grep -Fxq "v$CURRENT_VERSION"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "package.json changed without a version change; release skipped" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Version change: $PREVIOUS_VERSION -> $CURRENT_VERSION" >> "$GITHUB_STEP_SUMMARY"
+            echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "v$CURRENT_VERSION already publishes the current main commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_RESULT=$(node scripts/prepare-auto-release.mjs "$PUBLISHED_VERSION" --preserve-current)
+          else
+            RELEASE_RESULT=$(node scripts/prepare-auto-release.mjs "$PUBLISHED_VERSION")
+          fi
+          AUTOMATIC=$(node -e "process.stdout.write(String(JSON.parse(process.argv[1]).automatic))" "$RELEASE_RESULT")
+          RELEASE_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+
+          if [ "$AUTOMATIC" = "true" ]; then
+            pnpm install --frozen-lockfile
+            pnpm build
+            node tests/update-output-tree-contracts.js
+          fi
+
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add \
+              package.json \
+              src/version.ts \
+              CHANGELOG.md \
+              docs/output-tree-contract.md \
+              tests/fixtures/output-trees
+            git commit -m "chore(release): v$RELEASE_VERSION [skip ci]"
+            git push origin HEAD:main
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"
+
   release:
-    name: Publish declared package version
-    needs: version-change
-    if: needs.version-change.outputs.changed == 'true'
+    name: Publish prepared package version
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
     permissions:
       contents: write
       id-token: write
     uses: ./.github/workflows/release.yml
+    with:
+      release_sha: ${{ needs.prepare.outputs.release_sha }}

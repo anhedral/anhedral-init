@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.4.1 - 2026-07-22
+
+### Added
+
+- Add the public launch artwork, reusable stack-map renderer, and expanded brand asset library to the repository and published package.
+
+### Changed
+
+- Present Anhedral as a cross-platform, modular product stack that lets teams build once, ship everywhere, and scale without repeating framework setup.
+- Automatically create patch versions for ordinary changes merged to `main`, while preserving explicitly declared minor and major releases.
+- Keep project upgrades compatible across automatic patch releases and retain the supported 0.3-to-0.4 ownership migration.
+- Publish from the exact generated release commit and attach npm provenance now that the source repository is public.
+
 ## 0.4.0 - 2026-07-22
 
 ### Added
