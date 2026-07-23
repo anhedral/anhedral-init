@@ -101,6 +101,13 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     environment: EMPTY,
     crons: EMPTY,
   }),
+  'electron-updater': Object.freeze({
+    module: 'electron-updater',
+    environment: Object.freeze([
+      { name: 'DESKTOP_UPDATE_BASE_URL', defaultValue: 'https://updates.example.com' },
+    ]),
+    crons: EMPTY,
+  }),
 });
 
 function collectEnvironmentFromRegistry(

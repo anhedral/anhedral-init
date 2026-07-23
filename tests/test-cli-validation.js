@@ -161,6 +161,14 @@ try {
   assert.equal(existsSync(path.join(newProject, 'docs/STACK.md')), true);
   assert.match(readFileSync(path.join(newProject, 'README.md'), 'utf8'), /There is no hidden Anhedral application runtime/);
   assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /standard TypeScript monorepo assembled by Anhedral/);
+  assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /Agent-assisted provisioning/);
+  assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /Computer Use\/browser control and subagents/);
+  assert.match(readFileSync(path.join(newProject, 'SKILL.md'), 'utf8'), /stop before the final button/i);
+  const humanProject = path.join(newRoot, 'human-readable-next-step');
+  const humanCreated = runCli(['new', humanProject, '--web', '--skip-install']);
+  assert.equal(humanCreated.status, 0, `${humanCreated.stdout}\n${humanCreated.stderr}`);
+  assert.match(humanCreated.stdout, /Then follow README\.md to configure the selected providers and start the app\./);
+  assert.doesNotMatch(humanCreated.stdout, /&& pnpm dev/);
 } finally {
   rmSync(newRoot, { recursive: true, force: true });
 }
@@ -258,7 +266,12 @@ assert.deepEqual(
 assert.deepEqual([...DEFAULT_PROMPT_APP_MODULES, ...DEFAULT_PROMPT_FEATURE_MODULES], [
   'web', 'mobile', 'api', 'desktop', 'extension',
   'db', 'auth', 'billing', 'storage', 'native-subscriptions',
+  'electron-updater',
 ]);
+assert.deepEqual(
+  buildAddOptions(['electron-updater'], parseCli(['--skip-install'])).modules,
+  ['electron-updater'],
+);
 assert.equal(shouldPromptForInitModules([], true), true);
 assert.equal(shouldPromptForInitModules(['--json'], true), false, '--json must never open interactive prompts');
 assert.equal(shouldPromptForInitModules(['--web'], true), false);

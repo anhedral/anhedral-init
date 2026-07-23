@@ -18,6 +18,7 @@ docs/       generated stack and development guidance
 - `apps/mobile`: Expo Router screens, layouts, native components, and hooks.
 - `apps/api`: Fastify routes, services, plugins, provider clients, and server environment validation.
 - `apps/desktop`: Electron main/preload code and sandboxed React renderer code.
+- `apps/desktop-updater-worker`: optional read-only Cloudflare Worker serving signed Electron updates from a bound private R2 bucket.
 - `apps/extension`: WXT entrypoints, extension components, background logic, and content scripts.
 - `packages/contracts`: Zod schemas for data crossing HTTP boundaries.
 - `packages/api-client`: client-safe HTTP behavior shared across frontends.
@@ -36,11 +37,13 @@ Zod contract
 
 Routes stay thin. They authenticate, validate, call a service, and return a declared contract. Business behavior and provider SDK calls live in server services. Frontends never import API services, database connections, or server environment modules.
 
+When `electron-updater` is selected, desktop releases follow a separate delivery path: the packaged Electron main process reads generated update metadata from an HTTPS custom domain, the Worker streams known keys from its private R2 binding, and release tooling uploads signed artifacts before mutable channel metadata. Neither Cloudflare credentials nor a public bucket URL enter the desktop application.
+
 ## Database
 
 Database-enabled projects use managed Neon Postgres. Anhedral does not generate local Postgres, Docker Compose, or an embedded database substitute.
 
-1. Edit `packages/db/src/schema.ts`.
+1. Edit the user-owned `packages/db/src/app-schema.ts`; Anhedral keeps provider tables in `generated-schema.ts`.
 2. Run `pnpm db:generate`.
 3. Review and commit generated SQL and metadata.
 4. Run `pnpm verify:db`.

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkReleasePolicy,
   isValidSemver,
+  validateGeneratorVersion,
   validateReleaseDeclaration,
   validateWorkflowPolicy,
 } from '../scripts/check-release-policy.mjs';
@@ -103,6 +104,14 @@ try {
   ), []);
   assert.match(validateReleaseDeclaration({ version: '2.3' }, '## Unreleased\n').join('\n'), /SemVer/);
   assert.match(validateReleaseDeclaration({ version: '2.3.4' }, '## Unreleased\n').join('\n'), /2\.3\.4/);
+  assert.deepEqual(validateGeneratorVersion(
+    { version: '2.3.4' },
+    "export const GENERATOR_VERSION = '2.3.4';\n",
+  ), []);
+  assert.match(validateGeneratorVersion(
+    { version: '2.3.4' },
+    "export const GENERATOR_VERSION = '2.3.3';\n",
+  ).join('\n'), /does not match package\.json/);
   assert.deepEqual(checkReleasePolicy(repoRoot), []);
 
   const workflowPolicyRoot = path.join(temporaryRoot, 'workflow-policy');
@@ -134,6 +143,42 @@ try {
     releaseWorkflow.replace('          TARBALL: ${{ needs.verify.outputs.tarball }}', '          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n          TARBALL: ${{ needs.verify.outputs.tarball }}'),
   );
   assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /without long-lived npm credentials/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('  workflow_call:\n', '  workflow_call:\n  workflow_dispatch:\n'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /dispatched through release-on-main\.yml/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace("  RELEASE_NODE_VERSION: '24.18.0'", "  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  RELEASE_NODE_VERSION: '24.18.0'"),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /temporary force override/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace(
+      'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+    ),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /upload-artifact must use the reviewed Node\.js 24 pin/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace(
+      'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c',
+      'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093',
+    ),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /download-artifact must use the reviewed Node\.js 24 pin/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('          METADATA="release-artifact/metadata.json"\n', ''),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /attach release-artifact\/metadata\.json/);
 
   const token = ['ghp', '_', 'A'.repeat(32)].join('');
   const clerkSecret = ['sk', '_test_', 'B'.repeat(28)].join('');

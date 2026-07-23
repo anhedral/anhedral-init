@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions | deterministic golden | 130 | `997fff94b7a61b48b063634523e88146d9b454013285f233ddf44afa12b22693` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 58 | `5e178bce3710dfbbbdd78acb7021f18c213d4ad80a93ac345c436e1372549f99` |
-| `api-only` | api |  | deterministic golden | 29 | `f067a459375b49d53e9c031b917851e30dc0c4c67a583018ba4972cd480467fc` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 59 | `7955805e03d0ee3cb1efadfffe2886f27335e29e1c0f22408b5df637f7c31a74` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 145 | `ffe0feed203c4cdfaeeadba03dd2acc93855296699570d81f856b989f45cde23` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 65 | `25303118c1ee766afbfd9a707b5b16c25ad587021a62a68238696dda7cbc4385` |
+| `api-only` | api |  | deterministic golden | 32 | `a405e93cea274273bf46605e934e4a9be21018513b04c47c83ed1b1b8c9f187e` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 67 | `d6804478404c2bb62945f6a7dbb9d1184ebe75d3594b83347cab76e785b21051` |
 
 ## expo-extension
 
@@ -55,6 +55,8 @@ expo-extension-sample/
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
 │   │   │   ├── realtime.ts
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   ├── routes.ts
 │   │   │   └── storage.ts
 │   │   ├── tests/
@@ -72,13 +74,16 @@ expo-extension-sample/
 │   ├── desktop/
 │   │   ├── .env.example
 │   │   ├── components.json
+│   │   ├── electron-builder.env.example
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   ├── postcss.config.mjs
 │   │   ├── scripts/
-│   │   │   └── dev.mjs
+│   │   │   ├── dev.mjs
+│   │   │   └── publish-updates.mjs
 │   │   ├── src/
 │   │   │   ├── main/
+│   │   │   │   ├── app-window.ts
 │   │   │   │   ├── main.ts
 │   │   │   │   └── preload.cts
 │   │   │   └── renderer/
@@ -96,6 +101,13 @@ expo-extension-sample/
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.main.json
 │   │   └── vite.config.ts
+│   ├── desktop-updater-worker/
+│   │   ├── package.json
+│   │   ├── src/
+│   │   │   └── index.js
+│   │   ├── tests/
+│   │   │   └── worker.test.js
+│   │   └── wrangler.jsonc
 │   ├── extension/
 │   │   ├── .env.example
 │   │   ├── README.md
@@ -176,6 +188,7 @@ expo-extension-sample/
 │       └── tsconfig.json
 ├── cloudflare/
 │   ├── README.md
+│   ├── desktop-updates.md
 │   └── r2-cors.template.json
 ├── docs/
 │   ├── DEVELOPMENT.md
@@ -185,11 +198,15 @@ expo-extension-sample/
 │   ├── api-client/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   ├── contracts/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   ├── db/
@@ -199,6 +216,8 @@ expo-extension-sample/
 │   │   │   └── .gitkeep
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app-schema.ts
+│   │   │   ├── generated-schema.ts
 │   │   │   ├── index.ts
 │   │   │   ├── migrate.ts
 │   │   │   └── schema.ts
@@ -242,6 +261,8 @@ web-api-minimal/
 │   │   │   ├── auth.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   └── routes.ts
 │   │   ├── tests/
 │   │   │   ├── env.test.ts
@@ -278,11 +299,15 @@ web-api-minimal/
 │   ├── api-client/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   ├── contracts/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   └── db/
@@ -292,6 +317,8 @@ web-api-minimal/
 │       │   └── .gitkeep
 │       ├── package.json
 │       ├── src/
+│       │   ├── app-schema.ts
+│       │   ├── generated-schema.ts
 │       │   ├── index.ts
 │       │   ├── migrate.ts
 │       │   └── schema.ts
@@ -329,6 +356,8 @@ api-only/
 │       │   ├── application.ts
 │       │   ├── env.ts
 │       │   ├── index.ts
+│       │   ├── routes/
+│       │   │   └── app.ts
 │       │   └── routes.ts
 │       ├── tests/
 │       │   ├── env.test.ts
@@ -343,6 +372,8 @@ api-only/
 │   └── contracts/
 │       ├── package.json
 │       ├── src/
+│       │   ├── app.ts
+│       │   ├── generated.ts
 │       │   └── index.ts
 │       └── tsconfig.json
 ├── pnpm-workspace.yaml
@@ -377,6 +408,8 @@ add-desktop-flow/
 │   │   │   ├── auth.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   └── routes.ts
 │   │   ├── tests/
 │   │   │   ├── env.test.ts
@@ -393,6 +426,7 @@ add-desktop-flow/
 │       │   └── dev.mjs
 │       ├── src/
 │       │   ├── main/
+│       │   │   ├── app-window.ts
 │       │   │   ├── main.ts
 │       │   │   └── preload.cts
 │       │   └── renderer/
@@ -416,11 +450,15 @@ add-desktop-flow/
 │   ├── api-client/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   ├── contracts/
 │   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── app.ts
+│   │   │   ├── generated.ts
 │   │   │   └── index.ts
 │   │   └── tsconfig.json
 │   └── db/
@@ -430,6 +468,8 @@ add-desktop-flow/
 │       │   └── .gitkeep
 │       ├── package.json
 │       ├── src/
+│       │   ├── app-schema.ts
+│       │   ├── generated-schema.ts
 │       │   ├── index.ts
 │       │   ├── migrate.ts
 │       │   └── schema.ts

@@ -3,7 +3,7 @@
 import { createInterface } from 'node:readline/promises';
 import { argv, stdin, stdout } from 'node:process';
 import { buildAddOptions, buildOptions, buildOptionsForRoot, parseCli, parseNewProjectRequest, parseUiAddOptions, USAGE } from './cli.js';
-import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponents } from './scaffold.js';
+import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponents, scaffoldUpgradeProject } from './scaffold.js';
 import {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
@@ -61,7 +61,7 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
   try {
     console.log('Select app surfaces: web, mobile, api, desktop, extension');
     const appAnswer = await rl.question('App surfaces [all]: ');
-    console.log('Select backend features: db, auth, billing, storage, native-subscriptions');
+    console.log('Select backend features: db, auth, billing, storage, native-subscriptions, electron-updater');
     const featureAnswer = await rl.question('Backend features [all]: ');
     const selected = [
       ...parsePromptModules(appAnswer, DEFAULT_PROMPT_APP_MODULES),
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!['new', 'init', 'add', 'ui', 'doctor'].includes(command)) {
+  if (!['new', 'init', 'add', 'ui', 'upgrade', 'doctor'].includes(command)) {
     if (json) writeCliError(new Error(`Unknown command: ${command}`), 'UNKNOWN_COMMAND', true);
     else {
       console.error(`Unknown command: ${command}`);
@@ -129,7 +129,9 @@ async function main(): Promise<void> {
       const options = buildOptionsForRoot(parseCli(promptedArgs), request.directory);
       phase = 'execute';
       await scaffoldProject(options);
-      if (!options.json && !options.dryRun) console.log(`\nCreated ${options.rootDirectory}\nRun: cd ${options.rootDirectory} && pnpm dev`);
+      if (!options.json && !options.dryRun) {
+        console.log(`\nCreated ${options.rootDirectory}\nNext: cd ${options.rootDirectory}\nThen follow README.md to configure the selected providers and start the app.`);
+      }
     } else if (command === 'doctor') {
       const unknown = rawArgs.filter((arg) => !['--json', '--verbose'].includes(arg));
       if (unknown.length) throw new Error(`Unknown doctor option: ${unknown[0]}`);
@@ -151,6 +153,15 @@ async function main(): Promise<void> {
       const options = parseUiAddOptions(rawArgs.slice(1));
       phase = 'execute';
       await scaffoldUiComponents(options);
+    } else if (command === 'upgrade') {
+      const unknown = rawArgs.filter((arg) => !['--skip-install', '--dry-run', '--json', '--verbose'].includes(arg));
+      if (unknown.length) throw new Error(`Unknown upgrade option: ${unknown[0]}`);
+      phase = 'execute';
+      await scaffoldUpgradeProject({
+        skipInstall: rawArgs.includes('--skip-install'),
+        dryRun: rawArgs.includes('--dry-run'),
+        json,
+      });
     } else {
       const options = buildOptions(parseCli(await promptForInitModules(rawArgs)));
       phase = 'execute';

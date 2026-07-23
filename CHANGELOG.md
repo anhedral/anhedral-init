@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.4.0 - 2026-07-22
+
+### Added
+
+- Add the `electron-updater` feature module, including packaged-app update checks, private R2 storage, a read-only bound Cloudflare Worker on a custom domain, ordered architecture-specific publishing commands, and a complete generated release runbook.
+- Make the `anhedral-init` coding-agent skill the recommended setup path, with project/domain intake, Computer Use and subagent orchestration, provider provisioning order, authentication and secret-generation stops, and verified Cloudflare/Vercel domain handoffs.
+- Add the canonical fixed-width master stack map to the published documentation and route the coding-agent skill through it for whole-platform planning and explanation.
+- Add a transactional project-upgrade path so compatible 0.3 projects can adopt 0.4 without regeneration.
+- Add a focused default development loop for the primary web and API surfaces, with `dev:all` available for intentionally launching every selected client.
+
+### Changed
+
+- Make generated onboarding follow the real environment, managed-Neon, verification, and framework source layout instead of promising an unconfigured one-command boot.
+- Treat developer extension points as user-owned source while retaining conflict protection for generated wiring and mergeable workspace configuration.
+- Publish the skill's provisioning references from their canonical `docs/references` location and validate every packed local documentation link.
+- Upgrade GitHub artifact transfer actions to their Node.js 24-native releases and keep manual npm publication routed through the trusted-publisher workflow identity.
+
+### Fixed
+
+- Canonicalize module ordering when an incremental feature contributes a previously absent dependency.
+- Attach release integrity metadata beside the npm tarball in GitHub Releases.
+
 ## 0.3.0 - 2026-07-21
 
 ### Added

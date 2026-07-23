@@ -85,7 +85,7 @@ try {
   assert.match(healthTests, /status: 'unavailable'/);
   assert.match(healthTests, /status: 'shutting_down'/);
 
-  const contracts = read(databaseRoot, 'packages/contracts/src/index.ts');
+  const contracts = read(databaseRoot, 'packages/contracts/src/generated.ts');
   assert.match(contracts, /ReadinessResponseSchema = z\.discriminatedUnion\('status'/);
   assert.match(contracts, /ok: z\.literal\(true\).*status: z\.literal\('ready'\)/s);
   assert.match(contracts, /ok: z\.literal\(false\).*'unavailable', 'shutting_down'/s);

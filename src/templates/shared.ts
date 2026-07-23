@@ -32,7 +32,11 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
     version: '0.1.0',
     private: true,
     type: 'module',
-    exports: { '.': './src/index.ts', './schema': './src/schema.ts' },
+    exports: {
+      '.': './src/index.ts',
+      './schema': './src/schema.ts',
+      './app-schema': './src/app-schema.ts',
+    },
     scripts: {
       build: 'pnpm typecheck',
       typecheck: 'tsc --noEmit',
@@ -49,7 +53,7 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
-  schema: './src/schema.ts',
+  schema: ['./src/generated-schema.ts', './src/app-schema.ts'],
   out: './migrations',
   dialect: 'postgresql',
   dbCredentials: { url: process.env.DATABASE_URL || '' },
@@ -111,14 +115,20 @@ export const realtimeOutbox = pgTable('realtime_outbox', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ` : '';
-  writeFile(path.join(dir, 'src/schema.ts'), `import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+  writeFile(path.join(dir, 'src/generated-schema.ts'), `import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+${storageTables}${billingTables}`);
+  writeFile(path.join(dir, 'src/app-schema.ts'), `import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+// Product-owned tables belong here. Anhedral never rewrites this file after creation.
 export const items = pgTable('items', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
-${storageTables}${billingTables}`);
+`);
+  writeFile(path.join(dir, 'src/schema.ts'), `export * from './generated-schema';
+export * from './app-schema';
+`);
   writeFile(path.join(dir, 'src/index.ts'), `import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
@@ -439,13 +449,20 @@ function writeApiPackages(root: string, options: ProjectOptions): void {
       version: '0.1.0',
       private: true,
       type: 'module',
-      exports: { '.': './src/index.ts' },
+      exports: { '.': './src/index.ts', './app': './src/app.ts' },
       scripts: { build: 'pnpm typecheck', typecheck: 'tsc --noEmit' },
       devDependencies: SHARED_PACKAGE_DEPENDENCIES.devDependencies,
       ...fields,
     }, null, 2) + '\n');
     writeTsConfig(dir);
-    writeFile(path.join(dir, 'src/index.ts'), source);
+    writeFile(path.join(dir, 'src/generated.ts'), source);
+    writeFile(path.join(dir, 'src/app.ts'), `// Product-owned ${name === 'contracts' ? 'network contracts' : 'API client helpers'} belong here.
+// Anhedral never rewrites this file after creation.
+export {};
+`);
+    writeFile(path.join(dir, 'src/index.ts'), `export * from './generated';
+export * from './app';
+`);
   }
 }
 

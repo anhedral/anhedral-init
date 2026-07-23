@@ -67,4 +67,7 @@ Scheduled Toolchain Drift failures and release-workflow failures must alert the 
 
 Do not run `npm publish` from a development checkout. Version changes are reviewed before release, and CI publishes the verified tarball. See [docs/RELEASING.md](docs/RELEASING.md).
 
-This repository and package are proprietary. Public availability of an npm artifact does not grant permission to install or run it. Contributor and customer rights, including rights in generated output, come only from a separate written agreement with Anhedral, Inc.
+This repository and package are licensed under the Apache License 2.0. Unless
+explicitly stated otherwise, contributions intentionally submitted for
+inclusion in Anhedral are provided under the same license, as described in
+Section 5 of [LICENSE](LICENSE).

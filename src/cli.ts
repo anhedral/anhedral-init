@@ -18,6 +18,7 @@ anhedral new <directory> [modules...] [--ui <components>] [--native-styling <nat
 anhedral init [modules...] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral add <module...> [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral upgrade [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral doctor [--json] [--verbose]
 anhedral --version
 
@@ -32,6 +33,8 @@ Commands:
     Add missing modules to an existing Anhedral project.
   anhedral ui add button dialog --target mobile
     Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
+  anhedral upgrade
+    Transactionally upgrade a supported older Anhedral project before adding modules.
 `;
 
 export type NewProjectRequest = {
@@ -46,7 +49,7 @@ export function parseNewProjectRequest(args: readonly string[]): NewProjectReque
 }
 
 export const APP_MODULES = ['web', 'mobile', 'api', 'desktop', 'extension'] as const;
-export const FEATURE_MODULES = ['db', 'auth', 'billing', 'storage', 'native-subscriptions'] as const;
+export const FEATURE_MODULES = ['db', 'auth', 'billing', 'storage', 'native-subscriptions', 'electron-updater'] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
 export type FeatureModule = (typeof FEATURE_MODULES)[number];

@@ -1,18 +1,22 @@
 ---
 name: anhedral-init
-description: Create, extend, explain, or diagnose complete Anhedral-generated TypeScript stacks. Use for new/init/add/ui/doctor; ordinary Next.js, Expo, Fastify, Drizzle/Neon, Clerk, R2, Electron, or WXT development inside a generated workspace; interpreting anhedral.json ownership; reproducing the scaffold manually; or verifying generated applications.
+description: Guide a user through creating, provisioning, extending, explaining, or diagnosing a complete Anhedral TypeScript stack. Use for skill-led new/init/add/ui/doctor workflows; Computer Use or subagent-assisted cloud setup; domains, DNS, Vercel, Cloudflare, Neon, Clerk, R2, billing, stores, and Electron updates; development inside a generated workspace; ownership interpretation; manual reproduction; or verification.
 ---
 
 # Anhedral Init
 
 Anhedral is a stack generator, not an application runtime or programming language. Generated projects use ordinary framework source and expose the complete integration code. Do not invent Anhedral-specific models, routes, queries, components, or client hooks when the selected framework already has a documented convention.
 
+For every new project or provisioning request, begin by asking for the project
+name and whether the user already owns a custom domain for it. Do not run init
+or create provider resources until those answers establish canonical names.
+
 Use Node.js 20.19+ or 22.12+ and pnpm. `new` creates a destination directory; `init` works in an empty current directory where `.git`, `.gitignore`, and `.DS_Store` are allowed.
 
 ## Choose the construction path
 
 - Use the manual path whenever the user asks to avoid the Anhedral CLI, the CLI is unavailable, or the task requires explaining/reproducing the scaffold itself.
-- Before creating or changing files manually, read [references/manual-scaffolding.md](references/manual-scaffolding.md) completely and follow its ordered procedure. Treat it as the canonical manual checklist, including its source-file matrix and feature gates.
+- Before creating or changing files manually, read [docs/references/manual-scaffolding.md](docs/references/manual-scaffolding.md) completely and follow its ordered procedure. Treat it as the canonical manual checklist, including its source-file matrix and feature gates.
 - Use the CLI path only when the user permits it. Do not silently substitute `anhedral init`, `anhedral add`, imported generator code, or a generated demo for the manual path.
 - For an exact-version scaffold inside the Anhedral source repository, render from the current `src/templates/*.ts`, `src/scaffold.ts`, and `src/dependencies.ts`; do not copy stale demo output. Outside that repository, implement the behavior and file contract in the manual reference and pin a mutually compatible toolchain.
 
@@ -22,7 +26,7 @@ The manual path must leave a complete working workspace, not merely a directory 
 
 Choose app surfaces from `web`, `mobile`, `api`, `desktop`, and `extension`.
 
-Choose backend features from `db`, `auth`, `billing`, `storage`, and `native-subscriptions`.
+Choose features from `db`, `auth`, `billing`, `storage`, `native-subscriptions`, and `electron-updater`.
 
 Apply these dependency rules automatically:
 
@@ -31,9 +35,57 @@ auth                 -> api + db
 billing              -> auth
 storage              -> auth
 native-subscriptions -> mobile + billing
+electron-updater     -> desktop
 ```
 
 With no module flags, generate the full stack.
+
+## Master stack map
+
+Read [docs/master-stack-map.md](docs/master-stack-map.md) completely before
+explaining the whole platform, selecting modules for a complete product, or
+planning cross-provider provisioning. Treat it as the canonical map of the
+stack, command surface, runtime connections, agent workflow, and release path.
+
+```text
+project + domain intake
+          |
+          v
+1 select + plan -> 2 generate safely -> 3 one pnpm/Turborepo workspace
+                                              |
+                                              v
+4 connected product capabilities -> 5 provision cloud + DNS
+                                              |
+                                              v
+6 generated package.json commands -> 7 developer/agent/Computer Use
+                                              |
+                                              v
+                               8 verify, release, and operate
+```
+
+Use the full fixed-width ASCII map from the document when the user asks for the
+master stack map. Do not redraw it from memory or omit unselected modules when
+describing Anhedral's complete capability surface; mark modules as selected or
+unselected separately.
+
+## Run the guided init workflow
+
+Read [docs/references/provisioning.md](docs/references/provisioning.md) completely before
+starting a new project or provisioning any provider. Follow its intake,
+capability discovery, Computer Use, subagent, authentication, secret-handling,
+domain, provider-order, and verification gates.
+
+The lead agent must:
+
+1. Ask for project name and existing/custom-domain status first.
+2. Discover whether Computer Use/browser control and subagents are available.
+3. Resolve modules and show the user canonical project/resource names.
+4. Run the explicit CLI command, then read the generated `PRODUCTION.md`.
+5. Provision only selected providers, pausing for sign-in, MFA, secret
+   generation, purchases, and final submissions exactly as the reference says.
+6. Keep secrets out of chat and tool output; have the user paste them directly
+   into uncommitted environment files and protected provider fields.
+7. Verify code, cloud resources, DNS, TLS, and provider health before handoff.
 
 ## Initialize
 
@@ -74,23 +126,27 @@ Use the native source conventions:
 
 - Next.js code belongs in `apps/web/app`, `apps/web/components`, and `apps/web/lib`.
 - Expo Router code belongs in `apps/mobile/app` and `apps/mobile/components`.
-- Fastify routes and server-only services belong in `apps/api/src/routes` and `apps/api/src/services`.
-- Shared Zod network schemas belong in `packages/contracts/src`.
-- Client-safe HTTP methods belong in `packages/api-client/src`.
-- Drizzle schema and queries belong in `packages/db`; generate and review SQL migrations.
+- Product Fastify route registration belongs in `apps/api/src/routes/app.ts`. Server-only feature modules live alongside the managed integrations in `apps/api/src`.
+- Product Zod network schemas belong in `packages/contracts/src/app.ts`.
+- Product client-safe HTTP methods belong in `packages/api-client/src/app.ts`.
+- Product Drizzle tables belong in `packages/db/src/app-schema.ts`; generate and review SQL migrations.
 
 Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
 
 ## Add modules safely
 
-Run `add` only from a project containing `anhedral.json` schema v5:
+Run `add` only from a project containing `anhedral.json` schema v5 at the current generator version. If `doctor` identifies a supported older generator, preview and apply its transactional upgrade first:
 
 ```sh
+pnpm dlx anhedral@latest upgrade --dry-run
+pnpm dlx anhedral@latest upgrade
 pnpm dlx anhedral@latest add desktop extension
 pnpm dlx anhedral@latest add storage --dry-run
 ```
 
-Use `--dry-run` before a consequential add. Use `--json` when another program needs the plan; JSON failures include a stable `code` and a human-readable `error`. Use `--verbose` for interactive child-command diagnostics. Do not bypass ownership conflicts: Anhedral intentionally refuses modified managed files, user-owned files, symlinks, and unowned collisions.
+Use `--dry-run` before a consequential add. Use `--json` when another program needs the plan; JSON failures include a stable `code` and a human-readable `error`. Use `--verbose` for interactive child-command diagnostics. Anhedral preserves recorded user-owned extension files and intentionally refuses modified managed files, symlinks, and unowned collisions; do not bypass those conflicts.
+
+For a 0.3 upgrade blocked by a modified managed file, preserve the change in source control, restore that file to its recorded 0.3 content, apply the upgrade, and port the product behavior into the corresponding 0.4 user-owned extension seam. Never approve the upgrade by rewriting manifest hashes.
 
 Require the manifest generator version to match the running CLI. Regenerate projects created by another version; do not add compatibility branches.
 
@@ -145,10 +201,16 @@ Common selected keys are:
 - Ably billing synchronization: server-only `ABLY_API_KEY`; clients obtain scoped tokens from the API
 - R2: `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, `R2_PROXY_READ_URL_TTL_SECONDS=600`; keep `CLOUDFLARE_API_TOKEN` operations/CI-only
 - Internal billing/storage jobs: high-entropy server-only `CRON_SECRET`
+- Electron updates: `DESKTOP_UPDATE_BASE_URL` in `apps/desktop/electron-builder.env`; the private R2 binding needs no credential in the packaged application
 
 Never commit real `.env` files. Keep `ANHEDRAL_DEMO=false` in production.
 
-Run only scripts present for installed modules. Typical commands include `dev:web`, `dev:mobile`, `dev:api`, `dev:desktop`, `dev:extension`, corresponding `verify:*` scripts, and database scripts for `db` projects.
+Run only scripts present for installed modules. `pnpm dev` starts the primary
+product loop—web plus API when web is selected, otherwise the first selected
+surface. A multi-surface project also exposes `pnpm dev:all`; use it only when
+the user wants every selected development server. Typical focused commands
+include `dev:web`, `dev:mobile`, `dev:api`, `dev:desktop`, `dev:extension`,
+corresponding `verify:*` scripts, and database scripts for `db` projects.
 
 ## Understand deployment
 
@@ -157,6 +219,11 @@ Treat the root `vercel.json` as the only Vercel Services configuration. It uses 
 For billing, keep Neon authoritative: RevenueCat reconciliation writes the subscription revision and realtime outbox atomically, Ably carries only per-user invalidations, and every client refetches the entitlement. Schedule the authenticated outbox flush every five minutes and verify purchase, webhook, reconnect, and foreground recovery paths.
 
 Use `apps/mobile` for EAS, `pnpm desktop:build` for a current-host Electron artifact, matching platform-specific desktop scripts in CI, and `pnpm extension:zip` for the WXT archive.
+
+For `electron-updater`, provision the generated private R2 bucket and
+`desktop-updater` Worker at `updates.<domain>`. Keep the Worker custom domain and
+`DESKTOP_UPDATE_BASE_URL` identical. Build signed artifacts on each native
+platform and publish artifacts before mutable channel metadata.
 
 For storage, generate `apps/assets-private-proxy` plus `cloudflare/r2-cors.template.json` and keep the R2 bucket private. The Worker must be named `assets-private-proxy`, bind the normalized `<project>-assets` bucket as `ASSETS`, disable `workers.dev`, and own `assets.<domain>` as a Worker Custom Domain. Presigned uploads continue on the R2 S3 API hostname. Root every key below `R2_PREFIX=storage`; expose only `storage/confirmed/` through the Worker and reject staging plus `generation-inputs`. Authenticated private reads must verify upload ownership and return a presigned GET URL bounded by `R2_PROXY_READ_URL_TTL_SECONDS`.
 
@@ -174,4 +241,4 @@ pnpm build
 
 Use `pnpm --filter ./apps/api test` when the API exists. If verification fails, report the exact package and command rather than replacing generated ownership records manually.
 
-For exact representative trees, consult `docs/output-tree-contract.md` in the Anhedral repository. During manual construction, also compare the finished workspace with the file matrix in [references/manual-scaffolding.md](references/manual-scaffolding.md); every selected conditional file must exist and every unselected provider integration must be absent.
+For exact representative trees, consult `docs/output-tree-contract.md` in the Anhedral repository. During manual construction, also compare the finished workspace with the file matrix in [docs/references/manual-scaffolding.md](docs/references/manual-scaffolding.md); every selected conditional file must exist and every unselected provider integration must be absent.

@@ -217,10 +217,215 @@ try {
   for (const name of ['BASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PREFIX', 'R2_PROXY_READ_URL_TTL_SECONDS', 'CLOUDFLARE_API_TOKEN']) {
     assert.match(apiEnvExample, new RegExp(`^${name}=`, 'm'));
   }
-  const apiClientSource = readFileSync(path.join(mobileStorageProject, 'packages/api-client/src/index.ts'), 'utf8');
+  const apiClientSource = readFileSync(path.join(mobileStorageProject, 'packages/api-client/src/generated.ts'), 'utf8');
   assert.match(apiClientSource, /body\.size !== upload\.signedContentLength/);
   assert.match(apiClientSource, /method: 'PUT', body, headers/);
   assert.match(apiClientSource, /getUploadReadUrl/);
+  const mobileApiRootPackage = JSON.parse(readFileSync(path.join(mobileStorageProject, 'package.json'), 'utf8'));
+  assert.equal(
+    mobileApiRootPackage.scripts.dev,
+    'turbo dev --parallel --filter=./apps/mobile --filter=./apps/api',
+    'the primary loop must start the selected client and its API together',
+  );
+  assert.equal(mobileApiRootPackage.scripts['dev:all'], undefined);
+
+  const extensionSeamProject = path.join(workspace, 'extension-seam-project');
+  mkdirSync(extensionSeamProject);
+  run(['init', 'web', 'api', 'db', '--skip-install'], extensionSeamProject);
+  const seamManifest = JSON.parse(readFileSync(path.join(extensionSeamProject, 'anhedral.json'), 'utf8'));
+  for (const relativePath of [
+    'apps/web/app/page.tsx',
+    'apps/api/src/routes/app.ts',
+    'packages/contracts/src/app.ts',
+    'packages/api-client/src/app.ts',
+    'packages/db/src/app-schema.ts',
+  ]) {
+    assert.equal(seamManifest.files[relativePath].ownership, 'user', `${relativePath} must be an explicit extension seam`);
+  }
+  for (const relativePath of [
+    'apps/api/src/routes.ts',
+    'packages/contracts/src/generated.ts',
+    'packages/api-client/src/generated.ts',
+    'packages/db/src/generated-schema.ts',
+  ]) {
+    assert.equal(seamManifest.files[relativePath].ownership, 'managed', `${relativePath} must remain generated substrate`);
+  }
+  const seamFiles = [
+    'apps/web/app/page.tsx',
+    'apps/api/src/routes/app.ts',
+    'packages/contracts/src/app.ts',
+    'packages/api-client/src/app.ts',
+    'packages/db/src/app-schema.ts',
+  ];
+  const seamContents = Object.fromEntries(seamFiles.map((relativePath) => {
+    const target = path.join(extensionSeamProject, relativePath);
+    const content = `${readFileSync(target, 'utf8')}\n// product-owned customization: ${relativePath}\n`;
+    writeFileSync(target, content);
+    return [relativePath, content];
+  }));
+  run(['add', 'billing', '--skip-install'], extensionSeamProject);
+  for (const [relativePath, content] of Object.entries(seamContents)) {
+    assert.equal(
+      readFileSync(path.join(extensionSeamProject, relativePath), 'utf8'),
+      content,
+      `feature add must preserve product code at ${relativePath}`,
+    );
+  }
+  assert.match(
+    readFileSync(path.join(extensionSeamProject, 'packages/db/src/generated-schema.ts'), 'utf8'),
+    /export const subscriptions/,
+  );
+  assert.match(
+    readFileSync(path.join(extensionSeamProject, 'packages/contracts/src/generated.ts'), 'utf8'),
+    /SubscriptionChangedEventSchema/,
+  );
+  assert.match(
+    readFileSync(path.join(extensionSeamProject, 'apps/api/src/routes.ts'), 'utf8'),
+    /\/subscriptions\/me/,
+  );
+  const seamDoctor = JSON.parse(run(['doctor', '--json'], extensionSeamProject).stdout);
+  assert.equal(seamDoctor.ok, true);
+
+  const upgradeProject = path.join(workspace, 'upgrade-project');
+  mkdirSync(upgradeProject);
+  run(['init', 'web', 'api', '--skip-install'], upgradeProject);
+  const upgradeManifestPath = path.join(upgradeProject, 'anhedral.json');
+  const upgradeManifest = JSON.parse(readFileSync(upgradeManifestPath, 'utf8'));
+  upgradeManifest.generatorVersion = '0.3.0';
+  writeFileSync(upgradeManifestPath, JSON.stringify(upgradeManifest, null, 2) + '\n');
+  const upgradePage = path.join(upgradeProject, 'apps/web/app/page.tsx');
+  const customUpgradePage = `${readFileSync(upgradePage, 'utf8')}\n// survives the 0.4 ownership migration\n`;
+  writeFileSync(upgradePage, customUpgradePage);
+  const beforeUpgradeDryRun = readFileSync(upgradeManifestPath, 'utf8');
+  const upgradeDryRun = JSON.parse(run(['upgrade', '--skip-install', '--dry-run', '--json'], upgradeProject).stdout);
+  assert.equal(upgradeDryRun.operation, 'upgrade');
+  assert.ok(upgradeDryRun.paths.includes('anhedral.json'));
+  assert.equal(readFileSync(upgradeManifestPath, 'utf8'), beforeUpgradeDryRun, 'upgrade dry-run must not mutate the project');
+  run(['upgrade', '--skip-install'], upgradeProject);
+  const upgradedManifest = JSON.parse(readFileSync(upgradeManifestPath, 'utf8'));
+  assert.equal(upgradedManifest.generatorVersion, '0.4.0');
+  assert.equal(upgradedManifest.files['apps/web/app/page.tsx'].ownership, 'user');
+  assert.equal(readFileSync(upgradePage, 'utf8'), customUpgradePage);
+  assert.match(readFileSync(path.join(upgradeProject, 'packages/contracts/src/index.ts'), 'utf8'), /\.\/generated/);
+  const currentUpgrade = JSON.parse(run(['upgrade', '--skip-install', '--json'], upgradeProject).stdout);
+  assert.deepEqual(currentUpgrade, { operation: 'upgrade', paths: [] });
+
+  const updaterProject = path.join(workspace, 'updater-project');
+  mkdirSync(updaterProject);
+  run(['init', 'desktop', '--skip-install'], updaterProject);
+  assert.equal(existsSync(path.join(updaterProject, 'apps/desktop-updater-worker')), false);
+  const updaterWindowPath = path.join(updaterProject, 'apps/desktop/src/main/app-window.ts');
+  const customUpdaterWindow = `${readFileSync(updaterWindowPath, 'utf8')}\n// product-specific desktop window customization\n`;
+  writeFileSync(updaterWindowPath, customUpdaterWindow);
+  run(['add', 'electron-updater', '--skip-install'], updaterProject);
+  assert.equal(readFileSync(updaterWindowPath, 'utf8'), customUpdaterWindow);
+  const updaterManifestPath = path.join(updaterProject, 'anhedral.json');
+  const updaterManifest = JSON.parse(readFileSync(updaterManifestPath, 'utf8'));
+  assert.deepEqual(updaterManifest.modules, ['desktop', 'electron-updater']);
+  assert.equal(updaterManifest.files['apps/desktop-updater-worker/wrangler.jsonc'].ownership, 'user');
+  assert.equal(updaterManifest.files['apps/desktop/src/main/app-window.ts'].ownership, 'user');
+  assert.equal(updaterManifest.files['apps/desktop/src/main/main.ts'].ownership, 'managed');
+  assert.equal(updaterManifest.files['apps/desktop/electron-builder.env.example'].ownership, 'managed');
+  assert.match(
+    readFileSync(path.join(updaterProject, 'apps/desktop/src/main/main.ts'), 'utf8'),
+    /from '\.\/app-window\.js'/,
+    'the NodeNext Electron entrypoint must import the emitted JavaScript extension',
+  );
+  const updaterRootPackage = JSON.parse(readFileSync(path.join(updaterProject, 'package.json'), 'utf8'));
+  assert.equal(
+    updaterRootPackage.scripts['desktop:updates:bucket:create'],
+    'pnpm dlx wrangler@4.111.0 r2 bucket create updater-project-desktop-updates',
+  );
+  assert.equal(
+    updaterRootPackage.scripts['desktop:updates:first-provision'],
+    'pnpm desktop:updates:bucket:create && pnpm desktop:updates:worker:deploy',
+  );
+  assert.equal(
+    updaterRootPackage.scripts['desktop:updates:publish'],
+    'node apps/desktop/scripts/publish-updates.mjs',
+  );
+  const updaterDesktopPackage = JSON.parse(readFileSync(path.join(updaterProject, 'apps/desktop/package.json'), 'utf8'));
+  assert.equal(updaterDesktopPackage.dependencies['electron-updater'], '6.8.9');
+  assert.equal(updaterDesktopPackage.scripts['build:mac'], 'pnpm build && electron-builder --mac --publish never');
+  assert.deepEqual(updaterDesktopPackage.build.publish, [{
+    provider: 'generic',
+    url: '${env.DESKTOP_UPDATE_BASE_URL}/releases/${os}/${arch}',
+    useMultipleRangeRequest: false,
+  }]);
+  const updaterMain = readFileSync(path.join(updaterProject, 'apps/desktop/src/main/main.ts'), 'utf8');
+  assert.match(updaterMain, /checkForUpdatesAndNotify/);
+  assert.match(updaterMain, /app\.isPackaged/);
+  const updaterWorkerConfig = readFileSync(path.join(updaterProject, 'apps/desktop-updater-worker/wrangler.jsonc'), 'utf8');
+  assert.match(updaterWorkerConfig, /"bucket_name": "updater-project-desktop-updates"/);
+  assert.match(updaterWorkerConfig, /"pattern": "updates\.example\.com", "custom_domain": true/);
+  assert.match(updaterWorkerConfig, /"workers_dev": false/);
+  const updaterWorkerSource = readFileSync(path.join(updaterProject, 'apps/desktop-updater-worker/src/index.js'), 'utf8');
+  assert.match(updaterWorkerSource, /method !== "GET" && method !== "HEAD"/);
+  assert.match(updaterWorkerSource, /env\.UPDATES\.get/);
+  assert.match(updaterWorkerSource, /content-range/);
+  const updaterPublisher = readFileSync(path.join(updaterProject, 'apps/desktop/scripts/publish-updates.mjs'), 'utf8');
+  assert.match(updaterPublisher, /name\.includes\('-' \+ arch \+ '\.'\)/);
+  assert.ok(
+    updaterPublisher.indexOf("name === metadataName") < updaterPublisher.indexOf("Publish immutable artifacts first"),
+  );
+  const updaterGuide = readFileSync(path.join(updaterProject, 'cloudflare/desktop-updates.md'), 'utf8');
+  assert.match(updaterGuide, /updater-project-desktop-updates/);
+  assert.match(updaterGuide, /desktop:updates:first-provision/);
+  const updaterWorkerSyntax = spawnSync('node', ['--check', 'src/index.js'], {
+    cwd: path.join(updaterProject, 'apps/desktop-updater-worker'),
+    encoding: 'utf8',
+  });
+  assert.equal(updaterWorkerSyntax.status, 0, updaterWorkerSyntax.stderr);
+  const updaterWorkerBehavior = spawnSync('node', ['--test', 'tests/worker.test.js'], {
+    cwd: path.join(updaterProject, 'apps/desktop-updater-worker'),
+    encoding: 'utf8',
+  });
+  assert.equal(updaterWorkerBehavior.status, 0, updaterWorkerBehavior.stderr);
+  const updaterPublisherSyntax = spawnSync('node', ['--check', 'apps/desktop/scripts/publish-updates.mjs'], {
+    cwd: updaterProject,
+    encoding: 'utf8',
+  });
+  assert.equal(updaterPublisherSyntax.status, 0, updaterPublisherSyntax.stderr);
+  const updaterReleaseDirectory = path.join(updaterProject, 'apps/desktop/release');
+  mkdirSync(updaterReleaseDirectory, { recursive: true });
+  for (const name of [
+    'updater-project-0.1.0-arm64.dmg',
+    'updater-project-0.1.0-arm64.dmg.blockmap',
+    'updater-project-0.1.0-x64.dmg',
+    'latest-mac.yml',
+  ]) {
+    writeFileSync(path.join(updaterReleaseDirectory, name), name);
+  }
+  const uploadLog = path.join(workspace, 'desktop-update-uploads.jsonl');
+  const fakeUploader = path.join(workspace, 'fake-desktop-update-uploader.mjs');
+  writeFileSync(fakeUploader, `import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.UPLOAD_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');\n`);
+  const updaterPublish = spawnSync('node', [
+    'apps/desktop/scripts/publish-updates.mjs',
+    '--platform',
+    'mac',
+    '--arch',
+    'arm64',
+  ], {
+    cwd: updaterProject,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ANHEDRAL_DESKTOP_UPDATE_UPLOAD_COMMAND: process.execPath,
+      ANHEDRAL_DESKTOP_UPDATE_UPLOAD_ARGS_PREFIX: JSON.stringify([fakeUploader]),
+      UPLOAD_LOG: uploadLog,
+    },
+  });
+  assert.equal(updaterPublish.status, 0, updaterPublish.stderr);
+  const uploadArguments = readFileSync(uploadLog, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.equal(uploadArguments.length, 3);
+  assert.ok(uploadArguments.every((args) => args[5].includes('/releases/mac/arm64/')));
+  assert.ok(uploadArguments.every((args) => !args[5].includes('-x64.')));
+  assert.match(uploadArguments.at(-1)[5], /latest-mac\.yml$/);
+  assert.equal(uploadArguments.at(-1).at(-1), '--cache-control=no-store');
+  assert.ok(uploadArguments.slice(0, -1).every((args) => args.at(-1).includes('immutable')));
+  const updaterManifestHash = fileHash(updaterManifestPath);
+  run(['add', 'electron-updater', '--skip-install'], updaterProject);
+  assert.equal(fileHash(updaterManifestPath), updaterManifestHash, 'repeated updater add should be a no-op');
 
   const fieldMergeProject = path.join(workspace, 'field-merge-project');
   mkdirSync(fieldMergeProject);

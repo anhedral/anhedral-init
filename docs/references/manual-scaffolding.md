@@ -23,7 +23,7 @@ Record these values before editing:
 - `projectName`: a valid npm package name; use it for the root package and child package prefixes.
 - `displayName`: human-readable product name; escape it for every JSON, JavaScript, HTML, and Markdown context.
 - requested app surfaces: `web`, `mobile`, `api`, `desktop`, `extension`.
-- requested features: `db`, `auth`, `billing`, `storage`, `native-subscriptions`.
+- requested features: `db`, `auth`, `billing`, `storage`, `native-subscriptions`, `electron-updater`.
 - toolchain policy: exact tested versions for reproducibility, or current compatible versions when the user explicitly wants upgrades.
 
 Resolve the transitive closure before writing files:
@@ -33,9 +33,10 @@ auth                 -> api + db
 billing              -> auth -> api + db
 storage              -> auth -> api + db
 native-subscriptions -> mobile + billing -> auth + api + db
+electron-updater     -> desktop
 ```
 
-If no modules were specified, select all five surfaces and all five features. Never create a feature without its prerequisites. Keep normalized order `web, mobile, api, desktop, extension, db, auth, billing, storage, native-subscriptions` when displaying or recording a plan.
+If no modules were specified, select all five surfaces and all six features. Never create a feature without its prerequisites. Keep normalized order `web, mobile, api, desktop, extension, db, auth, billing, storage, native-subscriptions, electron-updater` when displaying or recording a plan.
 
 Choose Node `^20.19.0 || >=22.12.0` unless mobile is selected. Expo mobile requires `^22.13.0 || ^24.3.0 || >=25`. Use one root pnpm workspace and one root lockfile; never leave nested lockfiles, workspaces, `.git` directories, or `node_modules` inside apps.
 
@@ -50,13 +51,14 @@ api: fastify 5.8.5, @fastify/cors 11.1.0, @fastify/compress 8.3.0,
      @fastify/helmet 13.0.2, @fastify/rate-limit 10.3.0,
      @clerk/fastify 3.1.51, @aws-sdk/client-s3 3.1047.0,
      @aws-sdk/s3-request-presigner 3.1047.0, ably 2.24.0, vitest 4.1.0
-web: next 16.2.10, react/react-dom 19.2.3, @clerk/nextjs 7.5.18,
+web: next 16.2.11, react/react-dom 19.2.3, @clerk/nextjs 7.5.18,
      @clerk/ui 1.25.3, tailwindcss and @tailwindcss/postcss 4.1.18
 mobile: expo 56.0.16, expo-router 56.2.15, react-native 0.85.3,
         @clerk/expo 3.7.5, expo-secure-store 56.0.4,
         react-native-purchases/react-native-purchases-ui 10.4.2
 desktop: electron 43.1.1, electron-builder 26.15.3, vite 7.3.6,
-         @vitejs/plugin-react 5.2.0, @clerk/clerk-js 6.25.3
+         @vitejs/plugin-react 5.2.0, @clerk/clerk-js 6.25.3,
+         electron-updater 6.8.9 when electron-updater is selected
 extension: wxt 0.20.27, @wxt-dev/module-react 1.2.2,
            @clerk/chrome-extension 3.1.52, tailwindcss 3.4.19
 shared UI: clsx 2.1.1, tailwind-merge 3.4.0
@@ -120,6 +122,11 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/desktop/src/renderer/lib/api.ts                       [desktop + api]
   apps/desktop/src/renderer/lib/auth.ts                      [desktop + auth]
   apps/desktop/src/renderer/hooks/use-entitlement.ts        [desktop + billing]
+  apps/desktop/electron-builder.env.example                 [electron-updater]
+  apps/desktop/scripts/publish-updates.mjs                  [electron-updater]
+  apps/desktop-updater-worker/{package.json,wrangler.jsonc} [electron-updater]
+  apps/desktop-updater-worker/src/index.js                  [electron-updater]
+  cloudflare/desktop-updates.md                             [electron-updater]
   apps/extension/{package.json,tsconfig.json,wxt.config.ts,postcss.config.cjs,tailwind.config.cjs,components.json,.env.example,README.md} [extension]
   apps/extension/src/{styles/main.css,lib/utils.ts}          [extension]
   apps/extension/src/components/ui/button.tsx               [extension]
@@ -129,7 +136,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/extension/src/hooks/use-entitlement.ts               [extension + billing]
 ```
 
-Do not create `anhedral.json` manually. Its schema-v4 hashes, modes, ownership classes, template provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
+Do not create `anhedral.json` manually. Its schema-v5 hashes, modes, ownership classes, template and UI-provider provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
 
 ## 3. Create root configuration
 
@@ -137,13 +144,23 @@ Do not create `anhedral.json` manually. Its schema-v4 hashes, modes, ownership c
 
 Create a private `package.json` with version `0.1.0`, the selected Node engine, the pnpm version being used, `turbo` as an exact dev dependency, and `workspaces` containing `apps/*` when any app exists and `packages/*` when API or database exists.
 
-Always add `build: turbo build` and `typecheck: turbo typecheck`. Set `dev` to `turbo dev --parallel` followed by one `--filter=./apps/<surface>` per selected surface. Add only selected scripts:
+Always add `build: turbo build` and `typecheck: turbo typecheck`. Set `dev` to
+the primary product loop: run the first selected client in canonical module
+order plus API when present, or API alone for a backend-only project. When the
+project has additional app surfaces, add `dev:all` to run every selected app in
+parallel. Each command uses `turbo dev --parallel` with explicit
+`--filter=./apps/<surface>` arguments. Add only selected scripts:
 
 ```text
 web:       dev:web, verify:web = typecheck + build
 mobile:    dev:mobile, verify:mobile = typecheck + build:web
 api:       dev:api, verify:api = test:coverage + build
 desktop:   dev:desktop, desktop:build, verify:desktop = typecheck + build
+electron-updater: desktop:updates:cloudflare:login,
+                  desktop:updates:bucket:create, desktop:updates:first-provision,
+                  desktop:updates:worker:{check,dev,deploy,types},
+                  desktop:updates:build:{mac,win,linux},
+                  desktop:updates:publish, verify:desktop-updates
 extension: dev:extension, extension:zip, verify:extension = typecheck + zip
 db:        db:generate, db:migrate, db:check, db:studio, verify:db
 storage:   r2:login, r2:bucket:create, r2:cors:list, r2:cors:set,
@@ -189,7 +206,7 @@ Create `turbo.json` using `https://turborepo.dev/schema.json` with:
 - `typecheck.dependsOn = ["^build"]`.
 - `dev.cache = false` and `dev.persistent = true`.
 
-Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, desktop release output, and `apps/assets-private-proxy` in `.vercelignore`.
+Ignore `node_modules`, framework/build caches, coverage, release output, every `.env` variant except `.env.example`, and `*.tsbuildinfo`. Put extension output, mobile web export, desktop release output, `apps/assets-private-proxy`, and `apps/desktop-updater-worker` in `.vercelignore`.
 
 Create the single root `vercel.json` using `https://openapi.vercel.sh/vercel.json`. Add service `api` rooted at `apps/api` and service `web` rooted at `apps/web` as selected. Put the `/api/(.*)` rewrite before the web `/(.*)` catch-all. If billing is selected, add `*/5 * * * *` for `/api/internal/realtime/flush`; if storage is selected, add `0 3 * * *` for `/api/internal/storage/cleanup`. Protect both internal routes with the same high-entropy `CRON_SECRET` bearer token.
 

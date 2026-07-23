@@ -1380,6 +1380,7 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
 function routesSource(options: ProjectOptions): string {
   const imports = [
     "import type { FastifyPluginAsync } from 'fastify';",
+    "import { appRoutes } from './routes/app';",
     options.features.billing || options.features.storage ? "import { timingSafeEqual } from 'node:crypto';" : null,
     options.features.auth ? "import { authenticatedUserId } from './auth';" : null,
     options.features.storage ? "import { ConfirmUploadRequestSchema, CreateUploadRequestSchema, UploadParamsSchema } from '@shared/contracts';" : null,
@@ -1680,6 +1681,8 @@ export function routes(env: AppEnv, dependencies: RouteDependencies = {}): Fasti
   return async function registerRoutes(app) {
 ${billingStore}${storageService}    const serviceState = dependencies.serviceState ?? { readiness: async () => 'ready' as const };
   ${routes.join('\n\n  ')}
+
+  await app.register(appRoutes);
   };
 }
 `;
@@ -2955,6 +2958,11 @@ export default defineConfig({
   if (options.features.billing) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
   if (options.features.storage) writeFile(path.join(dir, 'src/storage.ts'), storageSource());
   if (options.features.billing) writeFile(path.join(dir, 'src/billing.ts'), billingSource());
+  writeFile(path.join(dir, 'src/routes/app.ts'), `import type { FastifyPluginAsync } from 'fastify';
+
+// Register product-owned routes here. Anhedral never rewrites this file after creation.
+export const appRoutes: FastifyPluginAsync = async (_app) => {};
+`);
   writeFile(path.join(dir, 'src/routes.ts'), routesSource(options));
   writeFile(path.join(dir, 'src/application.ts'), applicationSource(options, options.displayName));
   writeFile(path.join(dir, 'src/index.ts'), `import { buildApp } from './application';

@@ -31,7 +31,7 @@ try {
   assert.match(coverageConfig, /branches: 55/);
   assert.match(read('apps/api/.gitignore'), /^coverage$/m);
 
-  const schema = read('packages/db/src/schema.ts');
+  const schema = read('packages/db/src/generated-schema.ts');
   const subscriptionSchema = schema.slice(schema.indexOf('export const subscriptions'), schema.indexOf('export const webhookEvents'));
   assert.match(subscriptionSchema, /userId: text\('user_id'\)\.notNull\(\)\.unique\(\)/);
   assert.doesNotMatch(subscriptionSchema, /references\(\(\) => users\.id/);
@@ -88,8 +88,8 @@ try {
   assert.match(routeTests, /persisted active entitlement as expired/);
   assert.match(read('apps/api/src/realtime.ts'), /createTokenRequest/);
   assert.match(read('apps/api/src/realtime.ts'), /private:users:/);
-  assert.match(read('packages/contracts/src/index.ts'), /SubscriptionChangedEventSchema/);
-  assert.match(read('packages/api-client/src/index.ts'), /refreshEntitlement/);
+  assert.match(read('packages/contracts/src/generated.ts'), /SubscriptionChangedEventSchema/);
+  assert.match(read('packages/api-client/src/generated.ts'), /refreshEntitlement/);
   assert.match(read('packages/realtime/src/index.ts'), /subscribeToSubscriptionChanges/);
 } finally {
   rmSync(root, { recursive: true, force: true });

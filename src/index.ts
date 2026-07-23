@@ -16,9 +16,11 @@ export type { AppModule, FeatureModule, ParsedFlags, SupportedModule } from './c
 
 export {
   doctorProject,
+  isSupportedProjectUpgrade,
   scaffoldAddModules,
   scaffoldProject,
   scaffoldUiComponents,
+  scaffoldUpgradeProject,
 } from './scaffold.js';
 export type {
   AddOptions,
@@ -27,6 +29,7 @@ export type {
   InitOptions,
   ProjectOptions,
   UiAddOptions,
+  UpgradeOptions,
 } from './scaffold.js';
 
 export * from './architecture/index.js';

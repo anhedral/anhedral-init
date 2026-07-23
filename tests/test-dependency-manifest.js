@@ -48,6 +48,7 @@ function collectDependencyPins() {
     { name: 'mobileApp', group: manifest.mobileApp },
     { name: 'webApp', group: manifest.webApp },
     { name: 'desktop', group: manifest.desktop },
+    { name: 'electronUpdater', group: manifest.electronUpdater },
   ];
   const pins = new Map();
 

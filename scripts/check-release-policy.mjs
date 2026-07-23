@@ -3,6 +3,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const RELEASE_ARTIFACT_ACTIONS = Object.freeze({
+  upload: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a', // actions/upload-artifact v7.0.1
+  download: '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c', // actions/download-artifact v8.0.1
+});
 
 export function isValidSemver(value) {
   if (typeof value !== 'string' || !SEMVER_PATTERN.test(value)) return false;
@@ -25,6 +29,14 @@ export function validateReleaseDeclaration(packageJson, changelog) {
     failures.push('CHANGELOG.md is missing an Unreleased section');
   }
   return failures;
+}
+
+export function validateGeneratorVersion(packageJson, versionSource) {
+  const declared = versionSource.match(/export const GENERATOR_VERSION = '([^']+)'/)?.[1];
+  if (!declared) return ['src/version.ts must declare GENERATOR_VERSION as a string literal'];
+  return declared === packageJson.version
+    ? []
+    : [`src/version.ts generator version ${declared} does not match package.json ${packageJson.version}`];
 }
 
 function renovateRegex(value) {
@@ -115,6 +127,25 @@ export function validateWorkflowPolicy(root) {
     }
   }
   const releaseWorkflow = readFileSync(path.join(workflowsRoot, 'release.yml'), 'utf8');
+  const releaseTrigger = releaseWorkflow.match(/^on:\s*$[\s\S]*?(?=^[a-zA-Z0-9_-]+:\s*(?:$|\S))/m)?.[0] ?? '';
+  if (/^\s{2}workflow_dispatch:/m.test(releaseTrigger)) {
+    failures.push('.github/workflows/release.yml: reusable release must be dispatched through release-on-main.yml for trusted publishing');
+  }
+  if (/\bFORCE_JAVASCRIPT_ACTIONS_TO_NODE24\b/.test(releaseWorkflow)) {
+    failures.push('.github/workflows/release.yml: release actions must declare Node.js 24 instead of relying on the temporary force override');
+  }
+  const artifactActionCounts = { upload: 0, download: 0 };
+  for (const match of releaseWorkflow.matchAll(/actions\/(upload|download)-artifact@([^#\s]+)/g)) {
+    const kind = match[1];
+    const reference = match[2];
+    artifactActionCounts[kind] += 1;
+    if (reference !== RELEASE_ARTIFACT_ACTIONS[kind]) {
+      failures.push(`.github/workflows/release.yml: actions/${kind}-artifact must use the reviewed Node.js 24 pin ${RELEASE_ARTIFACT_ACTIONS[kind]}`);
+    }
+  }
+  if (artifactActionCounts.upload === 0 || artifactActionCounts.download === 0) {
+    failures.push('.github/workflows/release.yml: release must upload and download the exact verified artifact');
+  }
   const runtimeAcceptance = releaseWorkflow.match(
     /^  runtime-acceptance:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
   )?.[0] ?? '';
@@ -129,6 +160,12 @@ export function validateWorkflowPolicy(root) {
   }
   if (!/npm publish "\.\/release-artifact\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
     failures.push('.github/workflows/release.yml: npm publish must use an explicit local release-artifact tarball path');
+  }
+  const tagJob = releaseWorkflow.match(/^  tag:[\s\S]*$/m)?.[0] ?? '';
+  if (!/METADATA="release-artifact\/metadata\.json"/.test(tagJob)
+    || !/gh release upload[\s\S]*?"\$METADATA#release integrity metadata"/.test(tagJob)
+    || !/gh release create[\s\S]*?"\$METADATA#release integrity metadata"/.test(tagJob)) {
+    failures.push('.github/workflows/release.yml: GitHub releases must attach release-artifact/metadata.json with the tarball');
   }
   const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
   const reusableReleaseJob = releaseOnMainWorkflow.match(/^  release:[\s\S]*$/m)?.[0] ?? '';
@@ -157,9 +194,11 @@ export function validateWorkflowPolicy(root) {
 export function checkReleasePolicy(root) {
   const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
   const changelog = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const versionSource = readFileSync(path.join(root, 'src', 'version.ts'), 'utf8');
   const renovate = JSON.parse(readFileSync(path.join(root, 'renovate.json'), 'utf8'));
   return [
     ...validateReleaseDeclaration(packageJson, changelog),
+    ...validateGeneratorVersion(packageJson, versionSource),
     ...validateWorkflowPolicy(root),
     ...validateRenovateExtraction(root, renovate),
   ];

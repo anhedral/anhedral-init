@@ -9,6 +9,7 @@ export const MODULE_IDS = [
   'billing',
   'storage',
   'native-subscriptions',
+  'electron-updater',
 ] as const;
 
 export type ModuleId = (typeof MODULE_IDS)[number];
@@ -203,6 +204,7 @@ const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'billing', kind: 'feature', requires: ['auth'], conflicts: [] },
   { id: 'storage', kind: 'feature', requires: ['auth'], conflicts: [] },
   { id: 'native-subscriptions', kind: 'feature', requires: ['mobile', 'billing'], conflicts: [] },
+  { id: 'electron-updater', kind: 'feature', requires: ['desktop'], conflicts: [] },
 ];
 
 export const DEFAULT_MODULE_DEFINITIONS: readonly ModuleDefinition[] = Object.freeze(
@@ -269,15 +271,21 @@ export function resolveModules(
     );
   }
 
+  // Resolution must have one stable representation regardless of whether a
+  // dependency was requested directly or discovered while walking another
+  // module. Without this final normalization, adding a module to an existing
+  // project could produce a different manifest order than creating the same
+  // topology directly (for example, adding electron-updater after db/auth).
+  const resolvedModules = normalizeModuleList(ordered);
   const requestedSet = new Set(requestedModules);
-  const dependencyAddedModules = ordered.filter((moduleId) => !requestedSet.has(moduleId));
-  const dependencyEdges = ordered.flatMap((moduleId) => registry[moduleId].requires
+  const dependencyAddedModules = resolvedModules.filter((moduleId) => !requestedSet.has(moduleId));
+  const dependencyEdges = resolvedModules.flatMap((moduleId) => registry[moduleId].requires
     .filter((required) => resolved.has(required))
     .map((required) => Object.freeze({ module: moduleId, requires: required })));
 
   return Object.freeze({
     requestedModules,
-    resolvedModules: Object.freeze(ordered),
+    resolvedModules,
     dependencyAddedModules: Object.freeze(dependencyAddedModules),
     dependencyEdges: Object.freeze(dependencyEdges),
   });

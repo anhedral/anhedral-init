@@ -53,6 +53,16 @@ assert.deepEqual(nativeResolution.resolvedModules, [
   'billing',
   'native-subscriptions',
 ]);
+const updaterResolution = resolveModules(['electron-updater']);
+assert.deepEqual(updaterResolution.requestedModules, ['electron-updater']);
+assert.deepEqual(updaterResolution.resolvedModules, ['desktop', 'electron-updater']);
+assert.deepEqual(updaterResolution.dependencyAddedModules, ['desktop']);
+const updaterContributions = collectModuleContributions(['electron-updater']);
+assert.deepEqual(updaterContributions.environment, [{
+  owner: 'electron-updater',
+  name: 'DESKTOP_UPDATE_BASE_URL',
+  defaultValue: 'https://updates.example.com',
+}]);
 const composed = collectModuleContributions(['storage', 'billing']);
 assert.equal(composed.environment.filter((entry) => entry.name === 'CRON_SECRET').length, 1);
 assert.deepEqual(composed.crons.map((entry) => entry.id), ['realtime-outbox', 'storage-cleanup']);

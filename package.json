@@ -1,7 +1,7 @@
 {
   "name": "anhedral",
-  "version": "0.3.0",
-  "description": "Generate a complete, readable TypeScript product stack with Next.js, Expo, Fastify, Neon, Drizzle, Clerk, R2, Electron, WXT, and Vercel.",
+  "version": "0.4.0",
+  "description": "Generate a complete, readable TypeScript product stack with Next.js, Expo, Fastify, Neon, Drizzle, Clerk, R2, Electron updates, WXT, and Vercel.",
   "type": "module",
   "exports": {
     ".": {
@@ -18,9 +18,10 @@
     "bin",
     "dist",
     "docs/conventions.md",
+    "docs/master-stack-map.md",
     "docs/output-tree-contract.md",
+    "docs/references",
     "templates",
-    "references",
     "SKILL.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
@@ -100,7 +101,7 @@
     "wxt",
     "vercel"
   ],
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {
     "@types/node": "20.19.43",

@@ -287,7 +287,7 @@ export const WEB_APP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@clerk/ui
     '@clerk/ui': '1.25.3',
     // renovate: datasource=npm depName=next
-    next: '16.2.10',
+    next: '16.2.11',
     // renovate: datasource=npm depName=react
     react: EXTENSION_DEPENDENCIES.dependencies!.react,
     // renovate: datasource=npm depName=react-dom
@@ -347,6 +347,13 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
   },
 };
 
+export const ELECTRON_UPDATER_DEPENDENCIES: DependencyGroup = {
+  dependencies: {
+    // renovate: datasource=npm depName=electron-updater
+    'electron-updater': '6.8.9',
+  },
+};
+
 export function dependencyManifest() {
   return {
     verifiedAt: VERIFIED_AT,
@@ -366,5 +373,6 @@ export function dependencyManifest() {
     mobileUniwind: MOBILE_UNIWIND_DEPENDENCIES,
     webApp: WEB_APP_DEPENDENCIES,
     desktop: DESKTOP_DEPENDENCIES,
+    electronUpdater: ELECTRON_UPDATER_DEPENDENCIES,
   };
 }

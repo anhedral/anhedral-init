@@ -2,7 +2,7 @@ import path from 'node:path';
 import { writeFile } from '../util.js';
 import { anhedralPrint } from '../print.js';
 import type { ProjectOptions } from '../scaffold.js';
-import { DESKTOP_DEPENDENCIES } from '../dependencies.js';
+import { DESKTOP_DEPENDENCIES, ELECTRON_UPDATER_DEPENDENCIES } from '../dependencies.js';
 import { childPackageName, htmlText, identifierSegment, jsString } from '../render.js';
 
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
@@ -13,6 +13,9 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
     delete dependencies['@clerk/clerk-js'];
     delete dependencies['@clerk/ui'];
     delete dependencies['@solana/web3.js'];
+  }
+  if (options.features.electronUpdater) {
+    Object.assign(dependencies, ELECTRON_UPDATER_DEPENDENCIES.dependencies);
   }
   return dependencies;
 }
@@ -35,6 +38,14 @@ export async function scaffoldDesktop(root: string, options: ProjectOptions): Pr
 }
 
 function writePackageJson(dir: string, projectName: string, options: ProjectOptions): void {
+  const updatePublish = options.features.electronUpdater ? {
+    artifactName: '${productName}-${version}-${os}-${arch}.${ext}',
+    publish: [{
+      provider: 'generic',
+      url: '${env.DESKTOP_UPDATE_BASE_URL}/releases/${os}/${arch}',
+      useMultipleRangeRequest: false,
+    }],
+  } : {};
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: childPackageName(projectName, 'desktop'),
     version: '0.1.0',
@@ -45,10 +56,15 @@ function writePackageJson(dir: string, projectName: string, options: ProjectOpti
       dev: 'tsc -p tsconfig.main.json && node scripts/dev.mjs',
       build: 'tsc --noEmit && tsc -p tsconfig.main.json && vite build',
       typecheck: 'tsc --noEmit',
-      'build:mac': 'pnpm build && electron-builder --mac',
-      'build:win': 'pnpm build && electron-builder --win',
-      'build:linux': 'pnpm build && electron-builder --linux',
-      package: 'pnpm build && electron-builder',
+      'build:mac': `pnpm build && electron-builder --mac${options.features.electronUpdater ? ' --publish never' : ''}`,
+      'build:win': `pnpm build && electron-builder --win${options.features.electronUpdater ? ' --publish never' : ''}`,
+      'build:linux': `pnpm build && electron-builder --linux${options.features.electronUpdater ? ' --publish never' : ''}`,
+      package: `pnpm build && electron-builder${options.features.electronUpdater ? ' --publish never' : ''}`,
+      ...(options.features.electronUpdater ? {
+        'updates:build:mac': 'pnpm build && electron-builder --mac --publish never',
+        'updates:build:win': 'pnpm build && electron-builder --win --publish never',
+        'updates:build:linux': 'pnpm build && electron-builder --linux --publish never',
+      } : {}),
     },
     build: {
       appId: `dev.anhedral.${identifierSegment(projectName)}`,
@@ -70,6 +86,7 @@ function writePackageJson(dir: string, projectName: string, options: ProjectOpti
         executableName: identifierSegment(projectName),
         target: ['AppImage', 'deb'],
       },
+      ...updatePublish,
     },
     dependencies: selectedDependencies(options),
     devDependencies: DESKTOP_DEPENDENCIES.devDependencies,
@@ -235,6 +252,9 @@ function writeEnvExample(dir: string, options: ProjectOptions): void {
     options.features.auth ? 'VITE_CLERK_PUBLISHABLE_KEY=pk_test_***' : null,
   ].filter((value): value is string => value !== null);
   writeFile(path.join(dir, '.env.example'), lines.join('\n') + (lines.length > 0 ? '\n' : ''));
+  if (options.features.electronUpdater) {
+    writeFile(path.join(dir, 'electron-builder.env.example'), 'DESKTOP_UPDATE_BASE_URL=https://updates.example.com\n');
+  }
 }
 
 function writeSourceFiles(dir: string, displayName: string, options: ProjectOptions): void {
@@ -244,7 +264,46 @@ function writeSourceFiles(dir: string, displayName: string, options: ProjectOpti
     ? 'Electron + shadcn/ui desktop client using the same shared API client as web, mobile, and extension.'
     : 'Electron + shadcn/ui desktop client ready for your application.';
   const buttonLabel = options.features.auth ? 'Open account' : options.apps.api ? 'Explore API' : 'Get started';
-  writeFile(path.join(dir, 'src/main/main.ts'), `import { app, BrowserWindow, session, shell } from 'electron';
+  const updaterImport = options.features.electronUpdater
+    ? "import electronUpdater, { type AppUpdater } from 'electron-updater';\n"
+    : '';
+  const updaterRuntime = options.features.electronUpdater ? `
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+let updateTimer: NodeJS.Timeout | undefined;
+
+function getAutoUpdater(): AppUpdater {
+  const { autoUpdater } = electronUpdater;
+  return autoUpdater;
+}
+
+async function checkForDesktopUpdate(updater: AppUpdater): Promise<void> {
+  try {
+    await updater.checkForUpdatesAndNotify();
+  } catch (error) {
+    console.error('Desktop update check failed:', error);
+  }
+}
+
+function startDesktopUpdates(): void {
+  if (!app.isPackaged) return;
+  const updater = getAutoUpdater();
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = true;
+  updater.on('error', (error) => {
+    console.error('Desktop updater error:', error);
+  });
+  void checkForDesktopUpdate(updater);
+  updateTimer = setInterval(() => {
+    void checkForDesktopUpdate(updater);
+  }, UPDATE_CHECK_INTERVAL_MS);
+  updateTimer.unref();
+}
+` : '';
+  const updaterStart = options.features.electronUpdater ? '  startDesktopUpdates();\n' : '';
+  const updaterStop = options.features.electronUpdater
+    ? "app.on('before-quit', () => { if (updateTimer) clearInterval(updateTimer); });\n"
+    : '';
+  writeFile(path.join(dir, 'src/main/app-window.ts'), `import { BrowserWindow, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -272,7 +331,9 @@ function isAllowedAppNavigation(value: string): boolean {
   }
 }
 
-function createWindow() {
+// Product-owned window options and navigation policy belong in this file.
+// Anhedral's managed main.ts imports this seam and wires lifecycle integrations around it.
+export function createAppWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1180,
     height: 760,
@@ -309,20 +370,27 @@ function createWindow() {
       console.error('Unable to load the packaged renderer:', error);
     });
   }
+
+  return window;
 }
+`);
+
+  writeFile(path.join(dir, 'src/main/main.ts'), `import { app, BrowserWindow, session } from 'electron';
+import { createAppWindow } from './app-window.js';
+${updaterImport}${updaterRuntime}
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  createWindow();
-});
+  createAppWindow();
+${updaterStart}});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) createAppWindow();
 });
-`);
+${updaterStop}`);
 
   writeFile(path.join(dir, 'src/main/preload.cts'), `import { contextBridge } from 'electron';
 

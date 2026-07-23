@@ -15,7 +15,7 @@ Include the affected version, reproduction steps, impact, and any suggested miti
 - Release artifacts are built and tested in a read-only job.
 - The exact tarball uploaded by CI is the artifact submitted to npm.
 - npm integrity is checked before and after publication.
-- npm credentials are exposed only to the publish step in the protected `npm` environment.
+- npm publication uses Trusted Publishing: GitHub exchanges an OIDC identity for a short-lived credential only in the publish step of the protected `npm` environment. No npm write token is stored in GitHub.
 - A Git tag and GitHub release are created only after npm confirms the expected artifact integrity.
 - GitHub Actions are pinned to reviewed commit SHAs, and the release Node.js/npm packer is pinned to an exact version.
 - CI queries OSV for every exact package version in `pnpm-lock.yaml` and every dependency version shipped by the generator; it fails closed if the service remains unavailable after bounded retries or reports a finding.
@@ -32,4 +32,6 @@ UI component installation is an explicit networked supply-chain operation. Anhed
 
 If a secret-shaped finding is real, do not merely remove it from the latest commit. Revoke or rotate the credential first, identify every log, artifact, cache, fork, and package version that may contain it, and coordinate history or artifact cleanup with the security responder. Treat false positives by changing the example to an unmistakable placeholder; do not add broad path exclusions.
 
-Anhedral is proprietary software. Security reports and public package availability do not grant permission to install, execute, or test the software outside the reporter's written agreement with Anhedral, Inc.
+Anhedral is licensed under the Apache License 2.0. Security research must still
+comply with applicable law and the systems owner's authorization; the software
+license does not authorize testing infrastructure or accounts you do not own.

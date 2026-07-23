@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, readFileSync, readdirSync, rmdirSync, rmSync } from 'node:fs';
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { env } from 'node:process';
 import { anhedralPrint } from './print.js';
@@ -8,6 +8,10 @@ import { resolveToolchainChannel, type ToolchainChannel } from './toolchain.js';
 import { scaffoldApi } from './templates/api.js';
 import { r2BucketName, scaffoldAssetsPrivateProxy } from './templates/assets-private-proxy.js';
 import { scaffoldDesktop } from './templates/desktop.js';
+import {
+  desktopUpdatesBucketName,
+  scaffoldElectronUpdater,
+} from './templates/electron-updater.js';
 import { scaffoldExtension } from './templates/extension.js';
 import { scaffoldMobile } from './templates/mobile.js';
 import { scaffoldSharedPackages } from './templates/shared.js';
@@ -64,6 +68,7 @@ export type FeatureSelections = {
   billing: boolean;
   storage: boolean;
   nativeSubscriptions: boolean;
+  electronUpdater: boolean;
 };
 
 export interface InitOptions {
@@ -98,6 +103,12 @@ export interface AddOptions {
 export interface UiAddOptions {
   components: string[];
   targets: UiTarget[];
+  skipInstall: boolean;
+  dryRun: boolean;
+  json: boolean;
+}
+
+export interface UpgradeOptions {
   skipInstall: boolean;
   dryRun: boolean;
   json: boolean;
@@ -253,6 +264,7 @@ function selectionsFromModules(modules: readonly ModuleId[]): Pick<ResolvedInitO
       billing: selected.has('billing'),
       storage: selected.has('storage'),
       nativeSubscriptions: selected.has('native-subscriptions'),
+      electronUpdater: selected.has('electron-updater'),
     },
   };
 }
@@ -293,6 +305,10 @@ function toolchainChannelFromManifest(manifest: ProjectManifest): ToolchainChann
   return resolveToolchainChannel(manifest.toolchain);
 }
 
+export function isSupportedProjectUpgrade(fromVersion: string, toVersion: string): boolean {
+  return fromVersion === '0.3.0' && toVersion === '0.4.0';
+}
+
 function ensureScaffoldRoot(root: string): void {
   const rootStat = lstatIfPresent(root);
   if (!rootStat) throw new Error(`Scaffold destination is not a directory: ${root}`);
@@ -313,8 +329,15 @@ function selectedAppFilters(apps: AppSelections): string[] {
 
 function rootScripts(options: ResolvedInitOptions): Record<string, string> {
   const filters = selectedAppFilters(options.apps);
+  const primaryClient = filters.find((entry) => entry !== './apps/api');
+  const primaryFilters = primaryClient
+    ? [primaryClient, ...(options.apps.api ? ['./apps/api'] : [])]
+    : filters.slice(0, 1);
   const scripts: Record<string, string> = {
-    dev: filters.length ? `turbo dev --parallel ${filters.map((entry) => `--filter=${entry}`).join(' ')}` : 'echo "No app surfaces selected."',
+    dev: primaryFilters.length ? `turbo dev --parallel ${primaryFilters.map((entry) => `--filter=${entry}`).join(' ')}` : 'echo "No app surfaces selected."',
+    ...(filters.length > primaryFilters.length
+      ? { 'dev:all': `turbo dev --parallel ${filters.map((entry) => `--filter=${entry}`).join(' ')}` }
+      : {}),
     build: 'turbo build',
     typecheck: 'turbo typecheck',
   };
@@ -355,6 +378,23 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     scripts['desktop:build'] = 'pnpm --filter ./apps/desktop package';
     scripts['verify:desktop'] = 'pnpm --filter ./apps/desktop typecheck && pnpm --filter ./apps/desktop build';
     verify.push('pnpm verify:desktop');
+  }
+  if (options.features.electronUpdater) {
+    const bucketName = desktopUpdatesBucketName(options.projectName);
+    const wrangler = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler}`;
+    scripts['desktop:updates:cloudflare:login'] = `${wrangler} login`;
+    scripts['desktop:updates:bucket:create'] = `${wrangler} r2 bucket create ${bucketName}`;
+    scripts['desktop:updates:worker:check'] = 'pnpm --filter ./apps/desktop-updater-worker check';
+    scripts['desktop:updates:worker:dev'] = 'pnpm --filter ./apps/desktop-updater-worker dev';
+    scripts['desktop:updates:worker:deploy'] = 'pnpm --filter ./apps/desktop-updater-worker deploy';
+    scripts['desktop:updates:first-provision'] = 'pnpm desktop:updates:bucket:create && pnpm desktop:updates:worker:deploy';
+    scripts['desktop:updates:worker:types'] = 'pnpm --filter ./apps/desktop-updater-worker types';
+    scripts['desktop:updates:build:mac'] = 'pnpm --filter ./apps/desktop updates:build:mac';
+    scripts['desktop:updates:build:win'] = 'pnpm --filter ./apps/desktop updates:build:win';
+    scripts['desktop:updates:build:linux'] = 'pnpm --filter ./apps/desktop updates:build:linux';
+    scripts['desktop:updates:publish'] = 'node apps/desktop/scripts/publish-updates.mjs';
+    scripts['verify:desktop-updates'] = 'pnpm desktop:updates:worker:check && node --check apps/desktop/scripts/publish-updates.mjs';
+    verify.push('pnpm verify:desktop-updates');
   }
   if (options.apps.extension) {
     scripts['dev:extension'] = 'pnpm --filter ./apps/extension dev';
@@ -851,12 +891,20 @@ function writeRootFiles(root: string, options: ResolvedInitOptions, mode: 'init'
     '.env.*',
     '!.env.example',
     '*.tsbuildinfo',
-  ]);
+    options.features.electronUpdater ? 'electron-builder.env' : null,
+  ].filter((value): value is string => value !== null));
   writeRootEnv(root, options);
   writeDatabaseVerificationScript(root, options);
   const vercelIgnore = path.join(root, '.vercelignore');
   const currentIgnore = pathEntryExists(vercelIgnore) ? readFileSync(vercelIgnore, 'utf8') : '';
-  const ignoreLines = [...new Set([...currentIgnore.split('\n').filter(Boolean), 'apps/extension/.output', 'apps/mobile/dist', 'apps/desktop/release', 'apps/assets-private-proxy'])];
+  const ignoreLines = [...new Set([
+    ...currentIgnore.split('\n').filter(Boolean),
+    'apps/extension/.output',
+    'apps/mobile/dist',
+    'apps/desktop/release',
+    'apps/assets-private-proxy',
+    'apps/desktop-updater-worker',
+  ])];
   writeFile(vercelIgnore, ignoreLines.join('\n') + '\n');
   writeFile(path.join(root, '.github/workflows/anhedral-ci.yml'), generatedCi(options));
 }
@@ -868,14 +916,17 @@ function enabledModuleNames(options: ResolvedInitOptions): readonly ModuleId[] {
 function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUserDocs: boolean): void {
   const modules = enabledModuleNames(options);
   const storageBucketName = r2BucketName(options.projectName);
-  const commands = [
+  const environmentSetupCommands = [
     'pnpm install',
     options.apps.api ? 'cp apps/api/.env.example apps/api/.env' : null,
     options.features.database ? 'cp packages/db/.env.example packages/db/.env' : null,
     options.apps.web ? 'cp apps/web/.env.example apps/web/.env.local' : null,
     options.apps.mobile ? 'cp apps/mobile/.env.example apps/mobile/.env' : null,
     options.apps.desktop ? 'cp apps/desktop/.env.example apps/desktop/.env' : null,
+    options.features.electronUpdater ? 'cp apps/desktop/electron-builder.env.example apps/desktop/electron-builder.env' : null,
     options.apps.extension ? 'cp apps/extension/.env.example apps/extension/.env' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+  const firstVerificationCommands = [
     options.features.database ? 'pnpm db:generate' : null,
     options.features.database ? 'git add packages/db/migrations' : null,
     'pnpm verify',
@@ -886,8 +937,9 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
     options.apps.mobile ? '| Mobile | EAS Build + App Store Connect + Google Play Console | EAS creates signed binaries; Apple TestFlight/App Review and Google testing tracks/store review control release. |' : null,
     options.features.database ? '| Database | Neon | Provision the project, set `DATABASE_URL`, review/apply Drizzle migrations, and use separate branches or projects for preview and production. |' : null,
     options.features.storage ? '| Object storage | Private Cloudflare R2 + `assets-private-proxy` Worker | Authenticated uploads use presigned R2 URLs; the Worker streams known-key GET/HEAD downloads through `assets.<domain>` while direct bucket access stays disabled. |' : null,
+    options.features.electronUpdater ? '| Desktop updates | Private Cloudflare R2 + `desktop-updater` Worker | Signed native artifacts are uploaded to a private bucket; a custom-domain Worker supplies metadata, ranges, and downloads to `electron-updater`. |' : null,
     options.apps.extension ? '| Chrome extension | Chrome Web Store | Build the production ZIP, test it as an unpublished/trusted-tester item, complete privacy disclosures, and submit it for review. |' : null,
-    options.apps.desktop ? '| Desktop | electron-builder artifacts | Build and sign on each target OS, then publish through the release channel chosen for the product. |' : null,
+    options.apps.desktop ? `| Desktop | electron-builder artifacts${options.features.electronUpdater ? ' + automatic update channel' : ''} | Build and sign on each target OS, then publish through the release channel chosen for the product. |` : null,
   ].filter((value): value is string => value !== null).join('\n');
   const deploymentCommands = [
     options.apps.web || options.apps.api ? 'pnpm deploy:vercel:link' : null,
@@ -900,17 +952,22 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
     options.features.storage ? 'pnpm r2:bucket:create' : null,
     options.features.storage ? 'pnpm assets:proxy:check' : null,
     options.features.storage ? 'pnpm assets:proxy:deploy' : null,
+    options.features.electronUpdater ? 'pnpm desktop:updates:cloudflare:login' : null,
+    options.features.electronUpdater ? 'pnpm desktop:updates:first-provision' : null,
+    options.features.electronUpdater ? 'pnpm desktop:updates:build:mac' : null,
+    options.features.electronUpdater ? 'pnpm desktop:updates:publish -- --platform mac --arch arm64' : null,
     options.apps.extension ? 'pnpm extension:zip' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const sourceRows = [
     options.apps.web ? '| Web frontend | `apps/web/app/`, `apps/web/components/`, `apps/web/lib/` | Next.js App Router pages, layouts, components, and web utilities. |' : null,
     options.apps.mobile ? '| Mobile frontend | `apps/mobile/app/`, `apps/mobile/components/` | Expo Router screens, layouts, and native UI. |' : null,
-    options.apps.api ? '| Backend API | `apps/api/src/routes/`, `apps/api/src/services/` | Fastify routes and server-only business/provider code. |' : null,
+    options.apps.api ? '| Backend API | `apps/api/src/routes/app.ts`, `apps/api/src/<feature>.ts` | User-owned Fastify routes and server-only product modules; Anhedral keeps provider routes in managed wiring. |' : null,
     options.apps.desktop ? '| Desktop app | `apps/desktop/src/renderer/`, `apps/desktop/src/main/` | React UI and privileged Electron main-process code. |' : null,
-    options.apps.extension ? '| Browser extension | `apps/extension/entrypoints/`, `apps/extension/components/` | WXT entrypoints and extension UI. |' : null,
-    options.apps.api ? '| Shared API contracts | `packages/contracts/src/` | Zod request and response schemas imported by clients and the API. |' : null,
-    options.apps.api ? '| Typed API client | `packages/api-client/src/` | Shared fetch client used by every selected frontend. |' : null,
-    options.features.database ? '| Database | `packages/db/src/schema.ts`, `packages/db/migrations/` | Drizzle tables, queries, and reviewed SQL migrations for managed Neon Postgres. |' : null,
+    options.features.electronUpdater ? '| Desktop update edge | `apps/desktop-updater-worker/`, `apps/desktop/scripts/publish-updates.mjs` | Private R2 delivery Worker, custom domain, and ordered release publisher. |' : null,
+    options.apps.extension ? '| Browser extension | `apps/extension/src/entrypoints/`, `apps/extension/src/components/` | WXT entrypoints and extension UI. |' : null,
+    options.apps.api ? '| Shared API contracts | `packages/contracts/src/app.ts` | User-owned Zod request and response schemas exported beside managed provider contracts. |' : null,
+    options.apps.api ? '| Typed API client | `packages/api-client/src/app.ts` | User-owned client-safe methods exported beside the managed fetch client. |' : null,
+    options.features.database ? '| Database | `packages/db/src/app-schema.ts`, `packages/db/migrations/` | User-owned Drizzle tables plus reviewed SQL migrations; provider tables remain generated. |' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const moduleCommands = [
     options.apps.web ? '- Web: `pnpm dev:web`' : null,
@@ -930,15 +987,17 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
     options.features.billing ? '| RevenueCat | Subscription authority | API and native client | https://www.revenuecat.com/docs |' : null,
     options.features.billing ? '| Ably | Realtime invalidation | `packages/realtime` | https://ably.com/docs |' : null,
     options.apps.desktop ? '| Electron | Desktop runtime | `apps/desktop` | https://www.electronjs.org/docs/latest/ |' : null,
+    options.features.electronUpdater ? '| electron-updater | Packaged-app update checks and installation | `apps/desktop/src/main/main.ts` | https://www.electron.build/auto-update.html |' : null,
+    options.features.electronUpdater ? '| Cloudflare Workers + R2 | Private update storage and custom-domain delivery | `apps/desktop-updater-worker` | https://developers.cloudflare.com/r2/api/workers/workers-api-usage/ |' : null,
     options.apps.extension ? '| WXT | Browser extension tooling | `apps/extension` | https://wxt.dev/guide/installation.html |' : null,
     options.apps.web || options.apps.desktop || options.apps.extension ? '| shadcn/ui | Source-owned DOM UI | each DOM app\'s `components/ui` | https://ui.shadcn.com/docs |' : null,
     '| Turborepo | Workspace tasks | root `turbo.json` | https://turborepo.com/docs |',
   ].filter((value): value is string => value !== null).join('\n');
   const developmentSteps = [
-    options.apps.api ? 'Define shared Zod schemas in `packages/contracts/src/` so the network boundary has one definition.' : null,
-    options.features.database ? 'Define persistent state in `packages/db/src/schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses managed Neon—do not add a local Postgres container.' : null,
-    options.apps.api ? 'Put business logic and provider calls in `apps/api/src/services/`. Keep `apps/api/src/routes/` focused on auth, validation, calling the service, and returning the contract.' : null,
-    options.apps.api ? 'Expose client-safe methods from `packages/api-client/src/`; never import API implementation files into a frontend.' : null,
+    options.apps.api ? 'Define shared Zod schemas in user-owned `packages/contracts/src/app.ts` so the network boundary has one definition.' : null,
+    options.features.database ? 'Define persistent product state in user-owned `packages/db/src/app-schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses managed Neon—do not add a local Postgres container.' : null,
+    options.apps.api ? 'Add server-only behavior in a focused `apps/api/src/<feature>.ts` module and register its validated HTTP boundary in user-owned `apps/api/src/routes/app.ts`.' : null,
+    options.apps.api ? 'Expose client-safe methods from user-owned `packages/api-client/src/app.ts`; never import API implementation files into a frontend.' : null,
     options.apps.web ? 'Add web routes in `apps/web/app/<route>/page.tsx` and reusable UI in `apps/web/components/`. Use a client component only for browser state, events, or hooks.' : null,
     options.apps.mobile ? 'Add mobile routes in `apps/mobile/app/` and reusable native UI in `apps/mobile/components/`. Keep platform-only APIs in platform-specific modules.' : null,
     'Test the smallest affected package first, then run `pnpm verify`.',
@@ -949,10 +1008,10 @@ function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUse
 Create \`apps/web/app/<route>/page.tsx\`. Follow Next.js App Router conventions directly. Put reusable components under \`apps/web/components/<feature>/\` and web-only helpers under \`apps/web/lib/\`.` : null,
     options.apps.api ? `### Add an API endpoint
 
-Define its Zod contract in \`packages/contracts/src/\`, add a service function in \`apps/api/src/services/\`, and register a Fastify route in \`apps/api/src/routes/\`. Authenticate on the server and derive the user ID from the verified session.` : null,
+Define its Zod contract in \`packages/contracts/src/app.ts\`, implement server-only behavior in \`apps/api/src/<feature>.ts\`, and register the Fastify route in \`apps/api/src/routes/app.ts\`. Authenticate on the server and derive the user ID from the verified session.` : null,
     options.features.database ? `### Change the database
 
-Edit \`packages/db/src/schema.ts\`, then run:
+Edit \`packages/db/src/app-schema.ts\`, then run:
 
 \`\`\`sh
 pnpm db:generate
@@ -968,10 +1027,62 @@ Frontend applications use their generated Clerk provider and hooks. The API veri
 
 Use \`@shared/api-client\`. The API authorizes the user and creates a short-lived signed R2 upload; the client uploads directly and confirms through the API. Never put R2 credentials in a client or make the bucket public.` : null,
   ].filter((value): value is string => value !== null).join('\n\n');
+  const verticalSliceExample = options.apps.api && options.features.database ? `## Copy-paste example: a projects feature
+
+These files are user-owned extension seams. Anhedral preserves them during \`add\`, \`ui add\`, and \`upgrade\`.
+
+\`packages/contracts/src/app.ts\`:
+
+\`\`\`ts
+import { z } from 'zod';
+
+export const ProjectSchema = z.object({ id: z.string(), name: z.string() });
+export const ProjectListSchema = z.array(ProjectSchema);
+\`\`\`
+
+\`packages/db/src/app-schema.ts\`:
+
+\`\`\`ts
+import { pgTable, text } from 'drizzle-orm/pg-core';
+
+export const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+});
+\`\`\`
+
+\`apps/api/src/routes/app.ts\`:
+
+\`\`\`ts
+import type { FastifyPluginAsync } from 'fastify';
+import { ProjectListSchema } from '@shared/contracts';
+import { db } from '@shared/db';
+import { projects } from '@shared/db/schema';
+
+export const appRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/projects', async () => ProjectListSchema.parse(await db.select().from(projects)));
+};
+\`\`\`
+
+${options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension ? `\`packages/api-client/src/app.ts\`:
+
+\`\`\`ts
+import { ProjectListSchema } from '@shared/contracts';
+import { ApiClient } from './generated';
+
+export function listProjects(client: ApiClient) {
+  return client.request('/projects', { method: 'GET' }, ProjectListSchema);
+}
+\`\`\`
+
+Import \`listProjects\` and the generated client factory in the frontend surface you are building.` : ''}
+
+Then run \`pnpm db:generate\`, review and commit the migration, run \`pnpm verify\`, apply it to the intended Neon branch with \`pnpm db:migrate\`, and start the relevant app surfaces.` : '';
   const dependencyLines = [
     options.apps.api ? 'frontend apps -> @shared/api-client -> HTTP -> apps/api' : null,
     options.apps.api ? 'frontend apps -> @shared/contracts <- apps/api' : null,
     options.apps.api && options.features.database ? 'apps/api      -> @shared/db -> managed Neon Postgres' : null,
+    options.features.electronUpdater ? 'apps/desktop -> updates.<domain> Worker -> private R2 bucket' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const uiTaskSection = Object.values(options.apps).some(Boolean) && (options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension)
     ? `### Add UI primitives
@@ -989,12 +1100,19 @@ This is a complete, readable TypeScript product stack generated by Anhedral ${GE
 
 ## Start here
 
+Anhedral installs workspace dependencies during generation unless you used \`--skip-install\`. On a fresh clone, install them and copy the selected environment examples:
+
 \`\`\`sh
-pnpm install
-pnpm dev
+${environmentSetupCommands}
 \`\`\`
 
-\`pnpm dev\` starts every selected application. To run one surface:
+Stop here and replace every required placeholder in those uncommitted files. In particular, \`DATABASE_URL\` must be the pooled connection string for the intended managed Neon branch when the database module is selected. Then generate the initial migration and verify the workspace:
+
+\`\`\`sh
+${firstVerificationCommands}
+\`\`\`
+
+After verification succeeds, run \`pnpm dev\`. In a full stack this starts the primary web + API development loop, so opening the project does not also launch Expo, Electron, and WXT. Use \`pnpm dev:all\` when you intentionally want every selected surface, or run one surface:
 
 ${moduleCommands}
 
@@ -1018,9 +1136,7 @@ DOM clients use source-owned shadcn/ui. Expo uses React Native Reusables with ${
 
 ## Environment and first verification
 
-\`\`\`sh
-${commands}
-\`\`\`
+The setup blocks above are the first-run checklist. Provider secrets stay in their package-local environment files; none belong in client code. This project uses managed Neon and intentionally does not generate or start local Postgres.
 
 ## Deployment
 
@@ -1044,6 +1160,8 @@ Anhedral generated this stack; it does not replace the frameworks inside it. Use
 ## End-to-end feature loop
 
 ${developmentSteps}
+
+${verticalSliceExample}
 
 ## Common tasks
 
@@ -1165,7 +1283,17 @@ Accounts required: an Expo/EAS account, an Apple Developer Program membership wi
 3. In the Developer Dashboard, create an item and upload the ZIP from \`apps/extension/.output\`. Complete the listing (description, icons, screenshots, category, regions) and keep the manifest version higher for every update.
 4. State one narrow purpose, justify every permission/host permission, disclose all handled data, certify limited use, and provide a public privacy-policy URL consistent with actual behavior. Clerk login counts as handling authentication data. Supply reviewer test instructions and credentials when features are gated.
 5. Publish first to trusted testers/unlisted visibility, verify the store-installed CRX ID matches Clerk and backend allowlists, then submit the production listing for review. Store review and rollout are separate from GitHub/Vercel deployment.` : null,
-      options.apps.desktop ? `## Electron desktop
+      options.features.electronUpdater ? `## Electron desktop and automatic updates
+
+The generated update path is \`electron-updater -> updates.<domain> Worker -> private ${desktopUpdatesBucketName(options.projectName)} R2 bucket\`. The application never receives Cloudflare credentials, the Worker exposes reads only, and direct bucket access stays disabled.
+
+1. In \`apps/desktop-updater-worker/wrangler.jsonc\`, replace both \`updates.example.com\` values with a hostname in an active Cloudflare zone. Run \`pnpm desktop:updates:cloudflare:login\`, then run \`pnpm desktop:updates:first-provision\` exactly once to create the private bucket and deploy the bound Worker, managed DNS record, TLS certificate, logs, and custom domain. For repeat deployments use \`pnpm desktop:updates:worker:deploy\`; bucket creation is intentionally not repeated. Keep the bucket's \`r2.dev\` URL and R2 bucket custom-domain access disabled.
+2. Copy \`apps/desktop/electron-builder.env.example\` to \`apps/desktop/electron-builder.env\` and set \`DESKTOP_UPDATE_BASE_URL\` to that exact HTTPS origin with no trailing slash. electron-builder writes the platform/architecture URL into the packaged app's update configuration; no update secret is embedded.
+3. Increase \`apps/desktop/package.json\`'s version for every release. Build on each target OS using \`pnpm desktop:updates:build:mac\`, \`pnpm desktop:updates:build:win\`, or \`pnpm desktop:updates:build:linux\`. Configure macOS signing/notarization and Windows code-signing credentials in CI, never in the repository.
+4. From the repository root, upload one architecture at a time, for example \`pnpm desktop:updates:publish -- --platform mac --arch arm64\`. The publisher accepts only known platform/architecture values, uploads immutable installers and blockmaps first, then uploads mutable \`latest*.yml\` metadata last. Run it only after signing succeeds.
+5. Install the previous signed version, publish a newer version, and verify update discovery, range downloads, signature validation, restart/install, rollback behavior, and logs on macOS, Windows, and the supported Linux package path. Test clean install, deep links, Clerk return flow, and OS security warnings too.
+
+The Worker accepts GET/HEAD only, validates the configured hostname and \`releases/\` prefix, supports conditionals and single-range downloads, serves metadata with \`no-store\`, and serves versioned artifacts as immutable. See \`cloudflare/desktop-updates.md\` for the generated resource contract.` : options.apps.desktop ? `## Electron desktop
 
 Builds are platform-specific: produce macOS, Windows, and Linux artifacts on their matching CI runners with the package's \`build:mac\`, \`build:win\`, and \`build:linux\` scripts. Configure signing/notarization credentials in CI, never in the repository. Test clean install, upgrade, deep links, Clerk return flow, auto-update strategy, and OS security warnings before publishing artifacts to the chosen release channel.` : null,
     ].filter((section): section is string => section !== null);
@@ -1194,6 +1322,7 @@ Generator: ${GENERATOR_VERSION}
 Resolved modules: ${modules.join(', ')}
 
 - \`anhedral add <module> --dry-run\` previews incremental changes.
+- \`anhedral upgrade --dry-run\` previews a supported generator migration.
 - \`anhedral ui add <component> --dry-run\` previews platform-routed component additions.
 - \`anhedral doctor\` reports manifest and filesystem drift before incremental changes.
 - README and existing user workflows are never rewritten by \`anhedral add\`.
@@ -1203,21 +1332,23 @@ Resolved modules: ${modules.join(', ')}
     options.apps.mobile ? `- Mobile lives in \`apps/mobile\`: use Expo Router and React Native Reusables with ${options.nativeStyling}. Keep native-only APIs behind platform-safe modules.` : null,
     options.apps.api ? '- HTTP and provider integration lives in `apps/api`: keep Fastify routes thin, validate boundaries, and put secrets only in server environment files.' : null,
     options.apps.desktop ? '- Desktop lives in `apps/desktop`: keep Electron main/preload privileges minimal and application UI in the sandboxed React renderer.' : null,
+    options.features.electronUpdater ? '- Desktop update delivery lives in `apps/desktop-updater-worker`: keep the R2 bucket private, the Worker read-only, and the Worker Custom Domain aligned with `DESKTOP_UPDATE_BASE_URL`.' : null,
     options.apps.extension ? '- Browser extension code lives in `apps/extension`: use WXT entrypoints and request only permissions required by the feature.' : null,
     options.features.storage ? '- Private-bucket asset delivery lives in `apps/assets-private-proxy`: preserve the `ASSETS` R2 binding, streaming responses, method/host restrictions, and Cloudflare-managed custom domain.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const featureGuidance = [
     options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
-    options.features.database ? '- Neon/Drizzle state is authoritative. Change `packages/db/src/schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
+    options.features.database ? '- Neon/Drizzle state is authoritative. Change user-owned `packages/db/src/app-schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
     options.features.auth ? '- Clerk owns identity and sessions. Never trust a client-supplied user ID; derive identity from verified server authentication.' : null,
     options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
     options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
+    options.features.electronUpdater ? '- Electron releases use `electron-updater` through the generated private R2 + Worker channel. Build signed native artifacts first and publish mutable channel metadata last.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const skillFeatureSteps = [
-    options.apps.api ? 'Define shared network schemas in `packages/contracts/src/`.' : null,
-    options.features.database ? 'Define persistent state in `packages/db/src/schema.ts`; generate, review, and commit Drizzle SQL. Use managed Neon, never a generated local Postgres service.' : null,
-    options.apps.api ? 'Put backend behavior in `apps/api/src/services/` and keep `apps/api/src/routes/` thin.' : null,
-    options.apps.api ? 'Add client-safe calls to `packages/api-client/src/`; frontends must not import server implementations.' : null,
+    options.apps.api ? 'Define shared network schemas in user-owned `packages/contracts/src/app.ts`.' : null,
+    options.features.database ? 'Define persistent state in user-owned `packages/db/src/app-schema.ts`; generate, review, and commit Drizzle SQL. Use managed Neon, never a generated local Postgres service.' : null,
+    options.apps.api ? 'Put backend behavior in focused `apps/api/src/<feature>.ts` modules and register product routes in user-owned `apps/api/src/routes/app.ts`.' : null,
+    options.apps.api ? 'Add client-safe calls to user-owned `packages/api-client/src/app.ts`; frontends must not import server implementations.' : null,
     options.apps.web ? 'Write web product code with normal Next.js App Router conventions in `apps/web`.' : null,
     options.apps.mobile ? 'Write native product code with normal Expo Router conventions in `apps/mobile`.' : null,
     'Verify the affected package, then run the root verification before handoff.',
@@ -1240,8 +1371,8 @@ Before implementing a feature, read \`README.md\` for the source map, \`docs/DEV
 ## Start safely
 
 1. Read \`anhedral.json\` for the selected modules, native styling provider, installed UI components, and file ownership.
-2. Run \`pnpm dlx anhedral@${GENERATOR_VERSION} doctor\` before generator operations.
-3. Preview structural changes with \`anhedral add <module> --dry-run\` or \`anhedral ui add <component> --dry-run\`.
+2. Run \`pnpm dlx anhedral@${GENERATOR_VERSION} doctor\` before generator operations. If it reports a supported older generator, preview and apply \`anhedral upgrade\` before continuing.
+3. Preview structural changes with \`anhedral upgrade --dry-run\`, \`anhedral add <module> --dry-run\`, or \`anhedral ui add <component> --dry-run\` as applicable.
 4. Never hand-edit \`anhedral.json\`, ownership hashes, or bundled-template provenance.
 
 Resolved modules: ${modules.map((moduleName) => `\`${moduleName}\``).join(', ')}.
@@ -1266,7 +1397,7 @@ ${skillFeatureSteps}
 
 ## Ownership rules
 
-- \`README.md\` and \`PRODUCTION.md\` are user-owned. Root JSON/YAML configuration is mergeable. Other recorded files are generator-managed unless \`anhedral.json\` says otherwise.
+- \`README.md\`, \`PRODUCTION.md\`, product UI, and the backend \`app.ts\`/\`app-schema.ts\` extension seams are user-owned. Root JSON/YAML configuration is mergeable. Other recorded files are generator-managed unless \`anhedral.json\` says otherwise.
 - Prefer new application files and narrow composition points over editing managed substrate files. If a managed file must change, understand that future \`anhedral add\` operations will stop until the project is reconciled.
 - Never overwrite user changes, bypass a generator conflict, or replace a failed ownership check with fabricated hashes.
 
@@ -1278,10 +1409,23 @@ ${skillFeatureSteps}
 
 ## Deployment conventions
 
+### Agent-assisted provisioning
+
+When the user asks you to provision this project:
+
+1. Ask for the exact environment and custom domain first. Record canonical resource names and selected provider teams without recording secrets.
+2. Inspect whether Computer Use/browser control and subagents are available. With Computer Use, navigate provider dashboards and complete approved non-secret setup. Stop for the user at sign-in, password, passkey, MFA, CAPTCHA, paid purchase, destructive replacement, secret generation/reveal/rotation, and final release/store submission.
+3. If subagents are available, keep one lead agent responsible for mutations. Delegate bounded independent tasks only: one subagent reads this project's docs and environment examples, one performs read-only DNS/hostname checks, and one performs final read-only verification. Never send credentials, cookies, or secret values to a subagent, and never let two agents mutate the same provider or DNS zone.
+4. At every secret-generation screen, stop before the final button. Tell the user the exact button, variable name, and uncommitted package-local environment file. The user clicks and pastes the value directly into that file or the provider's protected field, never into chat. Validate presence without printing populated environment files.
+5. Read \`PRODUCTION.md\` completely and follow its selection-specific order. Do not claim completion until cloud resources, environment names, DNS, TLS, application health, and the verification commands below pass.
+
+Domain topology: Cloudflare is authoritative DNS; Vercel hosts web/API; the Vercel A/CNAME/TXT records are created in Cloudflare DNS and normally remain DNS-only. Generated Worker hostnames such as \`assets.<domain>\` or \`updates.<domain>\` are Cloudflare Worker Custom Domains created by Wrangler, not CNAMEs to Vercel or public R2 endpoints.
+
 - Read \`PRODUCTION.md\` before provisioning or changing production resources. It is tailored to this project's selected surfaces and providers.
 ${options.apps.web || options.apps.api ? '- Prefer GitHub-triggered Vercel Preview and Production deployments. Keep the generated Services routing intact; use manual `deploy:vercel:*` scripts only when explicitly required.' : ''}
 ${options.features.database ? '- Treat reviewed, committed Drizzle SQL as the release artifact. Apply migrations as a controlled step against the intended Neon environment; never generate migrations during an application build.' : ''}
 ${options.features.storage ? '- Keep the R2 bucket private and deploy `assets-private-proxy` at the Cloudflare Worker custom domain. Expose only `storage/confirmed/` publicly; use the owner-authorized read-URL endpoint for private objects and keep `CLOUDFLARE_API_TOKEN` operations-only.' : ''}
+${options.features.electronUpdater ? '- Provision the private desktop-update R2 bucket and deploy `desktop-updater` at `updates.<domain>`. Keep the update origin identical in Wrangler and `electron-builder.env`, then publish signed per-platform artifacts before channel metadata.' : ''}
 ${options.apps.mobile ? '- Promote mobile artifacts through EAS internal distribution, TestFlight/Google Play testing, then store review. Build-time public variables are not secrets.' : ''}
 ${options.apps.extension ? '- Publish the exact verified WXT ZIP through trusted/unlisted Chrome Web Store testing before production review; preserve a stable CRX ID and least-privilege permissions.' : ''}
 
@@ -1315,6 +1459,10 @@ function collectFiles(root: string, relativeRoot = ''): string[] {
 }
 
 function ownerForPath(relativePath: string): ModuleId | 'root' {
+  if (relativePath.startsWith('apps/desktop-updater-worker/')) return 'electron-updater';
+  if (relativePath === 'apps/desktop/scripts/publish-updates.mjs') return 'electron-updater';
+  if (relativePath === 'apps/desktop/electron-builder.env.example') return 'electron-updater';
+  if (relativePath === 'cloudflare/desktop-updates.md') return 'electron-updater';
   if (relativePath.startsWith('apps/assets-private-proxy/')) return 'storage';
   if (relativePath.startsWith('cloudflare/')) return 'storage';
   const app = /^apps\/(web|mobile|api|desktop|extension)(?:\/|$)/.exec(relativePath);
@@ -1326,9 +1474,52 @@ function ownerForPath(relativePath: string): ModuleId | 'root' {
 function defaultOwnership(relativePath: string): FileOwnershipClass {
   if (relativePath === 'README.md' || relativePath === 'PRODUCTION.md') return 'user';
   if (relativePath === 'apps/assets-private-proxy/wrangler.jsonc') return 'user';
+  if (relativePath === 'apps/desktop-updater-worker/wrangler.jsonc') return 'user';
   if (relativePath === 'cloudflare/r2-cors.template.json') return 'user';
+  if (
+    relativePath === 'apps/web/app/page.tsx'
+    || /^apps\/web\/components\//.test(relativePath)
+    || relativePath === 'apps/mobile/app/index.tsx'
+    || /^apps\/mobile\/components\//.test(relativePath)
+    || relativePath === 'apps/desktop/src/main/app-window.ts'
+    || /^apps\/desktop\/src\/renderer\/components\//.test(relativePath)
+    || /^apps\/extension\/src\/components\//.test(relativePath)
+    || relativePath === 'apps/api/src/routes/app.ts'
+    || /^apps\/api\/src\/services\//.test(relativePath)
+    || relativePath === 'packages/contracts/src/app.ts'
+    || relativePath === 'packages/api-client/src/app.ts'
+    || relativePath === 'packages/db/src/app-schema.ts'
+  ) return 'user';
   if (ROOT_MERGEABLE_FILES.has(relativePath)) return 'mergeable';
   return 'managed';
+}
+
+function applyCurrentOwnership(manifest: ProjectManifest): ProjectManifest {
+  const files = Object.freeze(Object.fromEntries(Object.entries(manifest.files).map(([relativePath, record]) => [
+    relativePath,
+    record.ownership === 'managed' && defaultOwnership(relativePath) === 'user'
+      ? Object.freeze({ ...record, ownership: 'user' as const })
+      : record,
+  ])));
+  return Object.freeze({ ...manifest, files });
+}
+
+function preserveUserOwnedFiles(root: string, stageRoot: string, manifest: ProjectManifest): void {
+  for (const [relativePath, record] of Object.entries(manifest.files)) {
+    if (record.ownership !== 'user') continue;
+    const current = path.join(root, relativePath);
+    const staged = path.join(stageRoot, relativePath);
+    const currentStat = lstatIfPresent(current);
+    const stagedStat = lstatIfPresent(staged);
+    if (!currentStat?.isFile()) continue;
+    if (stagedStat?.isSymbolicLink() || (stagedStat && !stagedStat.isFile())) {
+      throw new Error(`Refusing to replace user-owned path with a non-file: ${relativePath}`);
+    }
+    if (stagedStat?.isFile() && readFileSync(current).equals(readFileSync(staged))) continue;
+    mkdirSync(path.dirname(staged), { recursive: true });
+    copyFileSync(current, staged);
+    chmodSync(staged, Number(currentStat.mode) & 0o777);
+  }
 }
 
 function createProjectManifest(
@@ -1381,14 +1572,23 @@ function writeManifest(root: string, manifest: ProjectManifest): void {
   writeFile(path.join(root, 'anhedral.json'), serializeManifest(manifest));
 }
 
-function readProjectManifest(root: string): ProjectManifest {
+function readProjectManifest(
+  root: string,
+  options: { allowSupportedUpgrade?: boolean } = {},
+): ProjectManifest {
   const filePath = path.join(root, 'anhedral.json');
   if (!pathEntryExists(filePath)) throw new Error('anhedral.json was not found. Run anhedral init first.');
   const manifest = readManifest(readFileSync(filePath, 'utf8'));
   if (manifest.generatorVersion !== GENERATOR_VERSION) {
+    if (options.allowSupportedUpgrade && isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)) {
+      return manifest;
+    }
+    const nextStep = isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)
+      ? 'Run anhedral upgrade before adding modules.'
+      : 'Regenerate the project with the current CLI before adding modules.';
     throw new Error(
       `This project was generated by Anhedral ${manifest.generatorVersion}; current CLI ${GENERATOR_VERSION} only supports exact-current projects. `
-      + 'Regenerate the project with the current CLI before adding modules.',
+      + nextStep,
     );
   }
   assertTemplateProvenance(manifest.modules, manifest.templates);
@@ -1435,10 +1635,11 @@ async function writeSelectedModules(
   if (options.apps.desktop) await scaffoldDesktop(root, shared);
   if (options.apps.extension) await scaffoldExtension(root, shared);
   if (options.features.storage) scaffoldAssetsPrivateProxy(root, shared);
+  if (options.features.electronUpdater) scaffoldElectronUpdater(root, shared);
   return templates;
 }
 
-function printPlan(operation: 'init' | 'add', paths: readonly string[], json: boolean): void {
+function printPlan(operation: 'init' | 'add' | 'upgrade', paths: readonly string[], json: boolean): void {
   if (json) {
     console.log(JSON.stringify({ operation, paths }, null, 2));
     return;
@@ -1466,7 +1667,7 @@ function assertSafeChangedPaths(
     if (!record || !targetStat) continue;
     assertManagedFileMode(relativePath, record, targetStat);
     const actualHash = hashContent(readFileSync(target));
-    if (record.ownership === 'user') {
+    if (record.ownership === 'user' && actualHash !== record.hash) {
       throw new Error(`Refusing to modify user-owned path: ${relativePath}`);
     }
     if (record.ownership === 'managed' && actualHash !== record.hash) {
@@ -1562,7 +1763,7 @@ export async function scaffoldUiComponents(uiOptions: UiAddOptions): Promise<voi
       commitPaths,
       dryRun: uiOptions.dryRun,
       prepare: () => {
-        manifest = readProjectManifest(root);
+        manifest = applyCurrentOwnership(readProjectManifest(root));
         assertManagedFileModes(root, manifest);
         const installedTargets = UI_TARGETS.filter((target) => manifest!.modules.includes(target));
         const targets = uiOptions.targets.length > 0 ? uiOptions.targets : installedTargets;
@@ -1602,6 +1803,7 @@ export async function scaffoldUiComponents(uiOptions: UiAddOptions): Promise<voi
         if (!uiOptions.dryRun) installUiComponents(stageRoot, additions);
         cleanNestedArtifacts(stageRoot);
         rmSync(path.join(stageRoot, 'pnpm-lock.yaml'), { force: true });
+        preserveUserOwnedFiles(root, stageRoot, manifest);
         writeManifest(stageRoot, createProjectManifest(
           stageRoot,
           options,
@@ -1642,6 +1844,78 @@ export async function scaffoldUiComponents(uiOptions: UiAddOptions): Promise<voi
   }
 }
 
+export async function scaffoldUpgradeProject(upgradeOptions: UpgradeOptions): Promise<void> {
+  const root = path.resolve(process.cwd());
+  let manifest: ProjectManifest | undefined;
+  let options: ResolvedInitOptions | undefined;
+  let noOp = false;
+  const seedPaths: string[] = [];
+  const commitPaths: string[] = [];
+  const deletePaths: string[] = [];
+  const previousChannel = env.ANHEDRAL_TOOLCHAIN;
+  try {
+    const planned = await runStagedTransaction(root, {
+      commitPaths,
+      deletePaths,
+      seedPaths,
+      dryRun: upgradeOptions.dryRun,
+      prepare: () => {
+        manifest = applyCurrentOwnership(readProjectManifest(root, { allowSupportedUpgrade: true }));
+        if (manifest.generatorVersion === GENERATOR_VERSION) {
+          noOp = true;
+          return false;
+        }
+        assertManagedFileModes(root, manifest);
+        options = optionsFromManifest(manifest, {
+          modules: [],
+          skipInstall: upgradeOptions.skipInstall,
+          dryRun: upgradeOptions.dryRun,
+          json: upgradeOptions.json,
+        }, manifest.modules);
+        assertInstallNodeCompatibility(options);
+        env.ANHEDRAL_TOOLCHAIN = options.toolchainChannel;
+        seedPaths.push(...new Set([
+          ...Object.keys(manifest.files).filter((relativePath) => pathEntryExists(path.join(root, relativePath))),
+          'anhedral.json',
+        ]));
+        anhedralPrint.banner(`Upgrading ${manifest.generatorVersion} to ${GENERATOR_VERSION}`);
+      },
+      build: async (stageRoot) => {
+        if (!manifest || !options) throw new Error('Internal upgrade plan was not prepared.');
+        writeRootFiles(stageRoot, options, 'add', root, manifest);
+        const templates = await writeSelectedModules(stageRoot, options);
+        writeProjectDocs(stageRoot, options, false);
+        cleanNestedArtifacts(stageRoot);
+        preserveUserOwnedFiles(root, stageRoot, manifest);
+        writeManifest(stageRoot, createProjectManifest(
+          stageRoot,
+          options,
+          'add',
+          templates,
+          manifest,
+          manifest.ui.components,
+        ));
+        const diff = stagedFileDiff(root, stageRoot, manifest);
+        assertSafeChangedPaths(root, stageRoot, manifest, [...diff.changed, ...diff.deleted], new Set(diff.deleted));
+        commitPaths.push(...diff.changed);
+        deletePaths.push(...diff.deleted);
+      },
+      afterCommit: () => {
+        if (!upgradeOptions.skipInstall) installWorkspaceDependencies(root);
+      },
+    });
+    if (noOp) {
+      if (upgradeOptions.json) console.log(JSON.stringify({ operation: 'upgrade', paths: [] }, null, 2));
+      else anhedralPrint.info(`Project is already on Anhedral ${GENERATOR_VERSION}.`);
+      return;
+    }
+    printPlan('upgrade', planned, upgradeOptions.json);
+  } finally {
+    if (previousChannel == null) delete env.ANHEDRAL_TOOLCHAIN;
+    else env.ANHEDRAL_TOOLCHAIN = previousChannel;
+  }
+}
+
 export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> {
   const root = path.resolve(process.cwd());
   let manifest: ProjectManifest | undefined;
@@ -1659,7 +1933,7 @@ export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> 
       seedPaths,
       dryRun: addOptions.dryRun,
       prepare: () => {
-        manifest = readProjectManifest(root);
+        manifest = applyCurrentOwnership(readProjectManifest(root));
         assertManagedFileModes(root, manifest);
         const desiredRequested = [...new Set([...manifest.modules, ...addOptions.modules])] as ModuleId[];
         const resolution = resolveModules(desiredRequested);
@@ -1684,6 +1958,7 @@ export async function scaffoldAddModules(addOptions: AddOptions): Promise<void> 
         const templates = await writeSelectedModules(stageRoot, options);
         writeProjectDocs(stageRoot, options, false);
         cleanNestedArtifacts(stageRoot);
+        preserveUserOwnedFiles(root, stageRoot, manifest);
         writeManifest(stageRoot, createProjectManifest(stageRoot, options, 'add', templates, manifest));
         const diff = stagedFileDiff(root, stageRoot, manifest);
         assertSafeChangedPaths(root, stageRoot, manifest, [...diff.changed, ...diff.deleted], new Set(diff.deleted));
@@ -1727,7 +2002,9 @@ export function doctorProject(): DoctorReport {
     issues.push({
       path: 'anhedral.json',
       severity: 'error',
-      message: `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; regenerate with the current CLI.`,
+      message: isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)
+        ? `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; run anhedral upgrade.`
+        : `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; regenerate with the current CLI.`,
     });
   }
   try {

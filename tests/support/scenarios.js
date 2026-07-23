@@ -10,6 +10,7 @@ const featureModules = {
   billing: 'billing',
   storage: 'storage',
   nativeSubscriptions: 'native-subscriptions',
+  electronUpdater: 'electron-updater',
 };
 
 function defineScenario(scenario) {
@@ -30,7 +31,7 @@ export const OUTPUT_TREE_SCENARIOS = [
     projectDirectory: 'expo-extension-sample',
     initArgs: [],
     addArgs: [],
-    modules: ['web', 'mobile', 'api', 'desktop', 'extension', 'db', 'auth', 'billing', 'storage', 'native-subscriptions'],
+    modules: ['web', 'mobile', 'api', 'desktop', 'extension', 'db', 'auth', 'billing', 'storage', 'native-subscriptions', 'electron-updater'],
     gitignoreExpectations: [
       ...sharedApiGitignores,
       ['apps/mobile/.gitignore', ['.env', '.env.*', '!.env.example']],

@@ -191,7 +191,7 @@ try {
     assert.match(source, /normalizeApiBaseUrl\(candidate,/);
     assert.match(source, /return normalized;/);
   }
-  const sharedApiClient = read(roots.api, 'packages/api-client/src/index.ts');
+  const sharedApiClient = read(roots.api, 'packages/api-client/src/generated.ts');
   assert.match(sharedApiClient, /const hasBody = init\.body !== undefined/);
   assert.match(sharedApiClient, /Promise\.race\(\[/);
   assert.match(sharedApiClient, /tokenWaitAborted/);

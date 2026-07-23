@@ -85,6 +85,7 @@ try {
     'billing',
     'storage',
     'native-subscriptions',
+    'electron-updater',
   ]);
   assert.equal(manifest.toolchain, 'stable');
 

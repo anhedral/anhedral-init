@@ -14,13 +14,13 @@ When a committed `package.json` version change reaches `main`, `Release On Main`
 6. Installs that exact tarball and executes its generated `.bin/anhedral` shim.
 7. Transfers the exact artifact to macOS and Windows and repeats the smoke test on Node.js 20.19.0, 22.12.0, and the pinned Node.js 24 release.
 8. Installs the exact tarball in each runtime lane, launches the packaged Electron app under Xvfb and inspects its rendered page over CDP, loads and inspects the WXT extension's live MV3 service worker in Chrome, and runs Expo Android prebuild plus Gradle `assembleDebug` with an APK assertion.
-9. Uploads the verified tarball as a short-lived Actions artifact.
+9. Uploads the verified tarball and integrity metadata as a short-lived Actions artifact.
 10. Checks npm for the declared version.
 11. Publishes only when the version is absent, using the protected `npm` environment.
 12. Confirms that npm reports the exact local integrity.
-13. Creates the Git tag and GitHub release only after registry verification.
+13. Creates the Git tag and GitHub release only after registry verification, attaching both the npm tarball and its integrity metadata.
 
-The manual `Release` dispatch uses the same workflow and the same `npm-publish-anhedral` concurrency group. It may retry an older commit, but that commit must be contained in `main`.
+Manual and recovery runs must dispatch **Release On Main**, which calls the reusable `Release` workflow under the filename trusted by npm. Never dispatch the reusable workflow directly. Every run uses the same `npm-publish-anhedral` concurrency group, and the selected commit must be contained in `main`.
 
 The release workflow pins an exact Node.js release, including its bundled npm version, so rebuilding the same source for recovery does not silently change the tarball packer. Update that pin only in a reviewed workflow change.
 
@@ -48,10 +48,10 @@ Before merging, also confirm:
 - The release owner approved package and workflow changes.
 - The security responder reviewed any security-policy exception; broad secret-scan exclusions are not permitted.
 - Toolchain Drift is healthy or every known upstream failure is recorded with an owner.
-- The protected `npm` environment has a current reviewer and is restricted to `main`.
+- The protected `npm` environment is restricted to `main`. When the repository plan supports environment reviewers for this private repository, require a current release reviewer as an additional control.
 - npm trusts `anhedral/anhedral-init`, calling workflow `release-on-main.yml`, environment `npm`, for `npm publish`.
 - Workflow and scheduled-job failure notifications route to the documented owners.
-- The intended recipients have a written Anhedral agreement covering installation, use, and generated-output rights. Public npm availability is distribution infrastructure, not a license grant.
+- Package metadata declares `Apache-2.0`, the complete license is included in the tarball, and the README describes generated applications without imposing a conflicting proprietary-use restriction.
 
 Never reuse or overwrite a version that npm already contains.
 
@@ -63,7 +63,7 @@ The npm package settings must contain exactly one GitHub Actions trusted publish
 
 The repository is not publicly accessible, so publication explicitly disables npm provenance. If the source repository becomes public, remove `--provenance=false` in a reviewed change so npm can generate provenance automatically.
 
-After the first trusted publication succeeds, set npm package **Publishing access** to **Require two-factor authentication and disallow tokens**, then delete the obsolete `NPM_TOKEN` secret from the GitHub `npm` environment and revoke the corresponding npm automation token. Do not remove the fallback token before OIDC has succeeded once.
+Trusted publication was established with the 0.3 release. Keep npm package **Publishing access** set to **Require two-factor authentication and disallow tokens**, keep the GitHub `npm` environment and repository free of `NPM_TOKEN`, and do not create a fallback automation token. If trusted-publisher recovery is required, repair the OIDC identity or workflow configuration instead of weakening publishing access.
 
 ## Idempotent retries
 
@@ -83,11 +83,11 @@ Fix the source and checks. Do not change the version unless a package was actual
 
 ### npm publish failed and the version is still absent
 
-Correct authentication or registry availability, then dispatch the canonical `Release` workflow again for the same commit. The workflow rebuilds and verifies the artifact before retrying.
+Correct authentication or registry availability, then dispatch **Release On Main** again for the same commit. The workflow rebuilds and verifies the artifact before retrying.
 
 ### npm accepted the package but the workflow failed afterward
 
-Dispatch `Release` again for the same commit. The integrity preflight must report `matching`; publication is skipped, and the workflow resumes tag/release creation.
+Dispatch **Release On Main** again for the same commit. The integrity preflight must report `matching`; publication is skipped, and the workflow resumes tag/release creation.
 
 ### A tag exists but npm does not contain the version
 
@@ -108,6 +108,6 @@ pnpm dlx anhedral@<version> --help
 git show v<version>:package.json
 ```
 
-The npm version, npm integrity, Git tag, GitHub release asset, and committed `package.json` version must all agree.
+The npm version, npm integrity, Git tag, GitHub tarball, attached `metadata.json`, and committed `package.json` version must all agree.
 
 After verification, the release owner records completion in the release run or associated change. If any runtime-acceptance lane was skipped by an explicit availability guard, record the skipped capability and complete it on a suitable runner before representing that surface as verified.
