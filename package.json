@@ -110,6 +110,11 @@
   ],
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@<=5.0.7": "5.0.8"
+    }
+  },
   "devDependencies": {
     "@types/node": "20.19.43",
     "c8": "11.0.0",

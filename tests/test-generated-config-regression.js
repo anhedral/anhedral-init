@@ -78,6 +78,7 @@ assert.doesNotMatch(dependencyVersionDeclarations, /'\^[^']+'/);
 assert.doesNotMatch(dependencies, /NEXT_TEMPLATE_DEPENDENCIES/);
 assert.match(dependencies, /'esbuild@<=0\.24\.2': '0\.25\.12'/);
 assert.match(dependencies, /'esbuild@>=0\.27\.3 <0\.28\.1': '0\.28\.1'/);
+assert.match(dependencies, /'brace-expansion@<=5\.0\.7': '5\.0\.8'/);
 assert.match(dependencies, /'shell-quote@<=1\.8\.4': '1\.10\.0'/);
 assert.match(dependencies, /'sharp@<0\.35\.0': '0\.35\.3'/);
 assert.match(dependencies, /'tmp@<0\.2\.6': '0\.2\.7'/);
