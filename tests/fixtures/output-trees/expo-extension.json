@@ -64,7 +64,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 31759,
-      "sha256": "1b772b32d3a4e1d14ac4bf4c0363c4d1b0be424f3548f6888e27818aec1da985"
+      "sha256": "72ce5b454def47e624e11e2c931e62a0da31aabf4e0b2c9492fd1e2776d460d2"
     },
     {
       "path": "apps/api/.env.example",
@@ -1022,8 +1022,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 725,
-      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
+      "bytes": 762,
+      "sha256": "a38d7361ca1a1158e621b7ea4767722a7541f8bfdb4bdb0f2cecd67869618a9f"
     },
     {
       "path": "scripts/first-run.mjs",
@@ -1054,5 +1054,5 @@
       "sha256": "54571e9bf3fb5667c756cfb1b1d105831a1ad3dc8e3050488ebfc216b14d7800"
     }
   ],
-  "digest": "4fcbb6a1bc51387abe3a5f629a6a6f83b4580da668aa00514d24471e50ef652b"
+  "digest": "3544cb75bcef00fcca82951b0a6e3097b4ee1052c5d47cf126d057007b8dc64c"
 }

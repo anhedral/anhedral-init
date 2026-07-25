@@ -32,6 +32,8 @@ export const SECURITY_OVERRIDES: DependencyMap = {
   'adm-zip@<0.6.0': '0.6.0',
   // renovate: datasource=npm depName=@vitejs/plugin-react
   '@vitejs/plugin-react': '5.2.0',
+  // renovate: datasource=npm depName=brace-expansion
+  'brace-expansion@<=5.0.7': '5.0.8',
   // renovate: datasource=npm depName=postcss
   postcss: '8.5.19',
   // renovate: datasource=npm depName=esbuild

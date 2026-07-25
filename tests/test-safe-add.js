@@ -92,6 +92,7 @@ try {
     'overrides:',
     "  'adm-zip@<0.6.0': '0.6.0'",
     "  '@vitejs/plugin-react': '5.2.0'",
+    "  'brace-expansion@<=5.0.7': '5.0.8'",
     "  'postcss': '8.5.19'",
     "  'esbuild@<=0.24.2': '0.25.12'",
     "  'esbuild@>=0.27.3 <0.28.1': '0.28.1'",
