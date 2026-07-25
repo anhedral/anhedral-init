@@ -22,7 +22,7 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
       : MOBILE_NATIVEWIND_DEPENDENCIES.dependencies,
   );
   if (!options.apps.api) delete dependencies['@shared/api-client'];
-  if (!options.features.billing) delete dependencies['@shared/realtime'];
+  if (!options.features.realtime) delete dependencies['@shared/realtime'];
 
   if (options.features.auth) {
     Object.assign(dependencies, CLERK_SOLANA_PEER_DEPENDENCIES);

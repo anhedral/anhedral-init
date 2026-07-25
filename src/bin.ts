@@ -56,7 +56,7 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
   try {
     console.log('Select app surfaces: web, mobile, api, desktop, extension (or "all"/"none")');
     const appAnswer = await rl.question(`App surfaces [${DEFAULT_PROMPT_APP_MODULES.join(', ')}]: `);
-    console.log('Select capabilities: db, auth, billing, storage, native-subscriptions, electron-updater (or "all"/"none")');
+    console.log('Select capabilities: db, auth, realtime, billing, storage, native-subscriptions, electron-updater (or "all"/"none")');
     const featureAnswer = await rl.question('Capabilities [none]: ');
     const selected = [
       ...parsePromptModuleSelection(appAnswer, DEFAULT_PROMPT_APP_MODULES, APP_MODULES),

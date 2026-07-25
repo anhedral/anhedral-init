@@ -82,6 +82,7 @@ try {
     'extension',
     'db',
     'auth',
+    'realtime',
     'billing',
     'storage',
     'native-subscriptions',

@@ -181,9 +181,8 @@ export const SubscriptionChangedEventSchema = z.object({
   type: z.literal('subscription.changed'),
   revision: z.number().int().nonnegative(),
 });
-export type SubscriptionChangedEvent = z.infer<typeof SubscriptionChangedEventSchema>;
-
-export const RealtimeTokenRequestSchema = z.object({
+export type SubscriptionChangedEvent = z.infer<typeof SubscriptionChangedEventSchema>;` : null,
+    options.features.realtime ? `export const RealtimeTokenRequestSchema = z.object({
   keyName: z.string().min(1),
   ttl: z.number().int().positive(),
   timestamp: z.number().int().nonnegative(),
@@ -244,7 +243,7 @@ function apiClientSource(options: ProjectOptions): string {
     'ReadinessResponseSchema',
     options.features.auth ? 'AuthMeResponseSchema' : null,
     options.features.billing ? 'EntitlementResponseSchema' : null,
-    options.features.billing ? 'RealtimeTokenRequestSchema' : null,
+    options.features.realtime ? 'RealtimeTokenRequestSchema' : null,
     options.features.storage ? 'CreateUploadResponseSchema' : null,
     options.features.storage ? 'ConfirmUploadResponseSchema' : null,
     options.features.storage ? 'GetUploadResponseSchema' : null,
@@ -261,9 +260,8 @@ function apiClientSource(options: ProjectOptions): string {
 
   refreshEntitlement(init: RequestInit = {}) {
     return this.request('/subscriptions/refresh', { ...init, method: 'POST' }, EntitlementResponseSchema);
-  }
-
-  getRealtimeToken(init: RequestInit = {}) {
+  }` : null,
+    options.features.realtime ? `getRealtimeToken(init: RequestInit = {}) {
     return this.request('/realtime/token', { ...init, method: 'POST' }, RealtimeTokenRequestSchema);
   }` : null,
   options.features.storage ? `createUpload(input: CreateUploadRequest, init: RequestInit = {}) {
@@ -530,34 +528,43 @@ export * from './app';
 
 function writeRealtimePackage(root: string, options: ProjectOptions): void {
   const hasClientConsumer = options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension;
-  if (!options.features.billing || !hasClientConsumer) return;
+  if (!options.features.realtime || !hasClientConsumer) return;
   const dir = path.join(root, 'packages/realtime');
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: '@shared/realtime',
     version: '0.1.0',
     private: true,
     type: 'module',
-    exports: { '.': './src/index.ts' },
+    exports: { '.': './src/index.ts', './app': './src/app.ts' },
     scripts: { build: 'pnpm typecheck', typecheck: 'tsc --noEmit' },
     dependencies: REALTIME_DEPENDENCIES.dependencies,
     devDependencies: REALTIME_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
   writeTsConfig(dir);
-  writeFile(path.join(dir, 'src/index.ts'), `import * as Ably from 'ably';
-import { SubscriptionChangedEventSchema, type RealtimeTokenRequest } from '@shared/contracts';
+  writeFile(path.join(dir, 'src/generated.ts'), `import * as Ably from 'ably';
+import ${options.features.billing
+    ? '{ SubscriptionChangedEventSchema, type RealtimeTokenRequest }'
+    : '{ type RealtimeTokenRequest }'} from '@shared/contracts';
 
-export type SubscriptionRealtimeOptions = {
+export type RealtimePayloadParser<T> = {
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
+};
+
+export type RealtimeSubscriptionOptions<T> = {
   userId: string;
   getTokenRequest: () => Promise<RealtimeTokenRequest>;
-  onChange: (revision: number) => void;
+  channelName: string;
+  eventName: string;
+  schema: RealtimePayloadParser<T>;
+  onMessage: (payload: T) => void;
   onError?: (error: Error) => void;
 };
 
-export function subscriptionChannelName(userId: string): string {
-  return 'private:users:' + userId + ':subscriptions';
+export function userChannelName(userId: string): string {
+  return 'private:users:' + userId;
 }
 
-export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOptions): () => void {
+export function subscribeToRealtimeEvent<T>(options: RealtimeSubscriptionOptions<T>): () => void {
   const client = new Ably.Realtime({
     clientId: options.userId,
     authCallback: (_params, callback) => {
@@ -567,24 +574,51 @@ export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOpti
       );
     },
   });
-  const channel = client.channels.get(subscriptionChannelName(options.userId));
+  const channel = client.channels.get(options.channelName);
   const listener = (message: Ably.Message) => {
-    const parsed = SubscriptionChangedEventSchema.safeParse(message.data);
-    if (parsed.success) options.onChange(parsed.data.revision);
+    const parsed = options.schema.safeParse(message.data);
+    if (parsed.success) options.onMessage(parsed.data);
   };
   const stateListener = (change: Ably.ConnectionStateChange) => {
     if (change.current === 'failed' && change.reason) options.onError?.(change.reason);
   };
   client.connection.on(stateListener);
-  void channel.subscribe('subscription.changed', listener).catch((error: unknown) => {
+  void channel.subscribe(options.eventName, listener).catch((error: unknown) => {
     options.onError?.(error instanceof Error ? error : new Error('Realtime subscription failed'));
   });
   return () => {
-    channel.unsubscribe('subscription.changed', listener);
+    channel.unsubscribe(options.eventName, listener);
     client.connection.off(stateListener);
     client.close();
   };
 }
+${options.features.billing ? `
+export type SubscriptionRealtimeOptions = {
+  userId: string;
+  getTokenRequest: () => Promise<RealtimeTokenRequest>;
+  onChange: (revision: number) => void;
+  onError?: (error: Error) => void;
+};
+
+export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOptions): () => void {
+  return subscribeToRealtimeEvent({
+    userId: options.userId,
+    getTokenRequest: options.getTokenRequest,
+    channelName: userChannelName(options.userId),
+    eventName: 'subscription.changed',
+    schema: SubscriptionChangedEventSchema,
+    onMessage: (event) => options.onChange(event.revision),
+    onError: options.onError,
+  });
+}
+` : ''}
+`);
+  writeFile(
+    path.join(dir, 'src/app.ts'),
+    '// Add product-specific, schema-validated realtime subscriptions here.\nexport {};\n',
+  );
+  writeFile(path.join(dir, 'src/index.ts'), `export * from './generated';
+export * from './app';
 `);
 }
 

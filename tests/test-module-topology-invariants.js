@@ -69,7 +69,7 @@ try {
       }
     }
   }
-  assert.equal(closures.size, 216, '2,048 requested subsets should collapse to 216 resolved topologies');
+  assert.equal(closures.size, 264, '4,096 requested subsets should collapse to 264 resolved topologies');
 
   for (const moduleId of MODULE_IDS) {
     const project = path.join(root, `single-${moduleId}`);
@@ -80,6 +80,8 @@ try {
 
   for (const [first, second] of [
     ['api', 'auth'],
+    ['auth', 'realtime'],
+    ['realtime', 'billing'],
     ['mobile', 'native-subscriptions'],
     ['web', 'extension'],
     ['desktop', 'electron-updater'],
@@ -100,4 +102,4 @@ try {
   rmSync(root, { recursive: true, force: true });
 }
 
-console.log('Module topology invariants passed: 2,048 requests, 216 closures, 11 singleton scaffolds, 6 add paths');
+console.log('Module topology invariants passed: 4,096 requests, 264 closures, 12 singleton scaffolds, 8 add paths');

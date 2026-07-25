@@ -66,13 +66,19 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     ]),
     crons: EMPTY,
   }),
+  realtime: Object.freeze({
+    module: 'realtime',
+    environment: Object.freeze([
+      { name: 'ABLY_API_KEY', defaultValue: '' },
+    ]),
+    crons: EMPTY,
+  }),
   billing: Object.freeze({
     module: 'billing',
     environment: Object.freeze([
       { name: 'RC_WEBHOOK_SECRET', defaultValue: '' },
       { name: 'RC_SECRET_API_KEY', defaultValue: '' },
       { name: 'RC_ENTITLEMENT_ID', defaultValue: 'pro' },
-      { name: 'ABLY_API_KEY', defaultValue: '' },
       { name: 'CRON_SECRET', defaultValue: '' },
     ]),
     crons: Object.freeze([

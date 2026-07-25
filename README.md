@@ -106,7 +106,7 @@ my-product/
 │   ├── contracts/              # shared Zod network contracts
 │   ├── api-client/             # typed client used by every frontend
 │   ├── db/                     # Drizzle schema and reviewed migrations
-│   └── realtime/               # Ably client when billing is selected
+│   └── realtime/               # authenticated Ably client when realtime is selected
 ├── docs/
 │   ├── DEVELOPMENT.md          # task-oriented feature recipes
 │   └── STACK.md                # tool map and official documentation
@@ -178,7 +178,8 @@ contracts -> database/service -> Fastify route -> typed API client -> frontend
 | Authentication | Clerk | Connected frontend and backend identity/session flows |
 | UI | shadcn/ui + React Native Reusables | Accessible source code the application owns |
 | Storage | private Cloudflare R2 | Signed uploads and controlled asset delivery |
-| Billing/realtime | RevenueCat + Stripe + Ably | Unified billing entitlements and realtime invalidation |
+| Realtime | Ably | Authenticated, user-scoped events across every selected client |
+| Billing | RevenueCat + Stripe | Unified billing entitlements with realtime invalidation |
 | Desktop | Electron | Predictable cross-platform TypeScript desktop runtime |
 | Desktop updates | electron-updater + private R2 + Worker | Signed automatic updates through a product-owned custom domain |
 | Extension | WXT | Browser-extension entrypoints, builds, and packaging |
@@ -276,7 +277,8 @@ Anhedral resolves integrations as a deterministic graph:
 
 ```text
 auth                 -> api + db
-billing              -> auth
+realtime             -> auth
+billing              -> realtime
 storage              -> auth
 native-subscriptions -> mobile + billing
 electron-updater     -> desktop

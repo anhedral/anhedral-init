@@ -334,6 +334,31 @@ try {
     nextSteps: [],
   });
 
+  const legacyBillingProject = path.join(workspace, 'legacy-billing-project');
+  mkdirSync(legacyBillingProject);
+  run(['init', 'web', 'billing', '--skip-install'], legacyBillingProject);
+  const legacyBillingManifestPath = path.join(legacyBillingProject, 'anhedral.json');
+  const legacyBillingManifest = JSON.parse(readFileSync(legacyBillingManifestPath, 'utf8'));
+  legacyBillingManifest.modules = legacyBillingManifest.modules.filter((moduleId) => moduleId !== 'realtime');
+  for (const [relativePath, record] of Object.entries(legacyBillingManifest.files)) {
+    if (relativePath.startsWith('packages/realtime/')) record.owner = 'root';
+  }
+  writeFileSync(legacyBillingManifestPath, JSON.stringify(legacyBillingManifest, null, 2) + '\n');
+  const legacyBillingDoctor = JSON.parse(run(['doctor', '--json'], legacyBillingProject, 1).stdout);
+  assert.equal(legacyBillingDoctor.ok, false);
+  assert.match(
+    legacyBillingDoctor.issues.find((issue) => issue.path === 'anhedral.json')?.message ?? '',
+    /legacy module closure/,
+  );
+  run(['upgrade', '--skip-install'], legacyBillingProject);
+  const migratedBillingManifest = JSON.parse(readFileSync(legacyBillingManifestPath, 'utf8'));
+  assert.deepEqual(
+    migratedBillingManifest.modules,
+    ['web', 'api', 'db', 'auth', 'realtime', 'billing'],
+    'upgrade must promote Ably from a billing implementation detail to the realtime module',
+  );
+  assert.equal(migratedBillingManifest.files['packages/realtime/src/index.ts'].owner, 'realtime');
+
   const updaterProject = path.join(workspace, 'updater-project');
   mkdirSync(updaterProject);
   run(['init', 'desktop', '--skip-install'], updaterProject);

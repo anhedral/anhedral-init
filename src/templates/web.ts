@@ -27,7 +27,7 @@ export async function scaffoldWeb(root: string, options: ProjectOptions): Promis
 function writePackageJson(dir: string, options: ProjectOptions): void {
   const dependencies = { ...(WEB_APP_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
-  if (!options.features.billing) delete dependencies['@shared/realtime'];
+  if (!options.features.realtime) delete dependencies['@shared/realtime'];
   if (!options.features.auth) {
     delete dependencies['@clerk/nextjs'];
     delete dependencies['@clerk/ui'];

@@ -89,13 +89,14 @@ The manual path must leave a complete working workspace, not merely a directory 
 
 Choose app surfaces from `web`, `mobile`, `api`, `desktop`, and `extension`.
 
-Choose features from `db`, `auth`, `billing`, `storage`, `native-subscriptions`, and `electron-updater`.
+Choose features from `db`, `auth`, `realtime`, `billing`, `storage`, `native-subscriptions`, and `electron-updater`.
 
 Apply these dependency rules automatically:
 
 ```text
 auth                 -> api + db
-billing              -> auth
+realtime             -> auth
+billing              -> realtime
 storage              -> auth
 native-subscriptions -> mobile + billing
 electron-updater     -> desktop
@@ -284,7 +285,7 @@ Common selected keys are:
 - Clerk server: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 - Clerk clients: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - RevenueCat: `RC_WEBHOOK_SECRET`, `RC_SECRET_API_KEY`, `RC_ENTITLEMENT_ID`, `EXPO_PUBLIC_RC_*`
-- Ably billing synchronization: server-only `ABLY_API_KEY`; clients obtain scoped tokens from the API
+- Ably realtime: server-only `ABLY_API_KEY`; clients obtain scoped user-channel tokens from the API
 - R2: `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, `R2_PROXY_READ_URL_TTL_SECONDS=600`; keep `CLOUDFLARE_API_TOKEN` operations/CI-only
 - Internal billing/storage jobs: high-entropy server-only `CRON_SECRET`
 - Electron updates: `DESKTOP_UPDATE_BASE_URL` in `apps/desktop/electron-builder.env`; the private R2 binding needs no credential in the packaged application

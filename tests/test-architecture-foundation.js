@@ -66,6 +66,7 @@ assert.deepEqual(nativeResolution.resolvedModules, [
   'api',
   'db',
   'auth',
+  'realtime',
   'billing',
   'native-subscriptions',
 ]);
@@ -105,7 +106,7 @@ expectCode(
   CompositionError,
   'DUPLICATE_CRON_CONTRIBUTION',
 );
-assert.deepEqual(nativeResolution.dependencyAddedModules, ['mobile', 'api', 'db', 'auth', 'billing']);
+assert.deepEqual(nativeResolution.dependencyAddedModules, ['mobile', 'api', 'db', 'auth', 'realtime', 'billing']);
 assert.equal(Object.isFrozen(nativeResolution), true);
 assert.equal(Object.isFrozen(nativeResolution.resolvedModules), true);
 assert.throws(() => nativeResolution.resolvedModules.push('web'), TypeError);

@@ -10,7 +10,7 @@ const options = {
   projectName: 'provider-validation',
   displayName: 'Provider Validation',
   apps: { web: true, mobile: false, api: true, desktop: true, extension: false },
-  features: { database: true, auth: true, billing: true, storage: true, nativeSubscriptions: false },
+  features: { database: true, auth: true, realtime: true, billing: true, storage: true, nativeSubscriptions: false, electronUpdater: false },
   skipInstall: true,
 };
 const read = (relativePath) => readFileSync(path.join(root, relativePath), 'utf8');
@@ -58,7 +58,7 @@ try {
   await scaffoldApi(apiOnlyRoot, {
     ...options,
     apps: { web: false, mobile: false, api: true, desktop: false, extension: false },
-    features: { database: false, auth: false, billing: false, storage: false, nativeSubscriptions: false },
+    features: { database: false, auth: false, realtime: false, billing: false, storage: false, nativeSubscriptions: false, electronUpdater: false },
   });
   const apiOnlyEnv = readFileSync(path.join(apiOnlyRoot, 'apps/api/src/env.ts'), 'utf8');
   const apiOnlyTests = readFileSync(path.join(apiOnlyRoot, 'apps/api/tests/env.test.ts'), 'utf8');

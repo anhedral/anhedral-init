@@ -118,7 +118,7 @@ ownership without recording credentials.
 | Neon | `db` directly or through `auth`, `billing`, or `storage` | Generated OAuth login and project creation; Neon CLI/API can manage branches and projects | Account/org creation, plan/billing, one-time safe placement of pooled connection strings, backup/restore policy review |
 | Clerk | `auth` directly or through dependent features | Supplemental Clerk CLI can log in, create/link apps, manage config, inspect deployment status, and call Clerk APIs | Workspace/team/billing, social-provider OAuth apps and consent, branding/security controls, DNS review, secret handling, physical-device verification |
 | RevenueCat | `billing` or `native-subscriptions` | Developer API v2 can create projects, apps, products, entitlements, offerings, and webhooks after a secret key exists | Initial account/key bootstrap in the normal path, store credential connection, Test Store/dashboard setup, plan/billing, purchase/paywall review |
-| Ably | `billing` | Supplemental Ably CLI can log in, create apps, configure rules, and create keys | Account/team/billing and safe one-time API-key handling |
+| Ably | `realtime` directly or through `billing` | Supplemental Ably CLI can log in, create apps, configure rules, and create keys | Account/team/billing and safe one-time API-key handling |
 | Stripe | Only if the user explicitly chooses web subscriptions through RevenueCat Billing or a manual Stripe integration | Stripe CLI can log in, test webhooks, and manage supported resources | Business activation, identity/KYC, bank/tax details, terms, live-mode review; generated Anhedral billing contains no Stripe checkout or webhook |
 | Cloudflare | `storage`, `electron-updater`, or Cloudflare-authoritative DNS | Generated Wrangler login, R2 bucket/CORS commands, Worker checks/deploys, custom domains, and direct lifecycle commands | Account/zone creation, R2 purchase/enablement, domain purchase or registrar delegation, DNS/email preservation, one-time S3 key reveal, plan/billing |
 | Expo/EAS | `mobile` cloud build or distribution | Generated login, project init, builds, credential flows, and submissions | Expo account/team/billing and user participation in Apple/Google credential prompts |
@@ -379,7 +379,7 @@ public identifiers:
      production instance with `clerk deploy status` or a read-only dashboard
      view and test on physical devices where applicable.
 
-4. **RevenueCat and Ably (`billing`/`native-subscriptions`)**
+4. **Ably and RevenueCat (`realtime`/`billing`/`native-subscriptions`)**
 
    - Start development with RevenueCat's Test Store. It needs no Apple, Google,
      or Stripe account. Create the project, Test Store products, entitlement

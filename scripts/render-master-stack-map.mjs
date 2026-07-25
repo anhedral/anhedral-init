@@ -187,6 +187,24 @@ function customChrome(x, y, size) {
   svg.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.36}" fill="#4285f4"/>`);
 }
 
+function customR2(x, y, size) {
+  const cloudSize = Math.round(size * 0.42);
+  logo(
+    siCloudflare,
+    x + 2,
+    y + (size - cloudSize) / 2,
+    cloudSize,
+    palette.orange,
+  );
+  text(x + size * 0.72, y + size * 0.62, 'R2', {
+    size: Math.max(11, Math.round(size * 0.34)),
+    fill: palette.text,
+    weight: 700,
+    anchor: 'middle',
+    spacing: -0.4,
+  });
+}
+
 function card(x, y, width, height, {
   title,
   subtitle,
@@ -201,33 +219,50 @@ function card(x, y, width, height, {
   cornerIconColor = palette.text,
   iconScale = 52,
   compact = false,
+  wideIcon = false,
 }) {
   rect(x, y, width, height);
   const boxSize = height - 24;
+  const boxWidth = wideIcon ? 96 : boxSize;
   const boxX = x + 16;
   const boxY = y + 12;
-  iconBox(boxX, boxY, boxSize);
+  if (wideIcon) {
+    rect(boxX, boxY, boxWidth, boxSize, {
+      fill: '#07121d',
+      stroke: palette.divider,
+      radius: 11,
+    });
+  } else {
+    iconBox(boxX, boxY, boxSize);
+  }
 
   if (customIcon === 'globe') customGlobe(boxX, boxY, boxSize, iconColor);
   else if (customIcon === 'desktop') customDesktop(boxX, boxY, boxSize, iconColor);
   else if (customIcon === 'app-store') customAppStore(boxX, boxY, boxSize);
   else if (customIcon === 'google-play') customGooglePlay(boxX, boxY, boxSize);
   else if (customIcon === 'chrome') customChrome(boxX, boxY, boxSize);
+  else if (customIcon === 'r2') customR2(boxX, boxY, boxSize);
   else if (customIcon === 'ably') {
     const ablyWidth = boxSize - 12;
     ablySymbol(boxX + 6, boxY + (boxSize - ablyWidth * 64 / 78) / 2, ablyWidth);
   }
   else if (icon) {
     if (secondIcon || secondEmbeddedIcon) {
-      const pairedSize = compact ? 26 : 38;
+      const pairedSize = wideIcon ? 36 : compact ? 26 : 38;
       const pairedInset = compact ? 5 : 6;
       logo(icon, boxX + pairedInset, boxY + (boxSize - pairedSize) / 2, pairedSize, iconColor);
       if (secondEmbeddedIcon === 'ably') {
-        ablySymbol(boxX + boxSize - pairedSize - 4, boxY + (boxSize - pairedSize * 64 / 78) / 2, pairedSize);
+        ablySymbol(boxX + boxWidth - pairedSize - 4, boxY + (boxSize - pairedSize * 64 / 78) / 2, pairedSize);
+      } else if (secondEmbeddedIcon === 'r2') {
+        customR2(
+          boxX + boxWidth - pairedSize - pairedInset,
+          boxY + (boxSize - pairedSize) / 2,
+          pairedSize,
+        );
       } else {
         logo(
           secondIcon,
-          boxX + boxSize - pairedSize - pairedInset,
+          boxX + boxWidth - pairedSize - pairedInset,
           boxY + (boxSize - pairedSize) / 2,
           pairedSize,
           secondIconColor,
@@ -245,7 +280,7 @@ function card(x, y, width, height, {
     }
   }
 
-  const dividerX = boxX + boxSize + (compact ? 12 : 10);
+  const dividerX = boxX + boxWidth + (compact ? 12 : 10);
   const textX = dividerX + (compact ? 20 : 24);
   line(dividerX, y + 14, dividerX, y + height - 14);
   text(textX, y + (compact ? 31 : 42), title, { size: compact ? 18 : 22, weight: 500 });
@@ -289,7 +324,7 @@ function dxTool(x, y, {
 
 svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="title description">`);
 svg.push('<title id="title">Anhedral Init Stack</title>');
-svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, RevenueCat and Stripe billing, Ably realtime, backend services, and a dedicated private R2 updater Worker.</desc>');
+svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, RevenueCat and Stripe billing, Ably realtime, an R2-backed assets Worker, backend services, and a dedicated private R2 updater Worker.</desc>');
 svg.push(`<defs>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
@@ -423,11 +458,13 @@ const serviceCardHeight = 88;
     customIcon: 'ably',
   },
   {
-    title: 'Assets Worker',
+    title: 'Assets Storage + Worker',
     subtitle: 'PRIVATE R2 assets binding',
     detail: 'assets.example.com · authorized reads',
     icon: siCloudflareworkers,
     iconColor: palette.orange,
+    secondEmbeddedIcon: 'r2',
+    wideIcon: true,
   },
   {
     title: 'Updater Worker',

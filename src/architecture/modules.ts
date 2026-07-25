@@ -9,6 +9,7 @@ export const APP_MODULES = [
 export const FEATURE_MODULES = [
   'db',
   'auth',
+  'realtime',
   'billing',
   'storage',
   'native-subscriptions',
@@ -208,7 +209,8 @@ const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'extension', kind: 'app', requires: [], conflicts: [] },
   { id: 'db', kind: 'feature', requires: [], conflicts: [] },
   { id: 'auth', kind: 'feature', requires: ['api', 'db'], conflicts: [] },
-  { id: 'billing', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'realtime', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'billing', kind: 'feature', requires: ['realtime'], conflicts: [] },
   { id: 'storage', kind: 'feature', requires: ['auth'], conflicts: [] },
   { id: 'native-subscriptions', kind: 'feature', requires: ['mobile', 'billing'], conflicts: [] },
   { id: 'electron-updater', kind: 'feature', requires: ['desktop'], conflicts: [] },
@@ -219,6 +221,19 @@ export const DEFAULT_MODULE_DEFINITIONS: readonly ModuleDefinition[] = Object.fr
 );
 
 export const DEFAULT_MODULE_REGISTRY = createModuleRegistry(DEFAULT_MODULE_DEFINITIONS);
+
+/**
+ * Compatibility registry for manifests generated before realtime became a
+ * first-class module. Those manifests recorded Ably as an implementation detail
+ * of billing, so billing closed directly over auth.
+ */
+export const PRE_REALTIME_MODULE_REGISTRY = createModuleRegistry(
+  DEFAULT_MODULE_DEFINITION_INPUTS.map((definition) => (
+    definition.id === 'billing'
+      ? { ...definition, requires: ['auth'] }
+      : definition
+  )),
+);
 
 export function resolveModules(
   requested: readonly string[],

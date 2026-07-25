@@ -6,6 +6,7 @@ export {
   MODULE_IDS,
   ModuleRegistryError,
   ModuleResolutionError,
+  PRE_REALTIME_MODULE_REGISTRY,
   createModuleRegistry,
   isModuleId,
   resolveModules,

@@ -28,6 +28,7 @@ runScript('test-architecture-foundation.js');
 runScript('test-ui.js');
 runScript('test-template-source.js');
 runScript('test-conditional-app-templates.js');
+runScript('test-realtime-template.js');
 runScript('test-billing-template.js');
 runScript('test-operational-api-template.js');
 runScript('test-api-production-env.js');

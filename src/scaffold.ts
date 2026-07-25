@@ -27,6 +27,7 @@ import {
   readManifest,
   resolveModules,
   serializeManifest,
+  PRE_REALTIME_MODULE_REGISTRY,
   type FileOwnershipClass,
   type ManifestFileRecord,
   type ProjectManifest,
@@ -251,6 +252,7 @@ function selectionsFromModules(modules: readonly ModuleId[]): Pick<ResolvedInitO
     features: {
       database: selected.has('db'),
       auth: selected.has('auth'),
+      realtime: selected.has('realtime'),
       billing: selected.has('billing'),
       storage: selected.has('storage'),
       nativeSubscriptions: selected.has('native-subscriptions'),
@@ -997,7 +999,7 @@ pnpm ready`;
     options.features.auth ? '| Clerk | Identity and sessions | generated auth files | https://clerk.com/docs/getting-started/quickstart/overview |' : null,
     options.features.storage ? '| Cloudflare R2 | Private object storage | upload API and `apps/assets-private-proxy` | https://developers.cloudflare.com/r2/ |' : null,
     options.features.billing ? '| RevenueCat | Subscription authority | API and native client | https://www.revenuecat.com/docs |' : null,
-    options.features.billing ? '| Ably | Realtime invalidation | `packages/realtime` | https://ably.com/docs |' : null,
+    options.features.realtime ? '| Ably | Authenticated realtime events | `packages/realtime` | https://ably.com/docs |' : null,
     options.apps.desktop ? '| Electron | Desktop runtime | `apps/desktop` | https://www.electronjs.org/docs/latest/ |' : null,
     options.features.electronUpdater ? '| electron-updater | Packaged-app update checks and installation | `apps/desktop/src/main/main.ts` | https://www.electron.build/auto-update.html |' : null,
     options.features.electronUpdater ? '| Cloudflare Workers + R2 | Private update storage and custom-domain delivery | `apps/desktop-updater-worker` | https://developers.cloudflare.com/r2/api/workers/workers-api-usage/ |' : null,
@@ -1201,7 +1203,8 @@ Clients may import contracts and the API client. They must not import API servic
       options.apps.api && options.apps.web ? '- Keep the top-level `/api/(.*)` service rewrite before the web catch-all rewrite.' : null,
       options.apps.api && options.apps.web ? '- The web client defaults to same-origin `/api` in production; override `NEXT_PUBLIC_API_URL` only when the API uses another origin.' : null,
       options.features.storage ? '- Set a strong `CRON_SECRET` and verify Vercel invokes `/api/internal/storage/cleanup` on schedule.' : null,
-      options.features.billing ? '- Configure `ABLY_API_KEY`, set a strong `CRON_SECRET`, and verify Vercel invokes `/api/internal/realtime/flush` every five minutes to retry the transactional outbox.' : null,
+      options.features.realtime ? '- Configure the server-only `ABLY_API_KEY`; clients obtain scoped, short-lived subscribe tokens from `/api/realtime/token`.' : null,
+      options.features.billing ? '- Set a strong `CRON_SECRET` and verify Vercel invokes `/api/internal/realtime/flush` every five minutes to retry the subscription outbox.' : null,
       options.features.billing ? '- Use a dedicated RevenueCat secret REST API key with customer-read access; keep it server-only and rotate it independently from the 32+ character webhook authorization secret.' : null,
       options.features.storage ? '- List the live R2 CORS policy, merge every exact browser origin into `cloudflare/r2-cors.template.json`, then apply the complete replacement policy and verify preflight plus signed PUT.' : null,
       options.features.storage ? '- Configure an R2 lifecycle rule for the `storage/staging/` prefix as a backstop, with an age longer than the application cleanup grace period.' : null,
@@ -1330,6 +1333,7 @@ Resolved modules: ${modules.join(', ')}
     options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
     options.features.database ? '- Neon/Drizzle state is authoritative. Change user-owned `packages/db/src/app-schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
     options.features.auth ? '- Clerk owns identity and sessions. Never trust a client-supplied user ID; derive identity from verified server authentication.' : null,
+    options.features.realtime ? '- Ably tokens are scoped server-side to the authenticated user channel. Add product event schemas in `packages/realtime/src/app.ts`; never expose `ABLY_API_KEY` to a client.' : null,
     options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
     options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
     options.features.electronUpdater ? '- Electron releases use `electron-updater` through the generated private R2 + Worker channel. Build signed native artifacts first and publish mutable channel metadata last.' : null,
@@ -1464,6 +1468,7 @@ function ownerForPath(relativePath: string): ModuleId | 'root' {
   const app = /^apps\/(web|mobile|api|desktop|extension)(?:\/|$)/.exec(relativePath);
   if (app) return app[1] as ModuleId;
   if (relativePath.startsWith('packages/db/')) return 'db';
+  if (relativePath.startsWith('packages/realtime/')) return 'realtime';
   return 'root';
 }
 
@@ -1484,6 +1489,7 @@ function defaultOwnership(relativePath: string): FileOwnershipClass {
     || /^apps\/api\/src\/services\//.test(relativePath)
     || relativePath === 'packages/contracts/src/app.ts'
     || relativePath === 'packages/api-client/src/app.ts'
+    || relativePath === 'packages/realtime/src/app.ts'
     || relativePath === 'packages/db/src/app-schema.ts'
   ) return 'user';
   if (ROOT_MERGEABLE_FILES.has(relativePath)) return 'mergeable';
@@ -1495,6 +1501,16 @@ function applyCurrentOwnership(manifest: ProjectManifest): ProjectManifest {
     relativePath,
     record.ownership === 'managed' && defaultOwnership(relativePath) === 'user'
       ? Object.freeze({ ...record, ownership: 'user' as const })
+      : record,
+  ])));
+  return Object.freeze({ ...manifest, files });
+}
+
+function applyRealtimeModuleOwnership(manifest: ProjectManifest): ProjectManifest {
+  const files = Object.freeze(Object.fromEntries(Object.entries(manifest.files).map(([relativePath, record]) => [
+    relativePath,
+    relativePath.startsWith('packages/realtime/') && record.owner === 'root'
+      ? Object.freeze({ ...record, owner: 'realtime' as const })
       : record,
   ])));
   return Object.freeze({ ...manifest, files });
@@ -1568,13 +1584,40 @@ function writeManifest(root: string, manifest: ProjectManifest): void {
   writeFile(path.join(root, 'anhedral.json'), serializeManifest(manifest));
 }
 
+function readCompatibleManifest(source: string): {
+  readonly manifest: ProjectManifest;
+  readonly needsRealtimeMigration: boolean;
+} {
+  try {
+    return { manifest: readManifest(source), needsRealtimeMigration: false };
+  } catch (error) {
+    let legacyManifest: ProjectManifest;
+    try {
+      legacyManifest = readManifest(source, PRE_REALTIME_MODULE_REGISTRY);
+    } catch {
+      throw error;
+    }
+    const needsRealtimeMigration = legacyManifest.modules.includes('billing')
+      && !legacyManifest.modules.includes('realtime');
+    if (!needsRealtimeMigration) throw error;
+    return { manifest: legacyManifest, needsRealtimeMigration };
+  }
+}
+
 function readProjectManifest(
   root: string,
   options: { allowSupportedUpgrade?: boolean } = {},
 ): ProjectManifest {
   const filePath = path.join(root, 'anhedral.json');
   if (!pathEntryExists(filePath)) throw new Error('anhedral.json was not found. Run anhedral init first.');
-  const manifest = readManifest(readFileSync(filePath, 'utf8'));
+  const source = readFileSync(filePath, 'utf8');
+  const { manifest, needsRealtimeMigration } = readCompatibleManifest(source);
+  if (needsRealtimeMigration && !options.allowSupportedUpgrade) {
+    throw new Error(
+      'This project records Ably as a billing implementation detail; run `pnpm anhedral:upgrade` '
+      + 'to add the realtime module before other generator operations.',
+    );
+  }
   if (manifest.generatorVersion !== GENERATOR_VERSION) {
     if (options.allowSupportedUpgrade && isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)) {
       return manifest;
@@ -2004,17 +2047,20 @@ export async function scaffoldUpgradeProject(upgradeOptions: UpgradeOptions): Pr
       dryRun: upgradeOptions.dryRun,
       prepare: () => {
         manifest = applyCurrentOwnership(readProjectManifest(root, { allowSupportedUpgrade: true }));
-        if (manifest.generatorVersion === GENERATOR_VERSION) {
+        const needsRealtimeMigration = manifest.modules.includes('billing')
+          && !manifest.modules.includes('realtime');
+        if (manifest.generatorVersion === GENERATOR_VERSION && !needsRealtimeMigration) {
           noOp = true;
           return false;
         }
+        if (needsRealtimeMigration) manifest = applyRealtimeModuleOwnership(manifest);
         assertManagedFileModes(root, manifest);
         options = optionsFromManifest(manifest, {
           modules: [],
           skipInstall: upgradeOptions.skipInstall,
           dryRun: upgradeOptions.dryRun,
           json: upgradeOptions.json,
-        }, manifest.modules);
+        }, needsRealtimeMigration ? [...manifest.modules, 'realtime'] : manifest.modules);
         assertInstallNodeCompatibility(options);
         env.ANHEDRAL_TOOLCHAIN = options.toolchainChannel;
         seedPaths.push(...new Set([
@@ -2163,7 +2209,7 @@ export function doctorProject(): DoctorReport {
   const root = path.resolve(process.cwd());
   const filePath = path.join(root, 'anhedral.json');
   if (!pathEntryExists(filePath)) throw new Error('anhedral.json was not found. Run anhedral init first.');
-  const manifest = readManifest(readFileSync(filePath, 'utf8'));
+  const { manifest, needsRealtimeMigration } = readCompatibleManifest(readFileSync(filePath, 'utf8'));
   const issues: DoctorIssue[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!isTransactionMetadata(entry.name)) continue;
@@ -2182,6 +2228,13 @@ export function doctorProject(): DoctorReport {
       message: isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)
         ? `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; run pnpm anhedral:upgrade.`
         : `Project generator ${manifest.generatorVersion} differs from CLI ${GENERATOR_VERSION}; regenerate with the current CLI.`,
+    });
+  }
+  if (needsRealtimeMigration) {
+    issues.push({
+      path: 'anhedral.json',
+      severity: 'error',
+      message: 'Billing uses the legacy module closure; run pnpm anhedral:upgrade to record realtime explicitly.',
     });
   }
   try {
@@ -2234,6 +2287,11 @@ export function doctorProject(): DoctorReport {
       isSupportedProjectUpgrade(manifest.generatorVersion, GENERATOR_VERSION)
         ? 'Run `pnpm anhedral:upgrade --dry-run`, inspect the plan, then run `pnpm anhedral:upgrade`.'
         : 'Generate a fresh project with the current CLI and move product-owned code into its extension seams.',
+    );
+  }
+  if (needsRealtimeMigration) {
+    recommendedActions.push(
+      'Run `pnpm anhedral:upgrade --dry-run`, inspect the realtime module migration, then run `pnpm anhedral:upgrade`.',
     );
   }
   if (issues.some((issue) => isTransactionMetadata(issue.path))) {

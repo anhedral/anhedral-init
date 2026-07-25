@@ -27,9 +27,11 @@ function options(mode) {
     features: {
       database: hasApi,
       auth: hasAuth,
+      realtime: hasAuth,
       billing: hasAuth,
       storage: false,
       nativeSubscriptions: hasNativeSubscriptions,
+      electronUpdater: false,
     },
     githubOrg: null,
     skipInstall: true,

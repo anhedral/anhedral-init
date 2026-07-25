@@ -11,6 +11,7 @@ export type AppSelections = {
 export type FeatureSelections = {
   database: boolean;
   auth: boolean;
+  realtime: boolean;
   billing: boolean;
   storage: boolean;
   nativeSubscriptions: boolean;

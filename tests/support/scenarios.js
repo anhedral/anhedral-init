@@ -7,6 +7,7 @@ const appModules = ['web', 'mobile', 'api', 'desktop', 'extension'];
 const featureModules = {
   database: 'db',
   auth: 'auth',
+  realtime: 'realtime',
   billing: 'billing',
   storage: 'storage',
   nativeSubscriptions: 'native-subscriptions',
@@ -31,7 +32,7 @@ export const OUTPUT_TREE_SCENARIOS = [
     projectDirectory: 'expo-extension-sample',
     initArgs: [],
     addArgs: [],
-    modules: ['web', 'mobile', 'api', 'desktop', 'extension', 'db', 'auth', 'billing', 'storage', 'native-subscriptions', 'electron-updater'],
+    modules: ['web', 'mobile', 'api', 'desktop', 'extension', 'db', 'auth', 'realtime', 'billing', 'storage', 'native-subscriptions', 'electron-updater'],
     gitignoreExpectations: [
       ...sharedApiGitignores,
       ['apps/mobile/.gitignore', ['.env', '.env.*', '!.env.example']],

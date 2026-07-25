@@ -358,7 +358,7 @@ assert.equal(
   'toolchain assignment flags should be accepted',
 );
 assert.deepEqual([...parseCli(['web', 'api']).modules], ['web', 'api'], 'init should accept positional modules');
-assert.equal(parseCli(['--all']).modules.size, 11, '--all should explicitly select every supported module');
+assert.equal(parseCli(['--all']).modules.size, 12, '--all should explicitly select every supported module');
 assert.deepEqual(parseNewProjectRequest(['my-app', '--web']), { directory: 'my-app', moduleArgs: ['--web'] });
 assert.equal(buildOptionsForRoot(parseCli(['--web']), '/tmp/My Product').projectName, 'my-product');
 

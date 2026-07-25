@@ -54,7 +54,8 @@ App surfaces:
 Capabilities:
   db                     Neon Postgres + Drizzle
   auth                   Clerk; adds api + db
-  billing                RevenueCat + Stripe + Ably; adds auth
+  realtime               Ably Pub/Sub; adds auth
+  billing                RevenueCat + Stripe; adds realtime
   storage                Private Cloudflare R2; adds auth
   native-subscriptions   Native RevenueCat client; adds mobile + billing
   electron-updater       Private Electron update channel; adds desktop

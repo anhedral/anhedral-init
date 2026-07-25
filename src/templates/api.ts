@@ -25,7 +25,7 @@ function dependenciesFor(options: ProjectOptions): {
     'zod',
     ...(options.features.database ? ['@shared/db', 'drizzle-orm'] : []),
     ...(options.features.auth ? ['@clerk/fastify'] : []),
-    ...(options.features.billing ? ['ably'] : []),
+    ...(options.features.realtime ? ['ably'] : []),
     ...(options.features.storage ? ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'] : []),
   ]);
   return {
@@ -45,7 +45,10 @@ function corsOrigins(options: ProjectOptions): string[] {
 
 function envSource(options: ProjectOptions): string {
   const defaultCorsOrigins = corsOrigins(options);
-  const hasSemanticProviderValidation = options.features.database || options.features.auth || options.features.storage;
+  const hasSemanticProviderValidation = options.features.database
+    || options.features.auth
+    || options.features.realtime
+    || options.features.storage;
   const fields = [
     "NODE_ENV: z.enum(['development', 'test', 'production']).default('development')",
     "PORT: z.coerce.number().int().positive().default(8787)",
@@ -58,7 +61,7 @@ function envSource(options: ProjectOptions): string {
     options.features.billing ? 'RC_WEBHOOK_SECRET: OptionalSecretSchema' : null,
     options.features.billing ? 'RC_SECRET_API_KEY: OptionalSecretSchema' : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: z.string().default('pro')" : null,
-    options.features.billing ? 'ABLY_API_KEY: OptionalSecretSchema' : null,
+    options.features.realtime ? 'ABLY_API_KEY: OptionalSecretSchema' : null,
     options.features.storage ? 'R2_ACCOUNT_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_ACCESS_KEY_ID: z.string().optional()' : null,
     options.features.storage ? 'R2_SECRET_ACCESS_KEY: z.string().optional()' : null,
@@ -71,7 +74,8 @@ function envSource(options: ProjectOptions): string {
   ].filter((value): value is string => value !== null);
   const productionKeys = [...new Set([
     ...(options.features.auth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
-    ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY', 'ABLY_API_KEY', 'CRON_SECRET'] : []),
+    ...(options.features.realtime ? ['ABLY_API_KEY'] : []),
+    ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY', 'CRON_SECRET'] : []),
     ...(options.features.storage ? ['BASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'CRON_SECRET'] : []),
   ])];
   return `import { z } from 'zod';
@@ -84,7 +88,7 @@ ${hasSemanticProviderValidation ? `function isPlaceholder(value: string): boolea
     || /^(?:(?:change|replace)(?:[-_ ]?me)?|your|example|placeholder|test|secret|password|pass|username|user)(?:[-_ ].*)?$/.test(normalized);
 }
 ` : ''}
-${options.features.billing || options.features.storage ? `function hasLowSecretDiversity(value: string): boolean {
+${options.features.realtime || options.features.billing || options.features.storage ? `function hasLowSecretDiversity(value: string): boolean {
   return new Set(value).size < 8 || /(.)\\1{15,}/.test(value);
 }
 ` : ''}
@@ -159,12 +163,13 @@ ${options.features.storage ? `function assertProductionR2Configuration(env: AppE
   }
 }
 ` : ''}
-${options.features.billing ? `const OptionalSecretSchema = z.preprocess(
+${options.features.realtime || options.features.billing || options.features.storage ? `const OptionalSecretSchema = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
   z.string().optional(),
 );
+` : ''}
 
-function assertStrongBillingSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY' | 'ABLY_API_KEY' | 'CRON_SECRET', value: string | undefined): void {
+${options.features.billing ? `function assertStrongBillingSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY', value: string | undefined): void {
   const normalized = value?.trim().toLowerCase() ?? '';
   const placeholder = normalized.includes('***')
     || /^(?:change[-_ ]?me|replace[-_ ]?me|your[-_ ]|example|placeholder|test|secret|webhook[-_ ]?secret)/.test(normalized)
@@ -174,10 +179,18 @@ function assertStrongBillingSecret(key: 'RC_WEBHOOK_SECRET' | 'RC_SECRET_API_KEY
   }
 }
 ` : ''}
-${options.features.storage && !options.features.billing ? `const OptionalSecretSchema = z.preprocess(
-  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
-  z.string().optional(),
-);
+${options.features.realtime ? `function assertProductionAblyApiKey(value: string | undefined): void {
+  const match = value?.match(/^([A-Za-z0-9_-]+)\\.([A-Za-z0-9_-]+):([A-Za-z0-9_-]{16,})$/);
+  if (
+    !value || !match
+    || isPlaceholder(match[1]!)
+    || isPlaceholder(match[2]!)
+    || isPlaceholder(match[3]!)
+    || hasLowSecretDiversity(match[3]!)
+  ) {
+    throw new Error('ABLY_API_KEY must be a well-formed, non-placeholder Ably API key in production');
+  }
+}
 ` : ''}
 ${options.features.storage ? `const OptionalUrlSchema = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
@@ -233,9 +246,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     ${options.features.database ? 'assertProductionDatabaseUrl(env.DATABASE_URL);' : ''}
     ${options.features.auth ? `assertProductionClerkKey('CLERK_PUBLISHABLE_KEY', env.CLERK_PUBLISHABLE_KEY, 'pk_live_');
     assertProductionClerkKey('CLERK_SECRET_KEY', env.CLERK_SECRET_KEY, 'sk_live_');` : ''}
+    ${options.features.realtime ? 'assertProductionAblyApiKey(env.ABLY_API_KEY);' : ''}
     ${options.features.billing ? `assertStrongBillingSecret('RC_WEBHOOK_SECRET', env.RC_WEBHOOK_SECRET);
-    assertStrongBillingSecret('RC_SECRET_API_KEY', env.RC_SECRET_API_KEY);
-    assertStrongBillingSecret('ABLY_API_KEY', env.ABLY_API_KEY);` : ''}
+    assertStrongBillingSecret('RC_SECRET_API_KEY', env.RC_SECRET_API_KEY);` : ''}
     ${options.features.billing || options.features.storage ? 'assertStrongCronSecret(env.CRON_SECRET);' : ''}
     ${options.features.storage ? 'assertProductionR2Configuration(env);' : ''}
   }
@@ -258,7 +271,7 @@ function envTestSource(options: ProjectOptions): string {
     options.features.billing ? "RC_WEBHOOK_SECRET: syntheticSecret('webhook')" : null,
     options.features.billing ? "RC_SECRET_API_KEY: syntheticSecret('revenuecat')" : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: 'pro'" : null,
-    options.features.billing ? "ABLY_API_KEY: syntheticSecret('ably')" : null,
+    options.features.realtime ? "ABLY_API_KEY: syntheticAblyApiKey()" : null,
     options.features.storage ? "R2_ACCOUNT_ID: 'a'.repeat(32)" : null,
     options.features.storage ? "R2_ACCESS_KEY_ID: 'b'.repeat(32)" : null,
     options.features.storage ? "R2_SECRET_ACCESS_KEY: 'c'.repeat(64)" : null,
@@ -300,6 +313,10 @@ function envTestSource(options: ProjectOptions): string {
     expect(() => loadEnv({ ...validProductionEnv, RC_SECRET_API_KEY: '${'x'.repeat(40)}' })).toThrow(/RC_SECRET_API_KEY must be at least 32 characters/);
     expect(() => loadEnv({ ...validProductionEnv, RC_WEBHOOK_SECRET: 'a'.repeat(40) })).toThrow(/sufficiently diverse/);
   });` : null,
+    options.features.realtime ? `  it('requires a well-formed Ably server API key', () => {
+    expect(() => loadEnv({ ...validProductionEnv, ABLY_API_KEY: 'ably-secret' })).toThrow(/well-formed, non-placeholder Ably API key/);
+    expect(() => loadEnv({ ...validProductionEnv, ABLY_API_KEY: 'example.key:A1b2C3d4E5f6G7h8' })).toThrow(/well-formed, non-placeholder Ably API key/);
+  });` : null,
     options.features.storage ? `  it('validates R2 credential and bucket formats plus cron-secret entropy', () => {
     expect(() => loadEnv({ ...validProductionEnv, R2_ACCOUNT_ID: 'account' })).toThrow(/R2_ACCOUNT_ID must be a 32-character/);
     expect(() => loadEnv({ ...validProductionEnv, R2_ACCESS_KEY_ID: 'access' })).toThrow(/R2_ACCESS_KEY_ID must be a 32-character/);
@@ -323,6 +340,9 @@ ${options.features.database ? `function syntheticDatabaseUrl(host: string, usern
 }
 ` : ''}${options.features.auth ? `function syntheticClerkKey(kind: 'pk' | 'sk', environment: 'live' | 'test' = 'live'): string {
   return [kind, environment, 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4'].join('_');
+}
+` : ''}${options.features.realtime ? `function syntheticAblyApiKey(): string {
+  return ['appId', '.', 'keyId', ':', 'A1b2C3d4E5f6G7h8I9j0K1l2'].join('');
 }
 ` : ''}${options.features.billing || options.features.storage ? `function syntheticSecret(label: string): string {
   return [label, 'A1b2C3d4E5f6G7h8', 'I9j0K1l2M3n4O5p6'].join('_');
@@ -1013,24 +1033,29 @@ export function createStorageService(
 
 function realtimeSource(): string {
   return `import * as Ably from 'ably';
-import type { RealtimeTokenRequest, SubscriptionChangedEvent } from '@shared/contracts';
+import type { RealtimeTokenRequest } from '@shared/contracts';
 
-export type SubscriptionMutation = { userId: string; revision: number };
+export type UserRealtimeMessage = {
+  userId: string;
+  id?: string;
+  name: string;
+  data: unknown;
+};
 
 export interface RealtimeService {
   createTokenRequest(userId: string): Promise<RealtimeTokenRequest>;
-  publishSubscriptionChanged(change: SubscriptionMutation): Promise<void>;
+  publishUserMessage(message: UserRealtimeMessage): Promise<void>;
 }
 
-export function subscriptionChannelName(userId: string): string {
-  return 'private:users:' + userId + ':subscriptions';
+export function userChannelName(userId: string): string {
+  return 'private:users:' + userId;
 }
 
 export function createRealtimeService(apiKey: string | undefined): RealtimeService {
   if (!apiKey) {
     return {
       async createTokenRequest() { throw new Error('Realtime is not configured'); },
-      async publishSubscriptionChanged() {},
+      async publishUserMessage() { throw new Error('Realtime is not configured'); },
     };
   }
   const client = new Ably.Rest({ key: apiKey });
@@ -1038,16 +1063,16 @@ export function createRealtimeService(apiKey: string | undefined): RealtimeServi
     async createTokenRequest(userId) {
       return client.auth.createTokenRequest({
         clientId: userId,
-        capability: JSON.stringify({ [subscriptionChannelName(userId)]: ['subscribe'] }),
+        capability: JSON.stringify({ [userChannelName(userId)]: ['subscribe'] }),
         ttl: 60 * 60 * 1000,
       }) as Promise<RealtimeTokenRequest>;
     },
-    async publishSubscriptionChanged(change) {
-      const event: SubscriptionChangedEvent = {
-        type: 'subscription.changed',
-        revision: change.revision,
-      };
-      await client.channels.get(subscriptionChannelName(change.userId)).publish('subscription.changed', event);
+    async publishUserMessage(message) {
+      await client.channels.get(userChannelName(message.userId)).publish({
+        id: message.id,
+        name: message.name,
+        data: message.data,
+      });
     },
   };
 }
@@ -1058,10 +1083,11 @@ function billingSource(): string {
   return `import crypto from 'node:crypto';
 import { and, asc, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { db, realtimeOutbox, sqlClient, subscriptions, webhookEvents } from '@shared/db';
-import type { SubscriptionMutation } from './realtime';
 
 const CLAIM_LEASE_MS = 5 * 60 * 1000;
 const REVENUECAT_REQUEST_TIMEOUT_MS = 5_000;
+
+export type SubscriptionMutation = { id: string; userId: string; revision: number };
 
 export type RevenueCatWebhookClaim =
   | { status: 'claimed'; token: string }
@@ -1268,7 +1294,7 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
       INSERT INTO "realtime_outbox" ("id", "user_id", "topic", "revision", "created_at")
       SELECT \${crypto.randomUUID()}, "user_id", 'subscription.changed', "revision", now()
       FROM "updated_subscription"
-      RETURNING "user_id" AS "userId", "revision"
+      RETURNING "id", "user_id" AS "userId", "revision"
     \`);
     const results = await sqlClient.transaction([
       ...subscriptionQueries,
@@ -1312,7 +1338,7 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
       INSERT INTO "realtime_outbox" ("id", "user_id", "topic", "revision", "created_at")
       SELECT \${crypto.randomUUID()}, "user_id", 'subscription.changed', "revision", now()
       FROM "updated_subscription"
-      RETURNING "user_id" AS "userId", "revision"
+      RETURNING "id", "user_id" AS "userId", "revision"
     \` as Array<SubscriptionMutation>;
     return rows[0] ?? null;
   },
@@ -1334,7 +1360,11 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
   },
 
   async pendingRealtime(limit = 100) {
-    return db.select({ userId: realtimeOutbox.userId, revision: realtimeOutbox.revision })
+    return db.select({
+      id: realtimeOutbox.id,
+      userId: realtimeOutbox.userId,
+      revision: realtimeOutbox.revision,
+    })
       .from(realtimeOutbox)
       .where(isNull(realtimeOutbox.deliveredAt))
       .orderBy(asc(realtimeOutbox.createdAt))
@@ -1344,8 +1374,7 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
   async markRealtimeDelivered(change) {
     await db.update(realtimeOutbox).set({ deliveredAt: new Date(), lastError: null })
       .where(and(
-        eq(realtimeOutbox.userId, change.userId),
-        eq(realtimeOutbox.revision, change.revision),
+        eq(realtimeOutbox.id, change.id),
         isNull(realtimeOutbox.deliveredAt),
       ));
   },
@@ -1355,8 +1384,7 @@ export const revenueCatWebhookStore: RevenueCatWebhookStore = {
       attempts: sql\`\${realtimeOutbox.attempts} + 1\`,
       lastError: message.slice(0, 1000),
     }).where(and(
-      eq(realtimeOutbox.userId, change.userId),
-      eq(realtimeOutbox.revision, change.revision),
+      eq(realtimeOutbox.id, change.id),
       isNull(realtimeOutbox.deliveredAt),
     ));
   },
@@ -1385,8 +1413,8 @@ function routesSource(options: ProjectOptions): string {
     options.features.auth ? "import { authenticatedUserId } from './auth';" : null,
     options.features.storage ? "import { ConfirmUploadRequestSchema, CreateUploadRequestSchema, UploadParamsSchema } from '@shared/contracts';" : null,
     options.features.storage ? "import { createStorageService, type StorageService } from './storage';" : null,
-    options.features.billing ? "import { createRevenueCatClient, projectRevenueCatSubscriber, revenueCatWebhookStore, type RevenueCatClient, type RevenueCatSubscriptionUpdate, type RevenueCatWebhookStore } from './billing';" : null,
-    options.features.billing ? "import { createRealtimeService, type RealtimeService, type SubscriptionMutation } from './realtime';" : null,
+    options.features.billing ? "import { createRevenueCatClient, projectRevenueCatSubscriber, revenueCatWebhookStore, type RevenueCatClient, type RevenueCatSubscriptionUpdate, type RevenueCatWebhookStore, type SubscriptionMutation } from './billing';" : null,
+    options.features.realtime ? "import { createRealtimeService, type RealtimeService } from './realtime';" : null,
   ].filter((value): value is string => value !== null);
   const routes = [
     `app.get('/health', async () => ({ ok: true as const, service: 'api' }));`,
@@ -1400,6 +1428,10 @@ function routesSource(options: ProjectOptions): string {
     });
   });`,
     options.features.auth ? `app.get('/auth/me', async (request) => ({ user: { id: authenticatedUserId(request, env) } }));` : null,
+    options.features.realtime ? `app.post('/realtime/token', async (request, reply) => {
+    if (!env.ABLY_API_KEY) return reply.code(503).send({ error: 'realtime_not_configured', message: 'Realtime is not configured' });
+    return realtimeService.createTokenRequest(authenticatedUserId(request, env));
+  });` : null,
     options.features.billing ? `app.get('/subscriptions/me', async (request) => {
     const subscription = await billingStore.getEntitlement(authenticatedUserId(request, env));
     return subscription
@@ -1442,11 +1474,6 @@ function routesSource(options: ProjectOptions): string {
           revision: subscription.revision,
         }
       : { entitlement: 'free', status: 'free' as const, expiresAt: null, revision: 0 };
-  });
-
-  app.post('/realtime/token', async (request, reply) => {
-    if (!env.ABLY_API_KEY) return reply.code(503).send({ error: 'realtime_not_configured', message: 'Realtime is not configured' });
-    return realtimeService.createTokenRequest(authenticatedUserId(request, env));
   });
 
   app.post('/webhooks/revenuecat', {
@@ -1623,18 +1650,25 @@ function routesSource(options: ProjectOptions): string {
   const dependencyFields = [
     options.features.billing ? '  revenueCatWebhookStore?: RevenueCatWebhookStore;' : null,
     options.features.billing ? '  revenueCatClient?: RevenueCatClient;' : null,
-    options.features.billing ? '  realtimeService?: RealtimeService;' : null,
+    options.features.realtime ? '  realtimeService?: RealtimeService;' : null,
     options.features.storage ? '  storageService?: StorageService;' : null,
     "  serviceState?: { readiness(): Promise<'ready' | 'unavailable' | 'shutting_down'> };",
   ].filter((value): value is string => value !== null);
+  const realtimeService = options.features.realtime
+    ? '    const realtimeService = dependencies.realtimeService ?? createRealtimeService(env.ABLY_API_KEY);\n'
+    : '';
   const billingStore = options.features.billing
     ? `    const billingStore = dependencies.revenueCatWebhookStore ?? revenueCatWebhookStore;
     const revenueCatClient = dependencies.revenueCatClient ?? (env.RC_SECRET_API_KEY ? createRevenueCatClient(env.RC_SECRET_API_KEY) : null);
-    const realtimeService = dependencies.realtimeService ?? createRealtimeService(env.ABLY_API_KEY);
     const publishSubscriptionChanges = async (changes: readonly SubscriptionMutation[]) => {
       for (const change of changes) {
         try {
-          await realtimeService.publishSubscriptionChanged(change);
+          await realtimeService.publishUserMessage({
+            id: change.id,
+            userId: change.userId,
+            name: 'subscription.changed',
+            data: { type: 'subscription.changed', revision: change.revision },
+          });
           await billingStore.markRealtimeDelivered(change);
         } catch (error) {
           await billingStore.markRealtimeFailed(
@@ -1682,7 +1716,7 @@ ${dependencyFields.join('\n')}
 
 export function routes(env: AppEnv, dependencies: RouteDependencies = {}): FastifyPluginAsync {
   return async function registerRoutes(app) {
-${billingStore}${storageService}    const serviceState = dependencies.serviceState ?? { readiness: async () => 'ready' as const };
+${realtimeService}${billingStore}${storageService}    const serviceState = dependencies.serviceState ?? { readiness: async () => 'ready' as const };
   ${routes.join('\n\n  ')}
 
   ${appRoutesRegistration}
@@ -1705,6 +1739,7 @@ import type {
 
 const syntheticClerkKey = (kind: 'pk' | 'sk') => [kind, 'live', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4'].join('_');
 const syntheticSecret = (label: string) => [label, 'A1b2C3d4E5f6G7h8', 'I9j0K1l2M3n4O5p6'].join('_');
+const syntheticAblyApiKey = () => ['appId', '.', 'keyId', ':', 'A1b2C3d4E5f6G7h8I9j0K1l2'].join('');
 const syntheticDatabaseUrl = (host: string) => [
   'postgresql://', 'app_owner', ':', 'S3cureRandomDatabaseCredential123', '@', host, '/app?sslmode=require',
 ].join('');
@@ -1819,7 +1854,7 @@ describe('RevenueCat webhook', () => {
       CLERK_PUBLISHABLE_KEY: syntheticClerkKey('pk'),
       CLERK_SECRET_KEY: syntheticClerkKey('sk'),
       RC_ENTITLEMENT_ID: 'pro',
-      ABLY_API_KEY: syntheticSecret('ably'),
+      ABLY_API_KEY: syntheticAblyApiKey(),
       R2_ACCOUNT_ID: 'a'.repeat(32),
       R2_ACCESS_KEY_ID: 'b'.repeat(32),
       R2_SECRET_ACCESS_KEY: 'c'.repeat(64),
@@ -2041,8 +2076,8 @@ describe('RevenueCat webhook', () => {
     };
     const transaction = vi.spyOn(sqlClient as unknown as TransactionOwner, 'transaction')
       .mockResolvedValue([
-        [{ userId: 'source-user', revision: 2 }],
-        [{ userId: 'destination-user', revision: 3 }],
+        [{ id: 'outbox-source', userId: 'source-user', revision: 2 }],
+        [{ id: 'outbox-destination', userId: 'destination-user', revision: 3 }],
         [{ providerEventId: 'event-transfer' }],
       ]);
     const eventTimestamp = new Date('2027-01-01T00:00:00.000Z');
@@ -2052,8 +2087,8 @@ describe('RevenueCat webhook', () => {
         { userId: 'destination-user', entitlement: 'pro', status: 'active', expiresAt: null, eventTimestamp },
       ]);
       expect(completed).toEqual([
-        { userId: 'source-user', revision: 2 },
-        { userId: 'destination-user', revision: 3 },
+        { id: 'outbox-source', userId: 'source-user', revision: 2 },
+        { id: 'outbox-destination', userId: 'destination-user', revision: 3 },
       ]);
       expect(transaction).toHaveBeenCalledOnce();
       expect(transaction.mock.calls[0]?.[0]).toHaveLength(3);
@@ -2118,7 +2153,7 @@ const env: AppEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/test',
   CLERK_PUBLISHABLE_KEY: undefined,
   CLERK_SECRET_KEY: undefined,
-${options.features.billing ? "  RC_WEBHOOK_SECRET: undefined,\n  RC_SECRET_API_KEY: undefined,\n  RC_ENTITLEMENT_ID: 'pro',\n  ABLY_API_KEY: undefined,\n" : ''}  R2_ACCOUNT_ID: 'account',
+${options.features.billing ? "  RC_WEBHOOK_SECRET: undefined,\n  RC_SECRET_API_KEY: undefined,\n  RC_ENTITLEMENT_ID: 'pro',\n" : ''}${options.features.realtime ? "  ABLY_API_KEY: undefined,\n" : ''}  R2_ACCOUNT_ID: 'account',
   R2_ACCESS_KEY_ID: 'access',
   R2_SECRET_ACCESS_KEY: 'secret',
   BASE_URL: 'http://localhost:8787',
@@ -2958,7 +2993,7 @@ export default defineConfig({
 `);
   writeFile(path.join(dir, 'src/env.ts'), envSource(options));
   if (options.features.auth) writeFile(path.join(dir, 'src/auth.ts'), authSource());
-  if (options.features.billing) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
+  if (options.features.realtime) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
   if (options.features.storage) writeFile(path.join(dir, 'src/storage.ts'), storageSource());
   if (options.features.billing) writeFile(path.join(dir, 'src/billing.ts'), billingSource());
   const appRouteAuthImports = options.features.auth
@@ -3191,7 +3226,8 @@ describe('health', () => {
     'ANHEDRAL_DEMO=false',
     options.features.database ? '# Production requires a postgres/postgresql URL: paste the exact pooled URL from managed Neon. Anhedral never starts local Postgres.\nDATABASE_URL=YOUR_NEON_POSTGRES_URL' : null,
     options.features.auth ? '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
-    options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro\n# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
+    options.features.realtime ? '# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
+    options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro' : null,
     options.features.storage ? '# Canonical application/API origin used when constructing protected storage links. Use HTTPS in production.\nBASE_URL=http://localhost:8787\n# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET_NAME=\n# Keep every application object inside one top-level namespace.\nR2_PREFIX=storage\n# Authenticated read URLs are clamped to 60-604800 seconds.\nR2_PROXY_READ_URL_TTL_SECONDS=600\n# Operations/CI only. Wrangler reads this automatically; do not expose it to clients or the Worker.\nCLOUDFLARE_API_TOKEN=' : null,
     options.features.billing || options.features.storage ? '# Vercel sends this as Authorization: Bearer <CRON_SECRET>; use a non-placeholder value of at least 32 characters.\nCRON_SECRET=' : null,
   ].filter((value): value is string => value !== null);

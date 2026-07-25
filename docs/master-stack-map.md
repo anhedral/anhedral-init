@@ -36,7 +36,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 |SURFACES web | mobile | api | desktop | extension                                                                         |
 |FEATURES db | auth | billing | storage | native-subscriptions | electron-updater                                          |
 |UI shadcn/ui for DOM clients | React Native Reusables for Expo | NativeWind or Uniwind                                    |
-|CLOSURE auth -> api + db | billing -> auth | storage -> auth | native-subscriptions -> mobile + billing |                 |
+|CLOSURE auth -> api + db | realtime -> auth | billing -> realtime | storage -> auth | native-subscriptions -> mobile + billing |
 |electron-updater -> desktop                                                                                               |
 +==========================================================================================================================+
                                                              |
