@@ -162,12 +162,18 @@ export function validateWorkflowPolicy(root) {
     failures.push('.github/workflows/release.yml: npm publish must use an explicit local release-artifact tarball path');
   }
   const tagJob = releaseWorkflow.match(/^  tag:[\s\S]*$/m)?.[0] ?? '';
+  const releasePublishCount = [...tagJob.matchAll(/gh release edit "\$TAG" --draft=false/g)].length;
   if (!/METADATA="release-artifact\/metadata\.json"/.test(tagJob)
     || !/gh release upload[\s\S]*?"\$METADATA#release integrity metadata"/.test(tagJob)
-    || !/gh release create[\s\S]*?"\$METADATA#release integrity metadata"/.test(tagJob)) {
+    || !/gh release create "\$TAG" \\\n\s+--draft \\/.test(tagJob)
+    || releasePublishCount !== 2
+    || !/gh release download[\s\S]*?--pattern metadata\.json/.test(tagJob)
+    || !/cmp "\$ASSET" "\$DOWNLOAD_DIR\/\$TARBALL"/.test(tagJob)
+    || !/cmp "\$METADATA" "\$DOWNLOAD_DIR\/metadata\.json"/.test(tagJob)) {
     failures.push('.github/workflows/release.yml: GitHub releases must attach release-artifact/metadata.json with the tarball');
   }
   const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
+  const ciWorkflow = readFileSync(path.join(workflowsRoot, 'ci.yml'), 'utf8');
   const reusableReleaseJob = releaseOnMainWorkflow.match(/^  release:[\s\S]*$/m)?.[0] ?? '';
   const releasePreparationJob = releaseOnMainWorkflow.match(
     /^  prepare:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
@@ -175,9 +181,16 @@ export function validateWorkflowPolicy(root) {
   const publishJob = releaseWorkflow.match(
     /^  publish:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
   )?.[0] ?? '';
+  const releasePrCreateCount = [...releasePreparationJob.matchAll(/gh pr create/g)].length;
+  const releaseCiDispatchCount = [
+    ...releasePreparationJob.matchAll(/gh workflow run ci\.yml --ref "\$RELEASE_BRANCH"/g),
+  ].length;
   if (!/prepare-auto-release\.mjs/.test(releasePreparationJob)
-    || !/git push origin HEAD:main/.test(releasePreparationJob)) {
-    failures.push('.github/workflows/release-on-main.yml: main releases must prepare and push an automatic version commit');
+    || !/git push origin "HEAD:refs\/heads\/\$RELEASE_BRANCH"/.test(releasePreparationJob)
+    || releasePrCreateCount !== 2
+    || releaseCiDispatchCount !== 2
+    || /git push origin HEAD:main/.test(releasePreparationJob)) {
+    failures.push('.github/workflows/release-on-main.yml: automatic versions must use a reviewed release PR with explicitly dispatched CI');
   }
   if (!/workflow_run:/.test(releaseOnMainWorkflow)
     || !/workflow_run\.conclusion == 'success'/.test(releasePreparationJob)) {
@@ -188,6 +201,13 @@ export function validateWorkflowPolicy(root) {
   }
   if (!/^\s{6}contents:\s*write\s*$/m.test(releasePreparationJob)) {
     failures.push('.github/workflows/release-on-main.yml: release preparation must grant contents=write');
+  }
+  if (!/^\s{6}actions:\s*write\s*$/m.test(releasePreparationJob)
+    || !/^\s{6}pull-requests:\s*write\s*$/m.test(releasePreparationJob)) {
+    failures.push('.github/workflows/release-on-main.yml: release PR preparation must grant actions=write and pull-requests=write');
+  }
+  if (!/^\s{2}workflow_dispatch:\s*$/m.test(ciWorkflow)) {
+    failures.push('.github/workflows/ci.yml: CI must support explicit dispatch for automated release PR branches');
   }
   if (!/release_sha:\s*\$\{\{ needs\.prepare\.outputs\.release_sha \}\}/.test(reusableReleaseJob)
     || !/inputs\.release_sha/.test(releaseWorkflow)) {

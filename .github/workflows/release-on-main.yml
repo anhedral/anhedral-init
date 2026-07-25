@@ -24,7 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: write
       contents: write
+      pull-requests: write
     outputs:
       changed: ${{ steps.prepare.outputs.changed }}
       release_sha: ${{ steps.prepare.outputs.release_sha }}
@@ -50,6 +52,7 @@ jobs:
       - name: Prepare automatic patch version
         id: prepare
         env:
+          GH_TOKEN: ${{ github.token }}
           TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_run" ] && [ "$(git rev-parse HEAD)" != "$TRIGGER_SHA" ]; then
@@ -87,6 +90,30 @@ jobs:
           fi
 
           if ! git diff --quiet; then
+            RELEASE_BRANCH="release/v$RELEASE_VERSION"
+            REMOTE_RELEASE_SHA=$(git ls-remote origin "refs/heads/$RELEASE_BRANCH" | cut -f1)
+            if [ -n "$REMOTE_RELEASE_SHA" ]; then
+              PR_URL=$(gh pr list \
+                --head "$RELEASE_BRANCH" \
+                --base main \
+                --state open \
+                --json url \
+                --jq '.[0].url')
+              if [ -z "$PR_URL" ]; then
+                PR_URL=$(gh pr create \
+                  --base main \
+                  --head "$RELEASE_BRANCH" \
+                  --title "chore(release): v$RELEASE_VERSION" \
+                  --body "Automated release preparation for v$RELEASE_VERSION. Merge only after required CI and human review.")
+              fi
+              gh workflow run ci.yml --ref "$RELEASE_BRANCH"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "release_sha=$REMOTE_RELEASE_SHA" >> "$GITHUB_OUTPUT"
+              echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+              echo "Release PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add \
@@ -96,7 +123,18 @@ jobs:
               docs/output-tree-contract.md \
               tests/fixtures/output-trees
             git commit -m "chore(release): v$RELEASE_VERSION [skip ci]"
-            git push origin HEAD:main
+            git push origin "HEAD:refs/heads/$RELEASE_BRANCH"
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$RELEASE_BRANCH" \
+              --title "chore(release): v$RELEASE_VERSION" \
+              --body "Automated release preparation for v$RELEASE_VERSION. Merge only after required CI and human review.")
+            gh workflow run ci.yml --ref "$RELEASE_BRANCH"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Release PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
           echo "changed=true" >> "$GITHUB_OUTPUT"

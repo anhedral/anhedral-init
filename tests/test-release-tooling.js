@@ -153,6 +153,10 @@ try {
   const releaseOnMainWorkflow = readFileSync(path.join(repoRoot, '.github', 'workflows', 'release-on-main.yml'), 'utf8');
   writeFileSync(path.join(workflowPolicyDirectory, 'release-on-main.yml'), releaseOnMainWorkflow);
   writeFileSync(
+    path.join(workflowPolicyDirectory, 'ci.yml'),
+    readFileSync(path.join(repoRoot, '.github', 'workflows', 'ci.yml'), 'utf8'),
+  );
+  writeFileSync(
     path.join(workflowPolicyDirectory, 'release.yml'),
     releaseWorkflow.replace('npm publish "./release-artifact/$TARBALL"', 'npm publish "release-artifact/$TARBALL"'),
   );
@@ -211,6 +215,36 @@ try {
     releaseWorkflow.replace('          METADATA="release-artifact/metadata.json"\n', ''),
   );
   assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /attach release-artifact\/metadata\.json/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('              --draft \\\n', ''),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /attach release-artifact\/metadata\.json/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replaceAll('gh release edit "$TAG" --draft=false', 'gh release edit "$TAG" --draft=true'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /attach release-artifact\/metadata\.json/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release.yml'),
+    releaseWorkflow.replace('          cmp "$ASSET" "$DOWNLOAD_DIR/$TARBALL"\n', ''),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /attach release-artifact\/metadata\.json/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release-on-main.yml'),
+    releaseOnMainWorkflow.replaceAll('gh workflow run ci.yml --ref "$RELEASE_BRANCH"', 'printf "CI not dispatched"'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /reviewed release PR with explicitly dispatched CI/);
+
+  writeFileSync(
+    path.join(workflowPolicyDirectory, 'release-on-main.yml'),
+    releaseOnMainWorkflow.replaceAll('gh pr create', 'printf'),
+  );
+  assert.match(validateWorkflowPolicy(workflowPolicyRoot).join('\n'), /reviewed release PR with explicitly dispatched CI/);
 
   const token = ['ghp', '_', 'A'.repeat(32)].join('');
   const clerkSecret = ['sk', '_test_', 'B'.repeat(28)].join('');

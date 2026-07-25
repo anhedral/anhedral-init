@@ -46,7 +46,7 @@
         "minor"
       ],
       "groupName": "devDependencies (non-major)",
-      "automerge": true
+      "automerge": false
     },
     {
       "matchManagers": [

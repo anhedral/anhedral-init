@@ -373,7 +373,7 @@ jobs:
             git push origin "refs/tags/$TAG"
           fi
 
-      - name: Create or update GitHub release
+      - name: Create or verify immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TARBALL: ${{ needs.verify.outputs.tarball }}
@@ -383,15 +383,32 @@ jobs:
           ASSET="release-artifact/$TARBALL"
           METADATA="release-artifact/metadata.json"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" \
-              "$ASSET#npm package tarball" \
-              "$METADATA#release integrity metadata" \
-              --clobber
+            IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+            if [ "$IS_DRAFT" = "true" ]; then
+              gh release upload "$TAG" \
+                "$ASSET#npm package tarball" \
+                "$METADATA#release integrity metadata" \
+                --clobber
+              gh release edit "$TAG" --draft=false
+            fi
           else
             gh release create "$TAG" \
-              "$ASSET#npm package tarball" \
-              "$METADATA#release integrity metadata" \
+              --draft \
               --verify-tag \
               --generate-notes \
               --title "$TAG"
+            gh release upload "$TAG" \
+              "$ASSET#npm package tarball" \
+              "$METADATA#release integrity metadata"
+            gh release edit "$TAG" --draft=false
           fi
+
+          DOWNLOAD_DIR=$(mktemp -d "$RUNNER_TEMP/anhedral-release.XXXXXX")
+          trap 'rm -rf "$DOWNLOAD_DIR"' EXIT
+          gh release download "$TAG" \
+            --dir "$DOWNLOAD_DIR" \
+            --pattern "$TARBALL" \
+            --pattern metadata.json
+          cmp "$ASSET" "$DOWNLOAD_DIR/$TARBALL"
+          cmp "$METADATA" "$DOWNLOAD_DIR/metadata.json"
+          node scripts/verify-release-artifact.mjs "$DOWNLOAD_DIR/metadata.json"

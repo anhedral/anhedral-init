@@ -63,7 +63,7 @@ Repository administrators must map the following roles to real maintainers in br
 - **Release owner:** package metadata, CI workflows, registry publication, tags, and recovery.
 - **Security responder:** vulnerability intake, secret-exposure response, and supply-chain incidents.
 
-No `CODEOWNERS` file is committed until an actual GitHub user or team slug is selected. A placeholder would create false confidence without enforcing review. Require at least one appropriate owner review for generator/runtime changes and a release-owner review for `.github/workflows/`, `scripts/`, `package.json`, `renovate.json`, `SECURITY.md`, or `docs/RELEASING.md`.
+The repository `CODEOWNERS` file assigns the current human maintainers. Keep those entries synchronized with repository access and the roles above. Require at least one appropriate owner review for generator/runtime changes and a release-owner review for `.github/workflows/`, `scripts/`, `package.json`, `pnpm-lock.yaml`, `renovate.json`, `SECURITY.md`, or `docs/RELEASING.md`.
 
 Scheduled Toolchain Drift failures and release-workflow failures must alert the release owner. Security-policy, secret-scan, or OSV failures must additionally alert the security responder. Configure those routes in repository notification settings and test them after changing ownership.
 

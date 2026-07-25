@@ -17,6 +17,7 @@ Include the affected version, reproduction steps, impact, and any suggested miti
 - npm integrity is checked before and after publication.
 - npm publication uses Trusted Publishing: GitHub exchanges an OIDC identity for a short-lived credential only in the publish step of the protected `npm` environment. No npm write token is stored in GitHub.
 - A Git tag and GitHub release are created only after npm confirms the expected artifact integrity.
+- Published GitHub releases are immutable. Their tags and assets cannot be replaced, and recovery runs verify existing assets byte-for-byte.
 - GitHub Actions are pinned to reviewed commit SHAs, and the release Node.js/npm packer is pinned to an exact version.
 - CI queries OSV for every exact package version in `pnpm-lock.yaml` and every dependency version shipped by the generator; it fails closed if the service remains unavailable after bounded retries or reports a finding.
 - Local policy scans every tracked or non-ignored working-tree text file and built `dist/` file for high-confidence credential formats. Release jobs repeat the scan against the exact gzip tarball before it crosses the publish boundary. Placeholder examples use explicit non-secret values rather than allowlisting token-shaped strings.
