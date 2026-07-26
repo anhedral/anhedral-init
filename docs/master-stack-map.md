@@ -31,7 +31,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 +--------------------------------------------------------------------------------------------------------------------------+
 |SKILL FIRST Install and invoke $anhedral-init. Ask for project name and custom-domain status before generating or         |
 |provisioning.                                                                                                             |
-|CREATE anhedral new <directory> | anhedral init EXTEND anhedral add <modules> | anhedral ui add <components>              |
+|CREATE anhedral new <directory> | anhedral init EXTEND anhedral add <products> | anhedral ui add <components>             |
 |INSPECT anhedral doctor AUTOMATE --dry-run | --json | --verbose | --skip-install                                          |
 |SURFACES web | mobile | api | desktop | extension                                                                         |
 |FEATURES db | auth | billing | storage | native-subscriptions | electron-updater                                          |

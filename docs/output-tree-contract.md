@@ -21,10 +21,10 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, realtime, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 152 | `f2e96e5bda639b76836548a7fa6f84868af13cb3ce8641055aee33ae3c956e24` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 67 | `e92c061acacf3066fb5bdd987a3c434cf1db5cea6b9391d60d6403a67cc675ab` |
-| `api-only` | api |  | deterministic golden | 33 | `f5052d91e3118a6feea55da13ef7b23f21e51ee576a8c4517b70a401de145073` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 69 | `691531d615001b855febc189367532b345eb4f2af7bfdf10c433a39fd290d723` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, realtime, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 152 | `5c40f87d46e67b9d0047bbaaee6cae8b94af456def7ea68cc205f5a05ec9a8b1` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 67 | `2475e450dde5d00f551946d90213681ed4712ca781c8c47427bb890255b1320f` |
+| `api-only` | api |  | deterministic golden | 33 | `0aacd42682996ccc1b7197d29db1c27a99e464ac303e01a5cd6af8bd2d29e330` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 69 | `787b825cb19a700551e5c457b5278cb83ec9099c3b52b8c95ecb45ce348077ba` |
 
 ## expo-extension
 

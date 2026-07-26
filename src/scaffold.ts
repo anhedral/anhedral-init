@@ -1141,7 +1141,7 @@ ${deploymentRows}
 ${deploymentCommands}
 \`\`\`
 
-Read \`PRODUCTION.md\` before creating accounts or production resources. Generated ownership and tool versions are recorded in \`anhedral.json\`. Run \`pnpm anhedral:doctor\` before structural changes and preview additions with \`pnpm anhedral:add <module> --dry-run\`.
+Read \`PRODUCTION.md\` before creating accounts or production resources. Generated ownership and tool versions are recorded in \`anhedral.json\`. Run \`pnpm anhedral:doctor\` before structural changes and preview additions with \`pnpm anhedral:add <product> --dry-run\`.
 `);
   }
     writeFile(path.join(root, 'docs/DEVELOPMENT.md'), `# Developing ${markdownHeading(options.displayName)}
@@ -1163,8 +1163,8 @@ ${uiTaskSection}
 ### Add another app surface
 
 \`\`\`sh
-pnpm anhedral:add mobile --dry-run
-pnpm anhedral:add mobile
+pnpm anhedral:add expo --dry-run
+pnpm anhedral:add expo
 \`\`\`
 
 Anhedral refuses ownership conflicts instead of overwriting product changes. Run \`pnpm anhedral:doctor\` when an add cannot proceed.
@@ -1192,7 +1192,7 @@ ${dependencyLines || 'selected applications are independent framework projects'}
 
 Clients may import contracts and the API client. They must not import API services, database connections, or server environment modules. Provider secrets terminate at the API or provider-specific Worker.
 
-\`pnpm anhedral:add <module>\` adds modules and integration files. \`pnpm anhedral:ui <component>\` adds source-owned UI. \`pnpm anhedral:doctor\` checks recorded ownership. Product features, models, pages, routes, and services remain developer-owned TypeScript.
+\`pnpm anhedral:add <product>\` adds stack products and integration files. \`pnpm anhedral:ui <component>\` adds source-owned UI. \`pnpm anhedral:doctor\` checks recorded ownership. Product features, models, pages, routes, and services remain developer-owned TypeScript.
 `);
   if (includeUserDocs) {
     const productionItems = [
@@ -1314,7 +1314,7 @@ Generator: ${GENERATOR_VERSION}
 
 Resolved modules: ${modules.join(', ')}
 
-- \`pnpm anhedral:add <module> --dry-run\` previews incremental changes.
+- \`pnpm anhedral:add <product> --dry-run\` previews incremental changes.
 - \`pnpm anhedral:upgrade --dry-run\` previews a supported generator migration.
 - \`pnpm anhedral:ui <component> --dry-run\` previews platform-routed component additions.
 - \`pnpm anhedral:doctor\` reports manifest and filesystem drift before incremental changes.
@@ -1367,7 +1367,7 @@ Before implementing a feature, read \`README.md\` for the source map, \`docs/DEV
 1. Read \`anhedral.json\` for the selected modules, native styling provider, installed UI components, and file ownership.
 2. Run \`pnpm first-run\` on a fresh clone, then run \`pnpm ready\`. The readiness check reports only missing filenames and variable names; never print populated environment files.
 3. Run \`pnpm anhedral:doctor\` before generator operations. If it reports a supported older generator, preview and apply \`pnpm anhedral:upgrade --dry-run\` before continuing.
-4. Preview structural changes with \`pnpm anhedral:upgrade --dry-run\`, \`pnpm anhedral:add <module> --dry-run\`, or \`pnpm anhedral:ui <component> --dry-run\` as applicable.
+4. Preview structural changes with \`pnpm anhedral:upgrade --dry-run\`, \`pnpm anhedral:add <product> --dry-run\`, or \`pnpm anhedral:ui <component> --dry-run\` as applicable.
 5. Never hand-edit \`anhedral.json\`, ownership hashes, or bundled-template provenance.
 
 Resolved modules: ${modules.map((moduleName) => `\`${moduleName}\``).join(', ')}.

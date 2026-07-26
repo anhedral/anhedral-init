@@ -35,8 +35,8 @@
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 610,
-      "sha256": "5557d7de9c4adcba6fd8bc4023dfd096053d896dbf30bc482e85134c13b5e7a6"
+      "bytes": 611,
+      "sha256": "76aa02bf9b747112e34ee8db4eaf624be816cadba9f2ce60735c70745973d16e"
     },
     {
       "path": "PRODUCTION.md",
@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 6030,
-      "sha256": "d29207c9d0a84819a7d7051dc5a1c13ee42e38e802bbf79fc725e1179d6b3fe3"
+      "bytes": 6031,
+      "sha256": "2a47a34b38ed23cf62a9b57bc72b7e495e0e8609a5f505c381f3247c44478d37"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 10322,
-      "sha256": "098e8755be1f8504abce4da0c50de32ea97e250c347564c0c9986d635b109662"
+      "bytes": 10323,
+      "sha256": "26046571b628a8349f5791ecf2bff18bd5d47edfc9e13ce41d4aa6cfa3669a09"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
       "bytes": 32194,
-      "sha256": "cd8c149efca24106f8d4ea5c36b28968572aa745e11b1e8a40acfa72e7671a1c"
+      "sha256": "8d0ad884b61593e4d755c2a761aab829572da88c6753d176a2d5252e8e769ddf"
     },
     {
       "path": "apps/api/.env.example",
@@ -840,15 +840,15 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 4356,
-      "sha256": "ca092bd4903cf1d44d42a148a2a869665dcc07075a4219130f61543402e6d767"
+      "bytes": 4352,
+      "sha256": "eb57359fa6a051244c121a6ccec32dda27030633bbd62a392a9b5c7932bf79e8"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 2609,
-      "sha256": "e35d51ae9f65468232163df0d655e48f7c686ee53dc17257410192417a6ae650"
+      "bytes": 2617,
+      "sha256": "d49f5ffd7d58519bf66cb8faa247b8f4238fb814394ee906ffd1cecb68adf67c"
     },
     {
       "path": "package.json",
@@ -1068,5 +1068,5 @@
       "sha256": "54571e9bf3fb5667c756cfb1b1d105831a1ad3dc8e3050488ebfc216b14d7800"
     }
   ],
-  "digest": "f2e96e5bda639b76836548a7fa6f84868af13cb3ce8641055aee33ae3c956e24"
+  "digest": "5c40f87d46e67b9d0047bbaaee6cae8b94af456def7ea68cc205f5a05ec9a8b1"
 }

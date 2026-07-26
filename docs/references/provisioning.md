@@ -184,7 +184,7 @@ cd <project-name>
 Omit module arguments only when the user chose the complete stack. Examples:
 
 ```sh
-pnpm dlx anhedral@latest new acme --web --api --db --auth --toolchain stable
+pnpm dlx anhedral@latest new acme --next --fastify --neon --clerk --toolchain stable
 pnpm dlx anhedral@latest new acme desktop electron-updater --toolchain stable
 ```
 

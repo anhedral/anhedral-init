@@ -20,7 +20,7 @@ assert.match(scaffold, /runStagedTransaction/);
 assert.match(scaffold, /createManifest/);
 assert.match(scaffold, /Refusing to overwrite unowned path/);
 assert.match(scaffold, /Managed file has user modifications/);
-assert.match(scaffold, /pnpm anhedral:add <module> --dry-run/);
+assert.match(scaffold, /pnpm anhedral:add <product> --dry-run/);
 assert.match(scaffold, /\.github\/workflows\/anhedral-ci\.yml/);
 
 assert.match(api, /webhookEvents/);

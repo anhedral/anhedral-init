@@ -102,7 +102,7 @@ native-subscriptions -> mobile + billing
 electron-updater     -> desktop
 ```
 
-With no module flags in an interactive terminal, Anhedral prompts and suggests
+With no product flags in an interactive terminal, Anhedral prompts and suggests
 a focused web app. In a noninteractive environment, no flags retain the full
 stack for compatibility. Use `--all` when the complete stack is intentional,
 or pass explicit modules for reproducible automation.
@@ -173,9 +173,9 @@ starting affected services.
 Prefer explicit modules when the user requests a smaller stack:
 
 ```sh
-pnpm dlx anhedral@latest new my-product --web --api --db --auth
-pnpm dlx anhedral@latest new my-product --web --mobile --ui button,dialog --native-styling nativewind
-pnpm dlx anhedral@latest new my-api --api --skip-install
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk
+pnpm dlx anhedral@latest new my-product --next --expo --ui button,dialog --native-styling nativewind
+pnpm dlx anhedral@latest new my-api --fastify --skip-install
 ```
 
 Use the stable toolchain for normal generation. The `latest` value is retained only as a metadata compatibility channel for maintainer investigations:
@@ -216,8 +216,8 @@ Run `add` only from a project containing `anhedral.json` schema v5 at the curren
 ```sh
 pnpm dlx anhedral@latest upgrade --dry-run
 pnpm dlx anhedral@latest upgrade
-pnpm dlx anhedral@latest add desktop extension
-pnpm dlx anhedral@latest add storage --dry-run
+pnpm dlx anhedral@latest add electron wxt
+pnpm dlx anhedral@latest add r2 --dry-run
 ```
 
 Use `--dry-run` before a consequential add. Use `--json` when another program needs the plan; JSON failures include a stable `code` and a human-readable `error`. Use `--verbose` for interactive child-command diagnostics. Anhedral preserves recorded user-owned extension files and intentionally refuses modified managed files, symlinks, and unowned collisions; do not bypass those conflicts.

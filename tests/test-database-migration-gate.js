@@ -82,7 +82,7 @@ try {
 
   const vercelPath = path.join(project, 'vercel.json');
   writeFileSync(vercelPath, JSON.stringify({ ...vercel, customTopLevel: { preserved: true } }, null, 2) + '\n');
-  expectSuccess(run(process.execPath, [cliEntry, 'add', 'mobile', '--skip-install']), 'add mobile to database-only project');
+expectSuccess(run(process.execPath, [cliEntry, 'add', 'expo', '--skip-install']), 'add Expo to database-only project');
   const mergedVercel = JSON.parse(readFileSync(vercelPath, 'utf8'));
   assert.equal(mergedVercel.services, undefined);
   assert.equal(mergedVercel.rewrites, undefined);

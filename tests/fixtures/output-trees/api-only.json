@@ -35,8 +35,8 @@
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 499,
-      "sha256": "d07751f2983ef2213c2e0f5863977013c6e4afc65f599de8dd7905fa134bcb9b"
+      "bytes": 500,
+      "sha256": "2559ff762e1655b611b6708b9e33a644a49270ea5b49f2149a17d3a00d8663ac"
     },
     {
       "path": "PRODUCTION.md",
@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 2834,
-      "sha256": "ddf962f8e05a5abc50bcafbb6e4da9428442690f530ffca326392c9fbee1640f"
+      "bytes": 2835,
+      "sha256": "78980d13f85473884455dc7d4b811f5080d8f1b903a3f63aee4212cb160aa7b9"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 6761,
-      "sha256": "34273539d8d01b6df318e8ef3f8b0d242ae3b561d7037a1b8787b8b3f99ad1fb"
+      "bytes": 6762,
+      "sha256": "48ee6f2e947211f88f728fb15301f51412ba4bb68e06d3bb9da5251e9f731b53"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
       "bytes": 6505,
-      "sha256": "c26ea42c548cdeecb8ed52d8fb0a36ccfbc88900ef3daca5d7b594a72fe264b9"
+      "sha256": "6adcd010130281072b97e4bc5dd2c2842b9c2eaf02f45ccb2503ae88617d8048"
     },
     {
       "path": "apps/api/.env.example",
@@ -154,15 +154,15 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1503,
-      "sha256": "9aff4868877624edee6228bd823815b26d07faf24d8f067bcfcb634913a5df84"
+      "bytes": 1499,
+      "sha256": "86846dc35d9c36af2b56eb4ec9969f69590dd998ec2647da12952e10e6ae886a"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1046,
-      "sha256": "fbd6fb8edf86c0da610d6abcb41768d21e4d1e59c17db1b1e38d43e2551de2fa"
+      "bytes": 1054,
+      "sha256": "b3fff420be94097342002422ec01f0103941541bd014bb9c2b4da8cac4efa13e"
     },
     {
       "path": "package.json",
@@ -235,5 +235,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "f5052d91e3118a6feea55da13ef7b23f21e51ee576a8c4517b70a401de145073"
+  "digest": "0aacd42682996ccc1b7197d29db1c27a99e464ac303e01a5cd6af8bd2d29e330"
 }

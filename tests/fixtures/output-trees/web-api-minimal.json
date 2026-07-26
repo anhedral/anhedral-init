@@ -35,8 +35,8 @@
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 514,
-      "sha256": "ccd8efa06a43721867d5ffa225e1e154a982b709f9ac7502fe035199322ec536"
+      "bytes": 515,
+      "sha256": "757361d00a0a07291374a0be3f64589df763fadaa99139d1fdc7faec3d90222b"
     },
     {
       "path": "PRODUCTION.md",
@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3778,
-      "sha256": "9b8dd7d54a40b3211af6509b3cbfd2e7964084d7cf9f6b8cefd1a1d9447e04ea"
+      "bytes": 3779,
+      "sha256": "39e45d0c2251f42ec06f4168abb87f523117e09c8e3d612dad759df8562bfff3"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7657,
-      "sha256": "36c7c09055b5aa78319733f9d32d4d1c522d3bec30d0bae0e54a6f6caa11ea8e"
+      "bytes": 7658,
+      "sha256": "4bdf38b25ad77be4610699efbbd91560a470752044050842b50406862e2a4f8e"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
       "bytes": 13788,
-      "sha256": "10f9c71c3715f9b3bb857ac03c53cf54c5e08a53f4a25271db7bba95cf243a04"
+      "sha256": "3739d047d313eea5b88c6d86ab9660359acf9b9434790e9f34c2c5b0288a75f3"
     },
     {
       "path": "apps/api/.env.example",
@@ -280,15 +280,15 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3713,
-      "sha256": "bf6d5b954a61df408343d0a44ae36c14798ef7c2e23f9d18601fbc6b282d63ab"
+      "bytes": 3709,
+      "sha256": "650e1e0a28a9e363b3c99bd3ddbec56401cc2f3f89d6a59ef550bda59e0cae4a"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1620,
-      "sha256": "d1371082708db51bf91971fe3ba03b3e46f1e68d65b58b24d5368b99a01d509a"
+      "bytes": 1628,
+      "sha256": "0b0cd24ef585ecee088a7bb5a4ef276a090ad0f7c596b722dfae262f793f2216"
     },
     {
       "path": "package.json",
@@ -473,5 +473,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "e92c061acacf3066fb5bdd987a3c434cf1db5cea6b9391d60d6403a67cc675ab"
+  "digest": "2475e450dde5d00f551946d90213681ed4712ca781c8c47427bb890255b1320f"
 }

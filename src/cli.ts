@@ -5,12 +5,18 @@ import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
 import {
   APP_MODULES,
   FEATURE_MODULES,
-  isModuleId,
   resolveModules,
   type AppModule,
   type FeatureModule,
   type ModuleId,
 } from './architecture/modules.js';
+import {
+  APP_PRODUCTS,
+  DEFAULT_STACK_PRODUCTS,
+  FEATURE_PRODUCTS,
+  STACK_PRODUCTS,
+  moduleIdForStackSelection,
+} from './architecture/products.js';
 import { packageNameFromText } from './render.js';
 import {
   isNativeStylingLibrary,
@@ -21,10 +27,17 @@ import {
 } from './ui.js';
 import type { UiAddOptions } from './scaffold.js';
 
+function productUsage(kind: 'app' | 'feature'): string {
+  return STACK_PRODUCTS
+    .filter((product) => product.kind === kind)
+    .map((product) => `  ${product.id.padEnd(22)} ${product.description}`)
+    .join('\n');
+}
+
 export const USAGE = `
-anhedral new <directory> [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
-anhedral init [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
-anhedral add <module...|--all> [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral new <directory> [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
+anhedral init [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
+anhedral add <product...|--all> [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral upgrade [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral doctor [--json] [--verbose]
@@ -32,36 +45,26 @@ anhedral --version
 
 Commands:
   anhedral new my-app
-    Interactively choose a focused stack in a terminal. In noninteractive use, pass module flags; no flags explicitly means the complete stack.
-  anhedral new my-app --web --api --db --auth
+    Interactively choose a focused stack in a terminal. In noninteractive use, pass product flags; no flags explicitly means the complete stack.
+  anhedral new my-app --next --fastify --neon --clerk
     Generate a web app, Fastify API, shared database package, and auth wiring.
-  anhedral init --web --api --db --auth
+  anhedral init --next --fastify --neon --clerk
     Generate the same readable workspace in the current empty directory.
-  anhedral add mobile extension
+  anhedral add expo wxt
     Add missing modules to an existing Anhedral project.
   anhedral ui add button dialog --target mobile
     Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
   anhedral upgrade
     Transactionally upgrade a supported older Anhedral project before adding modules.
 
-App surfaces:
-  web                    Next.js App Router application
-  mobile                 Expo Router application for iOS, Android, and web
-  api                    Fastify HTTP API
-  desktop                Electron desktop application
-  extension              WXT browser extension
+Application products:
+${productUsage('app')}
 
-Capabilities:
-  db                     Neon Postgres + Drizzle
-  auth                   Clerk; adds api + db
-  realtime               Ably Pub/Sub; adds auth
-  billing                RevenueCat + Stripe; adds realtime
-  storage                Private Cloudflare R2; adds auth
-  native-subscriptions   Native RevenueCat client; adds mobile + billing
-  electron-updater       Private Electron update channel; adds desktop
+Service products:
+${productUsage('feature')}
 
 Behavior:
-  --all explicitly selects every app surface and capability.
+  --all explicitly selects the default product in every stack category.
   new initializes Git when Git is available; use --no-git to opt out.
   init preserves the current directory's repository state; use --git to initialize Git.
   --dry-run never writes the destination. --json emits stable machine-readable plans.
@@ -75,11 +78,11 @@ export type NewProjectRequest = {
 
 export function parseNewProjectRequest(args: readonly string[]): NewProjectRequest {
   const [directory, ...moduleArgs] = args;
-  if (!directory || directory.startsWith('--')) throw new Error('anhedral new requires a destination directory before module flags');
+  if (!directory || directory.startsWith('--')) throw new Error('anhedral new requires a destination directory before product flags');
   return Object.freeze({ directory, moduleArgs: Object.freeze(moduleArgs) });
 }
 
-export { APP_MODULES, FEATURE_MODULES };
+export { APP_MODULES, APP_PRODUCTS, FEATURE_MODULES, FEATURE_PRODUCTS };
 export type { AppModule, FeatureModule };
 export type SupportedModule = ModuleId;
 
@@ -118,7 +121,7 @@ export function parseCli(args: readonly string[]): ParsedFlags {
         flags.modules.add(moduleName);
         continue;
       }
-      throw new Error(`Unexpected argument: ${token}. Use module names, module flags, --toolchain, or --skip-install`);
+      throw new Error(`Unexpected argument: ${token}. Use product names, product flags, --toolchain, or --skip-install`);
     }
 
     if (token === '--skip-install') {
@@ -152,7 +155,7 @@ export function parseCli(args: readonly string[]): ParsedFlags {
     }
 
     if (token === '--all') {
-      for (const moduleName of [...APP_MODULES, ...FEATURE_MODULES]) flags.modules.add(moduleName);
+      for (const product of DEFAULT_STACK_PRODUCTS) flags.modules.add(product.module);
       continue;
     }
 
@@ -216,7 +219,7 @@ export function parseCli(args: readonly string[]): ParsedFlags {
 }
 
 export function normalizeModuleName(raw: string): SupportedModule | null {
-  return isModuleId(raw) ? raw : null;
+  return moduleIdForStackSelection(raw);
 }
 
 export function deriveProjectName(cwd: string): string {
@@ -242,7 +245,7 @@ export function buildOptionsForRoot(flags: ParsedFlags, root: string): InitOptio
   }
 
   const requestedModules = flags.modules.size === 0
-    ? [...APP_MODULES, ...FEATURE_MODULES]
+    ? DEFAULT_STACK_PRODUCTS.map((product) => product.module)
     : [...flags.modules];
   const resolution = resolveModules(requestedModules);
 
@@ -316,13 +319,13 @@ export function buildAddOptions(modules: string[], flags: ParsedFlags): AddOptio
   const requestedModules = [...modules, ...flags.modules];
 
   if (requestedModules.length === 0) {
-    throw new Error('anhedral add requires at least one module');
+    throw new Error('anhedral add requires at least one product');
   }
 
   const normalizedModules = requestedModules.map((moduleName) => {
     const normalized = normalizeModuleName(moduleName);
     if (!normalized) {
-      throw new Error(`Unknown module: ${moduleName}`);
+      throw new Error(`Unknown product: ${moduleName}`);
     }
     return normalized;
   });

@@ -1,8 +1,8 @@
-import { isModuleId } from './architecture/modules.js';
+import { moduleIdForStackSelection } from './architecture/products.js';
 
 function hasModuleSelection(args: readonly string[]): boolean {
   return args.some((arg) =>
-    arg === '--all' || isModuleId(arg.startsWith('--') ? arg.slice(2) : arg));
+    arg === '--all' || moduleIdForStackSelection(arg.startsWith('--') ? arg.slice(2) : arg) !== null);
 }
 
 export function shouldPromptForInitModules(args: readonly string[], isTTY: boolean): boolean {
@@ -45,5 +45,5 @@ export function parsePromptConfirmation(input: string): boolean {
   throw new Error('Enter yes or no.');
 }
 
-export const DEFAULT_PROMPT_APP_MODULES = ['web'] as const;
+export const DEFAULT_PROMPT_APP_MODULES = ['next'] as const;
 export const DEFAULT_PROMPT_FEATURE_MODULES = [] as const;

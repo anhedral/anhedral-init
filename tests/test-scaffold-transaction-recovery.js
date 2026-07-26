@@ -52,14 +52,14 @@ try {
     createdDirectories: [],
   }) + '\n');
 
-  run(['init', '--api', '--skip-install'], interruptedInit);
+  run(['init', '--fastify', '--skip-install'], interruptedInit);
   assert.throws(() => readFileSync(path.join(interruptedInit, 'partial.txt')));
   assert.throws(() => readFileSync(path.join(interruptedInit, '.anhedral-journal.json')));
   assert.equal(JSON.parse(readFileSync(path.join(interruptedInit, 'anhedral.json'), 'utf8')).modules.includes('api'), true);
 
   const interruptedNoOp = path.join(workspace, 'interrupted-no-op');
   mkdirSync(interruptedNoOp);
-  run(['init', '--api', '--skip-install'], interruptedNoOp);
+  run(['init', '--fastify', '--skip-install'], interruptedNoOp);
   const manifestPath = path.join(interruptedNoOp, 'anhedral.json');
   const originalManifest = readFileSync(manifestPath, 'utf8');
   const replacement = JSON.parse(originalManifest);
@@ -83,7 +83,7 @@ try {
     createdDirectories: [],
   }) + '\n');
 
-  const noOp = run(['add', 'api', '--skip-install'], interruptedNoOp);
+  const noOp = run(['add', 'fastify', '--skip-install'], interruptedNoOp);
   assert.match(noOp.stdout, /already installed/);
   assert.equal(readFileSync(manifestPath, 'utf8'), originalManifest);
   assert.throws(() => readFileSync(path.join(interruptedNoOp, '.anhedral-journal.json')));
@@ -94,7 +94,7 @@ try {
     mkdirSync(writableProject, { recursive: true });
     chmodSync(readOnlyParent, 0o555);
     try {
-      run(['init', '--api', '--skip-install'], writableProject);
+      run(['init', '--fastify', '--skip-install'], writableProject);
       assert.equal(JSON.parse(readFileSync(path.join(writableProject, 'anhedral.json'), 'utf8')).modules.includes('api'), true);
       assert.equal(existsSync(path.join(writableProject, '.anhedral-txn')), false);
     } finally {

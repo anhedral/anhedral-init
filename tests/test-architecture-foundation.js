@@ -5,6 +5,7 @@ import {
   DEFAULT_MODULE_REGISTRY,
   FEATURE_MODULES,
   MODULE_IDS,
+  STACK_PRODUCTS,
   CompositionError,
   ManifestValidationError,
   ModuleRegistryError,
@@ -16,6 +17,8 @@ import {
   createModuleRegistry,
   hashContent,
   readManifest,
+  moduleIdForStackSelection,
+  productIdsForModules,
   resolveModules,
   serializeManifest,
 } from '../dist/architecture/index.js';
@@ -52,6 +55,16 @@ assert.deepEqual(
   DEFAULT_MODULE_DEFINITIONS.filter(({ kind }) => kind === 'feature').map(({ id }) => id),
   FEATURE_MODULES,
 );
+assert.deepEqual(
+  productIdsForModules(MODULE_IDS),
+  ['next', 'expo', 'fastify', 'electron', 'wxt', 'neon', 'clerk', 'ably', 'revenuecat', 'r2', 'revenuecat-native', 'electron-updater'],
+  'every stable manifest module must have a canonical public product selector',
+);
+assert.equal(new Set(STACK_PRODUCTS.map(({ id }) => id)).size, STACK_PRODUCTS.length);
+assert.equal(moduleIdForStackSelection('next'), 'web');
+assert.equal(moduleIdForStackSelection('fastify'), 'api');
+assert.equal(moduleIdForStackSelection('web'), 'web', 'legacy role selectors remain compatibility aliases');
+assert.equal(moduleIdForStackSelection('nuxt'), null);
 assert.equal(hashContent('rendered text'), hashContent(Buffer.from('rendered text', 'utf8')));
 assert.notEqual(
   hashContent(Buffer.from([0x80])),

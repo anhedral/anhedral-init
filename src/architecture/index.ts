@@ -25,6 +25,24 @@ export type {
 } from './modules.js';
 
 export {
+  APP_PRODUCTS,
+  DEFAULT_STACK_PRODUCTS,
+  FEATURE_PRODUCTS,
+  STACK_PRODUCTS,
+  isStackProductId,
+  moduleIdForStackSelection,
+  productIdForModule,
+  productIdsForModules,
+} from './products.js';
+export type {
+  AppProductId,
+  FeatureProductId,
+  StackCategory,
+  StackProduct,
+  StackProductId,
+} from './products.js';
+
+export {
   FILE_OWNERSHIP_CLASSES,
   PlanBuildError,
   buildGenerationPlan,
