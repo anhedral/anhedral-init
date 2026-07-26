@@ -5,15 +5,18 @@ import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
 import {
   APP_MODULES,
   FEATURE_MODULES,
+  INFRASTRUCTURE_MODULES,
   resolveModules,
   type AppModule,
   type FeatureModule,
+  type InfrastructureModule,
   type ModuleId,
 } from './architecture/modules.js';
 import {
   APP_PRODUCTS,
   DEFAULT_STACK_PRODUCTS,
   FEATURE_PRODUCTS,
+  INFRASTRUCTURE_PRODUCTS,
   STACK_PRODUCTS,
   moduleIdForStackSelection,
 } from './architecture/products.js';
@@ -27,7 +30,7 @@ import {
 } from './ui.js';
 import type { UiAddOptions } from './scaffold.js';
 
-function productUsage(kind: 'app' | 'feature'): string {
+function productUsage(kind: 'app' | 'feature' | 'infrastructure'): string {
   return STACK_PRODUCTS
     .filter((product) => product.kind === kind)
     .map((product) => `  ${product.id.padEnd(22)} ${product.description}`)
@@ -63,8 +66,11 @@ ${productUsage('app')}
 Service products:
 ${productUsage('feature')}
 
+Infrastructure products (opt-in):
+${productUsage('infrastructure')}
+
 Behavior:
-  --all explicitly selects the default product in every stack category.
+  --all explicitly selects the default application and service products. Infrastructure remains opt-in.
   new initializes Git when Git is available; use --no-git to opt out.
   init preserves the current directory's repository state; use --git to initialize Git.
   --dry-run never writes the destination. --json emits stable machine-readable plans.
@@ -82,8 +88,15 @@ export function parseNewProjectRequest(args: readonly string[]): NewProjectReque
   return Object.freeze({ directory, moduleArgs: Object.freeze(moduleArgs) });
 }
 
-export { APP_MODULES, APP_PRODUCTS, FEATURE_MODULES, FEATURE_PRODUCTS };
-export type { AppModule, FeatureModule };
+export {
+  APP_MODULES,
+  APP_PRODUCTS,
+  FEATURE_MODULES,
+  FEATURE_PRODUCTS,
+  INFRASTRUCTURE_MODULES,
+  INFRASTRUCTURE_PRODUCTS,
+};
+export type { AppModule, FeatureModule, InfrastructureModule };
 export type SupportedModule = ModuleId;
 
 export type ParsedFlags = {

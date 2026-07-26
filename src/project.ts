@@ -18,6 +18,14 @@ export type FeatureSelections = {
   electronUpdater: boolean;
 };
 
+export type InfrastructureSelections = {
+  ubuntu: boolean;
+  docker: boolean;
+  postgres: boolean;
+  nginx: boolean;
+  certbot: boolean;
+};
+
 /**
  * The project shape consumed by every template.
  *
@@ -29,6 +37,7 @@ export interface ProjectOptions {
   displayName: string;
   apps: AppSelections;
   features: FeatureSelections;
+  infrastructure?: InfrastructureSelections;
   skipInstall?: boolean;
   nativeStyling?: NativeStylingLibrary;
 }

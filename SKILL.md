@@ -73,8 +73,11 @@ Native tools are conditional:
 - Extension development requires a Chromium browser; store publication does
   not require another build CLI beyond the generated WXT scripts.
 
-Anhedral intentionally requires neither Docker nor local Postgres. Database
-modules use managed Neon.
+The default application/service stack requires neither Docker nor local
+Postgres and uses managed Neon. Self-hosted infrastructure is opt-in through
+the independent `postgres`, `ubuntu`, `docker`, `nginx`, and `certbot`
+products. The current infrastructure artifact is plan-only and never mutates a
+remote host.
 
 ## Choose the construction path
 
@@ -91,6 +94,9 @@ Choose app surfaces from `web`, `mobile`, `api`, `desktop`, and `extension`.
 
 Choose features from `db`, `auth`, `realtime`, `billing`, `storage`, `native-subscriptions`, and `electron-updater`.
 
+Choose infrastructure from `ubuntu`, `docker`, `postgres`, `nginx`, and
+`certbot`. Do not replace these selectors with a deployment-profile flag.
+
 Apply these dependency rules automatically:
 
 ```text
@@ -100,12 +106,17 @@ billing              -> realtime
 storage              -> auth
 native-subscriptions -> mobile + billing
 electron-updater     -> desktop
+docker               -> ubuntu
+postgres             -> db + docker
+nginx                -> docker
+certbot              -> nginx
 ```
 
 With no product flags in an interactive terminal, Anhedral prompts and suggests
 a focused web app. In a noninteractive environment, no flags retain the full
-stack for compatibility. Use `--all` when the complete stack is intentional,
-or pass explicit modules for reproducible automation.
+application/service stack for compatibility. `--all` intentionally excludes
+self-hosted infrastructure; pass its explicit product names for reproducible
+automation.
 
 ## Master stack map
 
@@ -176,6 +187,7 @@ Prefer explicit modules when the user requests a smaller stack:
 pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk
 pnpm dlx anhedral@latest new my-product --next --expo --ui button,dialog --native-styling nativewind
 pnpm dlx anhedral@latest new my-api --fastify --skip-install
+pnpm dlx anhedral@latest new my-vps-app --next --fastify --postgres --ubuntu --docker --nginx --certbot
 ```
 
 Use the stable toolchain for normal generation. The `latest` value is retained only as a metadata compatibility channel for maintainer investigations:
@@ -207,7 +219,7 @@ Use the native source conventions:
 - Product client-safe HTTP methods belong in `packages/api-client/src/app.ts`.
 - Product Drizzle tables belong in `packages/db/src/app-schema.ts`; generate and review SQL migrations.
 
-Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. The generated `items` feature demonstrates that same path on every selected client—Next.js, Expo, Electron, and WXT—using one contract and API client with platform-native UI. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
+Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. The generated `items` feature demonstrates that same path on every selected client—Next.js, Expo, Electron, and WXT—using one contract and API client with platform-native UI. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. Database runtime guidance is selection-aware: managed Neon by default, or private self-hosted PostgreSQL when `--postgres` is selected.
 
 ## Add modules safely
 

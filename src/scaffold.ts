@@ -2,6 +2,7 @@ import { chmodSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSyn
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { env } from 'node:process';
+import { SELF_HOSTED_DATABASE_URL_PLACEHOLDER } from './database.js';
 import { anhedralPrint } from './print.js';
 import { appendGitignore, execFile, writeFile } from './util.js';
 import { MOBILE_NODE_ENGINE, NODE_ENGINE, PACKAGE_MANAGER, ROOT_DEPENDENCIES, TOOLCHAIN_DEPENDENCIES } from './dependencies.js';
@@ -16,6 +17,7 @@ import {
 import { scaffoldExtension } from './templates/extension.js';
 import { generatedFirstRunScript } from './templates/first-run.js';
 import { scaffoldMobile } from './templates/mobile.js';
+import { scaffoldInfrastructure } from './templates/infrastructure.js';
 import { scaffoldSharedPackages } from './templates/shared.js';
 import { scaffoldWeb } from './templates/web.js';
 import { assertPackageName, markdownHeading } from './render.js';
@@ -57,9 +59,19 @@ import {
   type UiComponentInstall,
   type UiTarget,
 } from './ui.js';
-import type { AppSelections, FeatureSelections, ProjectOptions } from './project.js';
+import type {
+  AppSelections,
+  FeatureSelections,
+  InfrastructureSelections,
+  ProjectOptions,
+} from './project.js';
 
-export type { AppSelections, FeatureSelections, ProjectOptions } from './project.js';
+export type {
+  AppSelections,
+  FeatureSelections,
+  InfrastructureSelections,
+  ProjectOptions,
+} from './project.js';
 
 export interface InitOptions {
   projectName: string;
@@ -80,6 +92,7 @@ export interface InitOptions {
 type ResolvedInitOptions = InitOptions & {
   apps: AppSelections;
   features: FeatureSelections;
+  infrastructure: InfrastructureSelections;
   uiComponents: string[];
   nativeStyling: NativeStylingLibrary;
 };
@@ -234,12 +247,15 @@ function projectOptions(options: ResolvedInitOptions): ProjectOptions {
     displayName: options.displayName,
     apps: options.apps,
     features: options.features,
+    infrastructure: options.infrastructure,
     skipInstall: options.skipInstall || options.dryRun,
     nativeStyling: options.nativeStyling,
   };
 }
 
-function selectionsFromModules(modules: readonly ModuleId[]): Pick<ResolvedInitOptions, 'apps' | 'features'> {
+function selectionsFromModules(
+  modules: readonly ModuleId[],
+): Pick<ResolvedInitOptions, 'apps' | 'features' | 'infrastructure'> {
   const selected = new Set(modules);
   return {
     apps: {
@@ -257,6 +273,13 @@ function selectionsFromModules(modules: readonly ModuleId[]): Pick<ResolvedInitO
       storage: selected.has('storage'),
       nativeSubscriptions: selected.has('native-subscriptions'),
       electronUpdater: selected.has('electron-updater'),
+    },
+    infrastructure: {
+      ubuntu: selected.has('ubuntu'),
+      docker: selected.has('docker'),
+      postgres: selected.has('postgres'),
+      nginx: selected.has('nginx'),
+      certbot: selected.has('certbot'),
     },
   };
 }
@@ -415,14 +438,20 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     verify.push('pnpm verify:extension');
   }
   if (options.features.database) {
-    scripts['neon:login'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} auth`;
-    scripts['neon:project:create'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} projects create`;
+    if (!options.infrastructure.postgres) {
+      scripts['neon:login'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} auth`;
+      scripts['neon:project:create'] = `pnpm dlx neonctl@${TOOLCHAIN_DEPENDENCIES.neonctl} projects create`;
+    }
     scripts['db:generate'] = 'pnpm --filter @shared/db db:generate';
     scripts['db:migrate'] = 'pnpm --filter @shared/db db:migrate';
     scripts['db:check'] = 'pnpm --filter @shared/db db:check';
     scripts['db:studio'] = 'pnpm --filter @shared/db db:studio';
     scripts['verify:db'] = 'node scripts/verify-db-migrations.mjs && pnpm db:check';
     verify.push('pnpm verify:db');
+  }
+  if (Object.values(options.infrastructure).some(Boolean)) {
+    scripts['provision:plan'] = 'node scripts/provision-plan.mjs';
+    scripts['provision:plan:json'] = 'node scripts/provision-plan.mjs --json';
   }
   if (options.features.storage) {
     const bucketName = r2BucketName(options.projectName);
@@ -703,7 +732,11 @@ function writeRootEnv(root: string, options: ResolvedInitOptions): void {
   const lines = composeRootEnvironment(
     collectModuleContributions(options.modules),
     { corsOrigins },
-  );
+  ).map((line) => (
+    options.infrastructure.postgres && line.startsWith('DATABASE_URL=')
+      ? `DATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}`
+      : line
+  ));
   const filePath = path.join(root, '.env.example');
   const current = pathEntryExists(filePath) ? readFileSync(filePath, 'utf8') : '';
   const existingKeys = new Set([...current.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
@@ -935,6 +968,10 @@ function enabledModuleNames(options: ResolvedInitOptions): readonly ModuleId[] {
 
 function writeProjectDocs(root: string, options: ResolvedInitOptions, includeUserDocs: boolean): void {
   const modules = enabledModuleNames(options);
+  const selfHostedPostgres = options.infrastructure.postgres;
+  const databaseUrlDescription = selfHostedPostgres
+    ? 'the private PostgreSQL service URL with a strong URL-encoded password'
+    : 'the pooled connection string for the intended managed Neon branch';
   const storageBucketName = r2BucketName(options.projectName);
   const environmentSetupCommands = `pnpm install # only if generation used --skip-install
 pnpm first-run
@@ -949,7 +986,11 @@ pnpm ready`;
   const deploymentRows = [
     options.apps.web || options.apps.api ? '| Web/API | Vercel Git integration | Import this repository once; branch pushes create previews and the production branch deploys automatically. |' : null,
     options.apps.mobile ? '| Mobile | EAS Build + App Store Connect + Google Play Console | EAS creates signed binaries; Apple TestFlight/App Review and Google testing tracks/store review control release. |' : null,
-    options.features.database ? '| Database | Neon | Provision the project, set `DATABASE_URL`, review/apply Drizzle migrations, and use separate branches or projects for preview and production. |' : null,
+    options.features.database
+      ? selfHostedPostgres
+        ? '| Database | Self-hosted PostgreSQL | Keep the service private, inject credentials outside Git, review/apply Drizzle migrations, and verify encrypted off-host backups plus restoration. |'
+        : '| Database | Neon | Provision the project, set `DATABASE_URL`, review/apply Drizzle migrations, and use separate branches or projects for preview and production. |'
+      : null,
     options.features.storage ? '| Object storage | Private Cloudflare R2 + `assets-private-proxy` Worker | Authenticated uploads use presigned R2 URLs; the Worker streams known-key GET/HEAD downloads through `assets.<domain>` while direct bucket access stays disabled. |' : null,
     options.features.electronUpdater ? '| Desktop updates | Private Cloudflare R2 + `desktop-updater` Worker | Signed native artifacts are uploaded to a private bucket; a custom-domain Worker supplies metadata, ranges, and downloads to `electron-updater`. |' : null,
     options.apps.extension ? '| Chrome extension | Chrome Web Store | Build the production ZIP, test it as an unpublished/trusted-tester item, complete privacy disclosures, and submit it for review. |' : null,
@@ -962,7 +1003,8 @@ pnpm ready`;
     options.apps.mobile ? 'pnpm mobile:eas:login' : null,
     options.apps.mobile ? 'pnpm mobile:build:internal:ios' : null,
     options.apps.mobile ? 'pnpm mobile:build:internal:android' : null,
-    options.features.database ? `pnpm neon:project:create --name ${options.projectName}` : null,
+    options.features.database && !selfHostedPostgres ? `pnpm neon:project:create --name ${options.projectName}` : null,
+    Object.values(options.infrastructure).some(Boolean) ? 'pnpm provision:plan' : null,
     options.features.storage ? 'pnpm r2:bucket:create' : null,
     options.features.storage ? 'pnpm assets:proxy:check' : null,
     options.features.storage ? 'pnpm assets:proxy:deploy' : null,
@@ -994,7 +1036,8 @@ pnpm ready`;
     options.apps.web ? '| Next.js | Web routes and rendering | `apps/web` | https://nextjs.org/docs/app/getting-started |' : null,
     options.apps.mobile ? '| Expo Router | iOS and Android app | `apps/mobile` | https://docs.expo.dev/router/introduction/ |' : null,
     options.apps.api ? '| Fastify | HTTP API | `apps/api` | https://fastify.dev/docs/latest/ |' : null,
-    options.features.database ? '| Neon | Managed Postgres; no local Postgres | `DATABASE_URL` | https://neon.com/docs/introduction |' : null,
+    options.features.database && !selfHostedPostgres ? '| Neon | Managed Postgres; no local Postgres | `DATABASE_URL` | https://neon.com/docs/introduction |' : null,
+    selfHostedPostgres ? '| PostgreSQL | Private self-hosted database runtime | `DATABASE_URL` and `deploy/anhedral-provision.json` | https://www.postgresql.org/docs/ |' : null,
     options.features.database ? '| Drizzle | SQL schema, queries, migrations | `packages/db` | https://orm.drizzle.team/docs/get-started |' : null,
     options.features.auth ? '| Clerk | Identity and sessions | generated auth files | https://clerk.com/docs/getting-started/quickstart/overview |' : null,
     options.features.storage ? '| Cloudflare R2 | Private object storage | upload API and `apps/assets-private-proxy` | https://developers.cloudflare.com/r2/ |' : null,
@@ -1009,7 +1052,11 @@ pnpm ready`;
   ].filter((value): value is string => value !== null).join('\n');
   const developmentSteps = [
     options.apps.api ? 'Define shared Zod schemas in user-owned `packages/contracts/src/app.ts` so the network boundary has one definition.' : null,
-    options.features.database ? 'Define persistent product state in user-owned `packages/db/src/app-schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses managed Neon—do not add a local Postgres container.' : null,
+    options.features.database
+      ? selfHostedPostgres
+        ? 'Define persistent product state in user-owned `packages/db/src/app-schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses self-hosted PostgreSQL; keep it private and verify off-host restoration.'
+        : 'Define persistent product state in user-owned `packages/db/src/app-schema.ts`. Run `pnpm db:generate`, review the SQL, and commit it. This project uses managed Neon—do not add a local Postgres container.'
+      : null,
     options.apps.api ? 'Add server-only behavior in a focused `apps/api/src/<feature>.ts` module and register its validated HTTP boundary in user-owned `apps/api/src/routes/app.ts`.' : null,
     options.apps.api ? 'Expose client-safe methods from user-owned `packages/api-client/src/app.ts`; never import API implementation files into a frontend.' : null,
     options.apps.web ? 'Add web routes in `apps/web/app/<route>/page.tsx` and reusable UI in `apps/web/components/`. Use a client component only for browser state, events, or hooks.' : null,
@@ -1034,7 +1081,7 @@ pnpm verify:db
 pnpm db:migrate
 \`\`\`
 
-Review generated SQL before staging or applying it. \`DATABASE_URL\` points to a managed Neon branch or project; there is intentionally no local Postgres service.` : null,
+Review generated SQL before staging or applying it. \`DATABASE_URL\` points to ${selfHostedPostgres ? 'the private PostgreSQL service; keep it off the public network and test off-host restoration' : 'a managed Neon branch or project; there is intentionally no local Postgres service'}.` : null,
     options.features.auth ? `### Use authentication
 
 Frontend applications use their generated Clerk provider and hooks. The API verifies Clerk sessions. Public keys may use a framework public environment prefix; \`CLERK_SECRET_KEY\` remains in the API environment only.` : null,
@@ -1061,7 +1108,9 @@ To run it, set \`DATABASE_URL\`, run \`pnpm ready\`, generate and review the mig
   const dependencyLines = [
     options.apps.api ? 'frontend apps -> @shared/api-client -> HTTP -> apps/api' : null,
     options.apps.api ? 'frontend apps -> @shared/contracts <- apps/api' : null,
-    options.apps.api && options.features.database ? 'apps/api      -> @shared/db -> managed Neon Postgres' : null,
+    options.apps.api && options.features.database
+      ? `apps/api      -> @shared/db -> ${selfHostedPostgres ? 'self-hosted PostgreSQL' : 'managed Neon Postgres'}`
+      : null,
     options.features.electronUpdater ? 'apps/desktop -> updates.<domain> Worker -> private R2 bucket' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const uiTaskSection = Object.values(options.apps).some(Boolean) && (options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension)
@@ -1086,7 +1135,7 @@ Anhedral installs workspace dependencies during generation unless you used \`--s
 ${environmentSetupCommands}
 \`\`\`
 
-Stop here and replace every required placeholder in those uncommitted files.${options.features.database ? ' `DATABASE_URL` must be the pooled connection string for the intended managed Neon branch.' : ''} Then verify the workspace:
+Stop here and replace every required placeholder in those uncommitted files.${options.features.database ? ` \`DATABASE_URL\` must be ${databaseUrlDescription}.` : ''} Then verify the workspace:
 
 \`\`\`sh
 ${firstVerificationCommands}
@@ -1127,7 +1176,7 @@ ${options.apps.web || options.apps.desktop || options.apps.extension ? 'DOM clie
 
 ## Environment and first verification
 
-The setup blocks above are the first-run checklist. Provider secrets stay in their package-local environment files; none belong in client code.${options.features.database ? ' This project uses managed Neon and intentionally does not generate or start local Postgres.' : ''}
+The setup blocks above are the first-run checklist. Provider secrets stay in their package-local environment files; none belong in client code.${options.features.database ? selfHostedPostgres ? ' This project uses a private self-hosted PostgreSQL service; database credentials never belong in Git.' : ' This project uses managed Neon and intentionally does not generate or start local Postgres.' : ''}
 
 ## Deployment
 
@@ -1241,13 +1290,23 @@ When web and API are both selected, keep the generated \`/api/(.*)\` route befor
 2. Add the production root domain in Clerk and publish the DNS records shown on **Domains**. Configure a subdomain allowlist, production OAuth credentials, allowlisted redirect URLs, webhook URLs/signing secrets, and native application identifiers that apply to the selected clients.
 3. Use development keys locally and production keys only for production builds. Vercel Preview deployments should use a separate Clerk application/domain when stable preview auth is required; do not point previews at live user data.
 4. Redeploy every selected client after changing public Clerk keys. Test sign-in, sign-out, token refresh, deep links, and physical-device behavior before release.${options.apps.extension ? '\n5. For the extension, create a stable CRX ID, configure Clerk Chrome Extension deployment for that ID, and set `VITE_CLERK_FRONTEND_API_URL` plus `VITE_CLERK_SYNC_HOST` when using web-to-extension session sync. OAuth and email-link flows require Sync Host.' : ''}` : null,
-      options.features.database ? `## Neon and Drizzle: database
+      options.features.database
+        ? selfHostedPostgres
+          ? `## PostgreSQL and Drizzle: database
+
+1. Run \`pnpm provision:plan\` and review the PostgreSQL probes, proposed changes, approval gates, and verification requirements. The current plan does not mutate a host.
+2. Keep PostgreSQL on a private container network with no published database port. Inject the strong URL-encoded password outside Git and put the resulting URL in \`DATABASE_URL\`.
+3. Change the Drizzle schema, run \`pnpm db:generate\`, review and commit the SQL and metadata, then run \`pnpm verify:db\`.
+4. Apply \`pnpm db:migrate\` as a controlled release step before sending production traffic to code that requires the new schema. Keep migrations backward-compatible and never generate them during an application build.
+5. Configure encrypted off-host backups with explicit retention, alerting, and ownership. Completion requires a successful restore drill; a Docker volume alone is not a backup.`
+          : `## Neon and Drizzle: database
 
 1. Create a Neon account, then run \`pnpm neon:login\` and \`pnpm neon:project:create --name ${options.projectName}\`, or create the project in the Neon console.
 2. Copy the pooled Postgres connection string to \`DATABASE_URL\` in \`packages/db/.env\` locally and the API's Vercel environment in production. Keep preview and production databases isolated with Neon branches or separate projects.
 3. Change the Drizzle schema, run \`pnpm db:generate\`, review and commit the SQL and metadata, then run \`pnpm verify:db\`.
 4. Apply \`pnpm db:migrate\` against the intended database as a controlled release step before sending production traffic to code that requires the new schema. Backward-compatible migrations make rollback safer; never run unreviewed migration generation during a Vercel build.
-5. Enable Neon backups/restore controls appropriate to the plan, restrict credentials, and rotate a leaked connection string immediately.` : null,
+5. Enable Neon backups/restore controls appropriate to the plan, restrict credentials, and rotate a leaked connection string immediately.`
+        : null,
       options.features.storage ? `## Cloudflare R2: private bucket and generated Worker
 
 1. Run \`pnpm r2:login\` and \`pnpm r2:bucket:create\` to create \`${storageBucketName}\`, or create that bucket in **R2 → Overview**. Keep both the \`r2.dev\` development URL and R2 bucket custom-domain access disabled; the bucket itself remains private.
@@ -1331,16 +1390,20 @@ Resolved modules: ${modules.join(', ')}
   ].filter((value): value is string => value !== null).join('\n');
   const featureGuidance = [
     options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
-    options.features.database ? '- Neon/Drizzle state is authoritative. Change user-owned `packages/db/src/app-schema.ts`, generate SQL with `pnpm db:generate`, review it, and Git-track the migration.' : null,
+    options.features.database ? `- ${selfHostedPostgres ? 'PostgreSQL' : 'Neon'}/Drizzle state is authoritative. Change user-owned \`packages/db/src/app-schema.ts\`, generate SQL with \`pnpm db:generate\`, review it, and Git-track the migration.` : null,
     options.features.auth ? '- Clerk owns identity and sessions. Never trust a client-supplied user ID; derive identity from verified server authentication.' : null,
     options.features.realtime ? '- Ably tokens are scoped server-side to the authenticated user channel. Add product event schemas in `packages/realtime/src/app.ts`; never expose `ABLY_API_KEY` to a client.' : null,
-    options.features.billing ? '- RevenueCat events reconcile into Neon before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.' : null,
+    options.features.billing ? `- RevenueCat events reconcile into ${selfHostedPostgres ? 'PostgreSQL' : 'Neon'} before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.` : null,
     options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
     options.features.electronUpdater ? '- Electron releases use `electron-updater` through the generated private R2 + Worker channel. Build signed native artifacts first and publish mutable channel metadata last.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const skillFeatureSteps = [
     options.apps.api ? 'Define shared network schemas in user-owned `packages/contracts/src/app.ts`.' : null,
-    options.features.database ? 'Define persistent state in user-owned `packages/db/src/app-schema.ts`; generate, review, and commit Drizzle SQL. Use managed Neon, never a generated local Postgres service.' : null,
+    options.features.database
+      ? selfHostedPostgres
+        ? 'Define persistent state in user-owned `packages/db/src/app-schema.ts`; generate, review, and commit Drizzle SQL. Use the private self-hosted PostgreSQL service and keep credentials outside Git.'
+        : 'Define persistent state in user-owned `packages/db/src/app-schema.ts`; generate, review, and commit Drizzle SQL. Use managed Neon, never a generated local Postgres service.'
+      : null,
     options.apps.api ? 'Put backend behavior in focused `apps/api/src/<feature>.ts` modules and register product routes in user-owned `apps/api/src/routes/app.ts`.' : null,
     options.apps.api ? 'Add client-safe calls to user-owned `packages/api-client/src/app.ts`; frontends must not import server implementations.' : null,
     options.apps.web ? 'Write web product code with normal Next.js App Router conventions in `apps/web`.' : null,
@@ -1422,7 +1485,7 @@ ${options.features.storage || options.features.electronUpdater
 
 - Read \`PRODUCTION.md\` before provisioning or changing production resources. It is tailored to this project's selected surfaces and providers.
 ${options.apps.web || options.apps.api ? '- Prefer GitHub-triggered Vercel Preview and Production deployments. Keep the generated Services routing intact; use manual `deploy:vercel:*` scripts only when explicitly required.' : ''}
-${options.features.database ? '- Treat reviewed, committed Drizzle SQL as the release artifact. Apply migrations as a controlled step against the intended Neon environment; never generate migrations during an application build.' : ''}
+${options.features.database ? `- Treat reviewed, committed Drizzle SQL as the release artifact. Apply migrations as a controlled step against the intended ${selfHostedPostgres ? 'private PostgreSQL service' : 'Neon environment'}; never generate migrations during an application build.` : ''}
 ${options.features.storage ? '- Keep the R2 bucket private and deploy `assets-private-proxy` at the Cloudflare Worker custom domain. Expose only `storage/confirmed/` publicly; use the owner-authorized read-URL endpoint for private objects and keep `CLOUDFLARE_API_TOKEN` operations-only.' : ''}
 ${options.features.electronUpdater ? '- Provision the private desktop-update R2 bucket and deploy `desktop-updater` at `updates.<domain>`. Keep the update origin identical in Wrangler and `electron-builder.env`, then publish signed per-platform artifacts before channel metadata.' : ''}
 ${options.apps.mobile ? '- Promote mobile artifacts through EAS internal distribution, TestFlight/Google Play testing, then store review. Build-time public variables are not secrets.' : ''}
@@ -1459,6 +1522,12 @@ function collectFiles(root: string, relativeRoot = ''): string[] {
 }
 
 function ownerForPath(relativePath: string): ModuleId | 'root' {
+  if (relativePath === 'scripts/provision-plan.mjs') return 'ubuntu';
+  if (relativePath.startsWith('deploy/certbot/')) return 'certbot';
+  if (relativePath.startsWith('deploy/nginx/')) return 'nginx';
+  if (relativePath.startsWith('deploy/postgres/')) return 'postgres';
+  if (relativePath.startsWith('deploy/docker/')) return 'docker';
+  if (relativePath.startsWith('deploy/')) return 'ubuntu';
   if (relativePath.startsWith('apps/desktop-updater-worker/')) return 'electron-updater';
   if (relativePath === 'apps/desktop/scripts/publish-updates.mjs') return 'electron-updater';
   if (relativePath === 'apps/desktop/electron-builder.env.example') return 'electron-updater';
@@ -1473,7 +1542,11 @@ function ownerForPath(relativePath: string): ModuleId | 'root' {
 }
 
 function defaultOwnership(relativePath: string): FileOwnershipClass {
-  if (relativePath === 'README.md' || relativePath === 'PRODUCTION.md') return 'user';
+  if (
+    relativePath === 'README.md'
+    || relativePath === 'PRODUCTION.md'
+    || relativePath === 'deploy/README.md'
+  ) return 'user';
   if (relativePath === 'apps/assets-private-proxy/wrangler.jsonc') return 'user';
   if (relativePath === 'apps/desktop-updater-worker/wrangler.jsonc') return 'user';
   if (relativePath === 'cloudflare/r2-cors.template.json') return 'user';
@@ -1726,6 +1799,7 @@ async function writeSelectedModules(
   if (options.apps.extension) await scaffoldExtension(root, shared);
   if (options.features.storage) scaffoldAssetsPrivateProxy(root, shared);
   if (options.features.electronUpdater) scaffoldElectronUpdater(root, shared);
+  if (Object.values(options.infrastructure).some(Boolean)) scaffoldInfrastructure(root, shared);
   return templates;
 }
 

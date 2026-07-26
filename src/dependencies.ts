@@ -61,6 +61,8 @@ export const SHARED_DB_DEPENDENCIES: DependencyGroup = {
   dependencies: {
     // renovate: datasource=npm depName=@neondatabase/serverless
     '@neondatabase/serverless': '1.0.2',
+    // renovate: datasource=npm depName=postgres
+    postgres: '3.4.5',
     // renovate: datasource=npm depName=drizzle-orm
     'drizzle-orm': '0.45.2',
     // renovate: datasource=npm depName=dotenv

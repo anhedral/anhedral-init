@@ -1,6 +1,7 @@
 import {
   APP_MODULES,
   FEATURE_MODULES,
+  INFRASTRUCTURE_MODULES,
   isModuleId,
   type ModuleId,
   type ModuleKind,
@@ -20,6 +21,7 @@ export const STACK_PRODUCTS = [
     module: 'web',
     kind: 'app',
     default: true,
+    includeByDefault: true,
     description: 'Next.js App Router web application',
   },
   {
@@ -28,6 +30,7 @@ export const STACK_PRODUCTS = [
     module: 'mobile',
     kind: 'app',
     default: true,
+    includeByDefault: true,
     description: 'Expo Router application for iOS, Android, and web',
   },
   {
@@ -36,6 +39,7 @@ export const STACK_PRODUCTS = [
     module: 'api',
     kind: 'app',
     default: true,
+    includeByDefault: true,
     description: 'Fastify HTTP API',
   },
   {
@@ -44,6 +48,7 @@ export const STACK_PRODUCTS = [
     module: 'desktop',
     kind: 'app',
     default: true,
+    includeByDefault: true,
     description: 'Electron desktop application',
   },
   {
@@ -52,6 +57,7 @@ export const STACK_PRODUCTS = [
     module: 'extension',
     kind: 'app',
     default: true,
+    includeByDefault: true,
     description: 'WXT browser extension',
   },
   {
@@ -60,6 +66,7 @@ export const STACK_PRODUCTS = [
     module: 'db',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'Neon Postgres with Drizzle ORM',
   },
   {
@@ -68,6 +75,7 @@ export const STACK_PRODUCTS = [
     module: 'auth',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'Clerk identity and sessions; adds Fastify + Neon',
   },
   {
@@ -76,6 +84,7 @@ export const STACK_PRODUCTS = [
     module: 'realtime',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'Ably authenticated Pub/Sub; adds Clerk',
   },
   {
@@ -84,6 +93,7 @@ export const STACK_PRODUCTS = [
     module: 'billing',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'RevenueCat subscription authority with Stripe checkout; adds Ably',
   },
   {
@@ -92,6 +102,7 @@ export const STACK_PRODUCTS = [
     module: 'storage',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'Cloudflare R2 private object storage; adds Clerk',
   },
   {
@@ -100,6 +111,7 @@ export const STACK_PRODUCTS = [
     module: 'native-subscriptions',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'RevenueCat native subscription client; adds Expo + RevenueCat',
   },
   {
@@ -108,7 +120,53 @@ export const STACK_PRODUCTS = [
     module: 'electron-updater',
     kind: 'feature',
     default: true,
+    includeByDefault: true,
     description: 'electron-updater private release channel; adds Electron',
+  },
+  {
+    id: 'ubuntu',
+    category: 'host-operating-system',
+    module: 'ubuntu',
+    kind: 'infrastructure',
+    default: true,
+    includeByDefault: false,
+    description: 'Ubuntu VPS host baseline and non-mutating provisioning plan',
+  },
+  {
+    id: 'docker',
+    category: 'container-runtime',
+    module: 'docker',
+    kind: 'infrastructure',
+    default: true,
+    includeByDefault: false,
+    description: 'Docker Engine and Compose on Ubuntu; adds Ubuntu',
+  },
+  {
+    id: 'postgres',
+    category: 'self-hosted-database',
+    module: 'postgres',
+    kind: 'infrastructure',
+    default: true,
+    includeByDefault: false,
+    description: 'Self-hosted PostgreSQL deployment; adds Drizzle + Docker',
+  },
+  {
+    id: 'nginx',
+    category: 'reverse-proxy',
+    module: 'nginx',
+    kind: 'infrastructure',
+    default: true,
+    includeByDefault: false,
+    description: 'Nginx reverse proxy deployed with Docker; adds Docker',
+  },
+  {
+    id: 'certbot',
+    category: 'tls-automation',
+    module: 'certbot',
+    kind: 'infrastructure',
+    default: true,
+    includeByDefault: false,
+    description: 'Certbot and Let’s Encrypt TLS lifecycle; adds Nginx',
   },
 ] as const satisfies readonly {
   readonly id: string;
@@ -116,6 +174,7 @@ export const STACK_PRODUCTS = [
   readonly module: ModuleId;
   readonly kind: ModuleKind;
   readonly default: boolean;
+  readonly includeByDefault: boolean;
   readonly description: string;
 }[];
 
@@ -124,6 +183,7 @@ export type StackProductId = StackProduct['id'];
 export type StackCategory = StackProduct['category'];
 export type AppProductId = Extract<StackProduct, { kind: 'app' }>['id'];
 export type FeatureProductId = Extract<StackProduct, { kind: 'feature' }>['id'];
+export type InfrastructureProductId = Extract<StackProduct, { kind: 'infrastructure' }>['id'];
 
 export const APP_PRODUCTS = STACK_PRODUCTS
   .filter((product) => product.kind === 'app')
@@ -133,14 +193,20 @@ export const FEATURE_PRODUCTS = STACK_PRODUCTS
   .filter((product) => product.kind === 'feature')
   .map((product) => product.id) as readonly FeatureProductId[];
 
+export const INFRASTRUCTURE_PRODUCTS = STACK_PRODUCTS
+  .filter((product) => product.kind === 'infrastructure')
+  .map((product) => product.id) as readonly InfrastructureProductId[];
+
 export const DEFAULT_STACK_PRODUCTS = STACK_PRODUCTS
-  .filter((product) => product.default);
+  .filter((product) => product.includeByDefault);
 
 const PRODUCT_BY_ID = new Map<string, StackProduct>(
   STACK_PRODUCTS.map((product) => [product.id, product]),
 );
 const DEFAULT_PRODUCT_BY_MODULE = new Map<ModuleId, StackProductId>(
-  DEFAULT_STACK_PRODUCTS.map((product) => [product.module, product.id]),
+  STACK_PRODUCTS
+    .filter((product) => product.default)
+    .map((product) => [product.module, product.id]),
 );
 
 export function isStackProductId(value: unknown): value is StackProductId {
@@ -174,14 +240,15 @@ function assertProductCatalog(): void {
   }
 
   const coveredModules = new Set(STACK_PRODUCTS.map((product) => product.module));
-  const missing = [...APP_MODULES, ...FEATURE_MODULES].filter((moduleId) => !coveredModules.has(moduleId));
+  const allModules = [...APP_MODULES, ...FEATURE_MODULES, ...INFRASTRUCTURE_MODULES];
+  const missing = allModules.filter((moduleId) => !coveredModules.has(moduleId));
   if (missing.length > 0) throw new Error(`Stack products are missing modules: ${missing.join(', ')}`);
 
   const defaultCounts = new Map<ModuleId, number>();
-  for (const product of DEFAULT_STACK_PRODUCTS) {
+  for (const product of STACK_PRODUCTS.filter((candidate) => candidate.default)) {
     defaultCounts.set(product.module, (defaultCounts.get(product.module) ?? 0) + 1);
   }
-  const invalidDefaults = [...APP_MODULES, ...FEATURE_MODULES]
+  const invalidDefaults = allModules
     .filter((moduleId) => defaultCounts.get(moduleId) !== 1);
   if (invalidDefaults.length > 0) {
     throw new Error(`Stack modules must have exactly one default product: ${invalidDefaults.join(', ')}`);

@@ -5,6 +5,7 @@ import { argv, stdin, stdout } from 'node:process';
 import {
   APP_PRODUCTS,
   FEATURE_PRODUCTS,
+  INFRASTRUCTURE_PRODUCTS,
   buildAddOptions,
   buildOptions,
   buildOptionsForRoot,
@@ -17,6 +18,7 @@ import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponent
 import {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
   hasUiSelection,
   parsePromptConfirmation,
   parsePromptModuleSelection,
@@ -62,9 +64,16 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
     const appAnswer = await rl.question(`App surfaces [${DEFAULT_PROMPT_APP_MODULES.join(', ')}]: `);
     console.log(`Select service products: ${FEATURE_PRODUCTS.join(', ')} (or "all"/"none")`);
     const featureAnswer = await rl.question('Capabilities [none]: ');
+    console.log(`Select infrastructure products: ${INFRASTRUCTURE_PRODUCTS.join(', ')} (or "all"/"none")`);
+    const infrastructureAnswer = await rl.question('Infrastructure [none]: ');
     const selected = [
       ...parsePromptModuleSelection(appAnswer, DEFAULT_PROMPT_APP_MODULES, APP_PRODUCTS),
       ...parsePromptModuleSelection(featureAnswer, DEFAULT_PROMPT_FEATURE_MODULES, FEATURE_PRODUCTS),
+      ...parsePromptModuleSelection(
+        infrastructureAnswer,
+        DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
+        INFRASTRUCTURE_PRODUCTS,
+      ),
     ];
     if (selected.length === 0) throw new Error('Select at least one app surface or capability.');
     const requestedModules = selected.map((productId) => {

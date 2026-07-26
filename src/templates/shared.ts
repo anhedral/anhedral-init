@@ -1,5 +1,7 @@
 import path from 'node:path';
+import { SELF_HOSTED_DATABASE_URL_PLACEHOLDER } from '../database.js';
 import { writeFile } from '../util.js';
+
 import type { ProjectOptions } from '../project.js';
 import {
   API_CLIENT_DEPENDENCIES,
@@ -27,6 +29,9 @@ function writeTsConfig(root: string): void {
 function writeSharedDatabase(root: string, options: ProjectOptions): void {
   if (!options.features.database) return;
   const dir = path.join(root, 'packages/db');
+  const dependencies = { ...SHARED_DB_DEPENDENCIES.dependencies };
+  if (options.infrastructure?.postgres) delete dependencies['@neondatabase/serverless'];
+  else delete dependencies.postgres;
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: '@shared/db',
     version: '0.1.0',
@@ -45,10 +50,15 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
       'db:check': 'drizzle-kit check',
       'db:studio': 'drizzle-kit studio',
     },
-    dependencies: SHARED_DB_DEPENDENCIES.dependencies,
+    dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
-  writeFile(path.join(dir, '.env.example'), 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n');
+  writeFile(
+    path.join(dir, '.env.example'),
+    options.infrastructure?.postgres
+      ? `DATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}\n`
+      : 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n',
+  );
   writeFile(path.join(dir, 'drizzle.config.ts'), `import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
@@ -133,7 +143,20 @@ ${itemIndexes});
   writeFile(path.join(dir, 'src/schema.ts'), `export * from './generated-schema';
 export * from './app-schema';
 `);
-  writeFile(path.join(dir, 'src/index.ts'), `import { neon } from '@neondatabase/serverless';
+  writeFile(path.join(dir, 'src/index.ts'), options.infrastructure?.postgres
+    ? `import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import * as schema from './schema';
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required when the db module is enabled');
+
+export const sqlClient = postgres(databaseUrl);
+export const db = drizzle(sqlClient, { schema });
+export type Database = typeof db;
+export * from './schema';
+`
+    : `import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
@@ -145,12 +168,15 @@ export const db = drizzle(sqlClient, { schema });
 export type Database = typeof db;
 export * from './schema';
 `);
-  writeFile(path.join(dir, 'src/migrate.ts'), `import { migrate } from 'drizzle-orm/neon-http/migrator';
+  writeFile(
+    path.join(dir, 'src/migrate.ts'),
+    `import { migrate } from 'drizzle-orm/${options.infrastructure?.postgres ? 'postgres-js' : 'neon-http'}/migrator';
 import { db } from './index';
 
 await migrate(db, { migrationsFolder: './migrations' });
 console.log('Database migrations complete.');
-`);
+`,
+  );
   writeFile(path.join(dir, 'migrations/.gitkeep'), '');
 }
 

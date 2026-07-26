@@ -57,7 +57,7 @@ cd my-product
 
 The suggested selection is a focused web app, and Anhedral shows the complete
 resolved stack before it writes anything. To explicitly create every supported
-surface and capability, use:
+application surface and service capability, use:
 
 ```sh
 pnpm dlx anhedral@latest new my-product --all
@@ -66,10 +66,10 @@ pnpm dlx anhedral@latest new my-product --all
 The generated `README.md` contains the exact next steps for the selected stack.
 Run `pnpm first-run` to create missing local environment files without
 overwriting anything, then use `pnpm ready` for a secret-safe readiness check.
-For the complete stack, configure the selected managed providers—including a
+For the default stack, configure the selected managed providers—including a
 Neon `DATABASE_URL`—and create the reviewed initial migration before running
-`pnpm dev`. Anhedral intentionally does not generate a local Postgres substitute
-or pretend that production provider credentials already exist.
+`pnpm dev`. Self-hosted infrastructure is opt-in and Anhedral never pretends
+that production provider credentials or a provisioned server already exist.
 
 In noninteractive environments, no product flags retain the complete-stack
 default for compatibility. Prefer `--all` when that is your intent, or name
@@ -79,6 +79,7 @@ only what the product needs:
 pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk
 pnpm dlx anhedral@latest new my-api --fastify --neon
 pnpm dlx anhedral@latest new my-clients --next --expo
+pnpm dlx anhedral@latest new my-vps-app --next --fastify --postgres --ubuntu --docker --nginx --certbot
 ```
 
 `init` generates the same workspace in the current empty directory:
@@ -89,6 +90,13 @@ pnpm dlx anhedral@latest init --next --fastify --neon --clerk
 ```
 
 Interactive terminals prompt for products by stack category. CI and coding agents should pass explicit product flags.
+
+Infrastructure products are independent selectors: `--postgres`, `--ubuntu`,
+`--docker`, `--nginx`, and `--certbot`. They are not bundled behind a
+deployment-profile flag. Dependency resolution adds only the substrate required
+by the selection: Docker adds Ubuntu, PostgreSQL adds Drizzle and Docker, Nginx
+adds Docker, and Certbot adds Nginx. The initial infrastructure artifact is a
+non-mutating provisioning plan; inspect it with `pnpm provision:plan`.
 
 ## What gets generated
 
@@ -110,6 +118,7 @@ my-product/
 ├── docs/
 │   ├── DEVELOPMENT.md          # task-oriented feature recipes
 │   └── STACK.md                # tool map and official documentation
+├── deploy/                     # opt-in, plan-only self-hosted infrastructure
 ├── README.md                   # first run and where-to-write-code map
 ├── PRODUCTION.md               # selection-specific release runbook
 ├── SKILL.md                    # repository guidance for coding agents
@@ -175,6 +184,9 @@ contracts -> database/service -> Fastify route -> typed API client -> frontend
 | Native | Expo Router | One TypeScript application for iOS and Android |
 | API | Fastify | Typed validation, structured logging, plugin boundaries |
 | Database | Neon + Drizzle | Managed Postgres with TypeScript schema and SQL-like queries |
+| Self-hosted database | PostgreSQL | Private runtime, credentials outside Git, off-host backup and restore gates |
+| VPS host | Ubuntu + Docker | Recoverable host baseline and container-aware firewall planning |
+| Edge and TLS | Nginx + Certbot | Reverse-proxy and observable Let’s Encrypt lifecycle planning |
 | Authentication | Clerk | Connected frontend and backend identity/session flows |
 | UI | shadcn/ui + React Native Reusables | Accessible source code the application owns |
 | Storage | private Cloudflare R2 | Signed uploads and controlled asset delivery |
@@ -185,14 +197,17 @@ contracts -> database/service -> Fastify route -> typed API client -> frontend
 | Extension | WXT | Browser-extension entrypoints, builds, and packaging |
 | Workspace | pnpm + Turborepo | Strict dependencies and dependency-aware tasks |
 
-Anhedral does **not** generate or require local Postgres. Database-enabled projects use a managed Neon connection through `DATABASE_URL`; teams should use isolated Neon branches or projects for development, preview, and production.
+Managed database selections use Neon through `DATABASE_URL`; teams should use
+isolated branches or projects for development, preview, and production.
+`--postgres` instead selects the self-hosted PostgreSQL runtime and generates a
+plan-only infrastructure contract. It does not execute remote commands.
 
 ## Commands
 
 ```text
 anhedral new <directory> [products...]   Generate a new readable workspace
 anhedral init [products...]              Generate in the current empty directory
-anhedral new <directory> --all           Explicitly select the complete stack
+anhedral new <directory> --all           Select all default app/service products (infrastructure stays opt-in)
 pnpm anhedral:add <product...>            Add connected stack products
 pnpm anhedral:ui <component...>           Add source-owned UI components
 pnpm anhedral:upgrade                     Transactionally upgrade a supported project
@@ -205,6 +220,7 @@ Useful examples:
 pnpm anhedral:add r2 --dry-run
 pnpm anhedral:add electron wxt
 pnpm anhedral:add electron-updater
+pnpm anhedral:add postgres ubuntu docker nginx certbot --dry-run
 pnpm anhedral:ui button dialog
 pnpm anhedral:ui data-table --target web --dry-run
 pnpm anhedral:upgrade --dry-run

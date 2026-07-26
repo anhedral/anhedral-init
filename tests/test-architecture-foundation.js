@@ -4,6 +4,7 @@ import {
   DEFAULT_MODULE_DEFINITIONS,
   DEFAULT_MODULE_REGISTRY,
   FEATURE_MODULES,
+  INFRASTRUCTURE_MODULES,
   MODULE_IDS,
   STACK_PRODUCTS,
   CompositionError,
@@ -43,7 +44,7 @@ function definitionsWith(overrides) {
 assert.equal(Object.isFrozen(DEFAULT_MODULE_REGISTRY), true);
 assert.equal(Object.isFrozen(DEFAULT_MODULE_REGISTRY.auth.requires), true);
 assert.deepEqual(
-  [...APP_MODULES, ...FEATURE_MODULES],
+  [...APP_MODULES, ...FEATURE_MODULES, ...INFRASTRUCTURE_MODULES],
   MODULE_IDS,
   'the architecture namespace must be the single source of truth for supported modules',
 );
@@ -56,13 +57,36 @@ assert.deepEqual(
   FEATURE_MODULES,
 );
 assert.deepEqual(
+  DEFAULT_MODULE_DEFINITIONS.filter(({ kind }) => kind === 'infrastructure').map(({ id }) => id),
+  INFRASTRUCTURE_MODULES,
+);
+assert.deepEqual(
   productIdsForModules(MODULE_IDS),
-  ['next', 'expo', 'fastify', 'electron', 'wxt', 'neon', 'clerk', 'ably', 'revenuecat', 'r2', 'revenuecat-native', 'electron-updater'],
+  [
+    'next',
+    'expo',
+    'fastify',
+    'electron',
+    'wxt',
+    'neon',
+    'clerk',
+    'ably',
+    'revenuecat',
+    'r2',
+    'revenuecat-native',
+    'electron-updater',
+    'ubuntu',
+    'docker',
+    'postgres',
+    'nginx',
+    'certbot',
+  ],
   'every stable manifest module must have a canonical public product selector',
 );
 assert.equal(new Set(STACK_PRODUCTS.map(({ id }) => id)).size, STACK_PRODUCTS.length);
 assert.equal(moduleIdForStackSelection('next'), 'web');
 assert.equal(moduleIdForStackSelection('fastify'), 'api');
+assert.equal(moduleIdForStackSelection('postgres'), 'postgres');
 assert.equal(moduleIdForStackSelection('web'), 'web', 'legacy role selectors remain compatibility aliases');
 assert.equal(moduleIdForStackSelection('nuxt'), null);
 assert.equal(hashContent('rendered text'), hashContent(Buffer.from('rendered text', 'utf8')));
@@ -87,6 +111,17 @@ const updaterResolution = resolveModules(['electron-updater']);
 assert.deepEqual(updaterResolution.requestedModules, ['electron-updater']);
 assert.deepEqual(updaterResolution.resolvedModules, ['desktop', 'electron-updater']);
 assert.deepEqual(updaterResolution.dependencyAddedModules, ['desktop']);
+const certbotResolution = resolveModules(['certbot', 'postgres']);
+assert.deepEqual(certbotResolution.requestedModules, ['postgres', 'certbot']);
+assert.deepEqual(certbotResolution.resolvedModules, [
+  'db',
+  'ubuntu',
+  'docker',
+  'postgres',
+  'nginx',
+  'certbot',
+]);
+assert.deepEqual(certbotResolution.dependencyAddedModules, ['db', 'ubuntu', 'docker', 'nginx']);
 const updaterContributions = collectModuleContributions(['electron-updater']);
 assert.deepEqual(updaterContributions.environment, [{
   owner: 'electron-updater',

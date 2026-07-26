@@ -25,6 +25,7 @@ const { assertPackageName, childPackageName } = await import(
 const {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
   parsePromptConfirmation,
   parsePromptModuleSelection,
   shouldPromptForInitModules,
@@ -364,6 +365,11 @@ assert.deepEqual(
   'legacy role selectors should remain accepted for pre-1.0 compatibility',
 );
 assert.equal(parseCli(['--all']).modules.size, 12, '--all should explicitly select every supported module');
+assert.equal(
+  [...parseCli(['--all']).modules].some((moduleId) => ['ubuntu', 'docker', 'postgres', 'nginx', 'certbot'].includes(moduleId)),
+  false,
+  '--all should keep self-hosted infrastructure opt-in',
+);
 assert.deepEqual(parseNewProjectRequest(['my-app', '--next']), { directory: 'my-app', moduleArgs: ['--next'] });
 assert.equal(buildOptionsForRoot(parseCli(['--next']), '/tmp/My Product').projectName, 'my-product');
 
@@ -388,12 +394,34 @@ assert.throws(() => assertPackageName('node_modules'), /Invalid package name/);
 
 const minimalOptions = buildOptions(parseCli(['--next', '--fastify', '--neon', '--clerk']));
 assert.deepEqual(minimalOptions.modules, ['web', 'api', 'db', 'auth']);
+const infrastructureOptions = buildOptions(parseCli([
+  '--next',
+  '--fastify',
+  '--postgres',
+  '--ubuntu',
+  '--docker',
+  '--nginx',
+  '--certbot',
+]));
+assert.deepEqual(infrastructureOptions.modules, [
+  'web',
+  'api',
+  'ubuntu',
+  'docker',
+  'postgres',
+  'nginx',
+  'certbot',
+]);
 
 assert.deepEqual(
   buildAddOptions(['expo', 'wxt', 'expo'], parseCli(['--skip-install'])).modules,
   ['mobile', 'extension'],
 );
-assert.deepEqual([...DEFAULT_PROMPT_APP_MODULES, ...DEFAULT_PROMPT_FEATURE_MODULES], [
+assert.deepEqual([
+  ...DEFAULT_PROMPT_APP_MODULES,
+  ...DEFAULT_PROMPT_FEATURE_MODULES,
+  ...DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
+], [
   'next',
 ]);
 assert.deepEqual(parsePromptModuleSelection('none', ['next'], ['next', 'fastify']), []);

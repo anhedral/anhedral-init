@@ -114,6 +114,32 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     ]),
     crons: EMPTY,
   }),
+  ubuntu: Object.freeze({ module: 'ubuntu', environment: EMPTY, crons: EMPTY }),
+  docker: Object.freeze({ module: 'docker', environment: EMPTY, crons: EMPTY }),
+  postgres: Object.freeze({
+    module: 'postgres',
+    environment: Object.freeze([
+      { name: 'POSTGRES_DB', defaultValue: 'app' },
+      { name: 'POSTGRES_USER', defaultValue: 'app_owner' },
+      { name: 'POSTGRES_PASSWORD', defaultValue: '' },
+    ]),
+    crons: EMPTY,
+  }),
+  nginx: Object.freeze({
+    module: 'nginx',
+    environment: Object.freeze([
+      { name: 'DOMAIN', defaultValue: 'app.example.com' },
+      { name: 'ROOT_DOMAIN', defaultValue: 'example.com' },
+    ]),
+    crons: EMPTY,
+  }),
+  certbot: Object.freeze({
+    module: 'certbot',
+    environment: Object.freeze([
+      { name: 'LETSENCRYPT_EMAIL', defaultValue: 'ops@example.com' },
+    ]),
+    crons: EMPTY,
+  }),
 });
 
 function collectEnvironmentFromRegistry(

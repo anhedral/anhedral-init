@@ -16,12 +16,25 @@ export const FEATURE_MODULES = [
   'electron-updater',
 ] as const;
 
-export const MODULE_IDS = [...APP_MODULES, ...FEATURE_MODULES] as const;
+export const INFRASTRUCTURE_MODULES = [
+  'ubuntu',
+  'docker',
+  'postgres',
+  'nginx',
+  'certbot',
+] as const;
+
+export const MODULE_IDS = [
+  ...APP_MODULES,
+  ...FEATURE_MODULES,
+  ...INFRASTRUCTURE_MODULES,
+] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
 export type FeatureModule = (typeof FEATURE_MODULES)[number];
+export type InfrastructureModule = (typeof INFRASTRUCTURE_MODULES)[number];
 export type ModuleId = (typeof MODULE_IDS)[number];
-export type ModuleKind = 'app' | 'feature';
+export type ModuleKind = 'app' | 'feature' | 'infrastructure';
 
 export type ModuleDefinition = {
   readonly id: ModuleId;
@@ -214,6 +227,11 @@ const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'storage', kind: 'feature', requires: ['auth'], conflicts: [] },
   { id: 'native-subscriptions', kind: 'feature', requires: ['mobile', 'billing'], conflicts: [] },
   { id: 'electron-updater', kind: 'feature', requires: ['desktop'], conflicts: [] },
+  { id: 'ubuntu', kind: 'infrastructure', requires: [], conflicts: [] },
+  { id: 'docker', kind: 'infrastructure', requires: ['ubuntu'], conflicts: [] },
+  { id: 'postgres', kind: 'infrastructure', requires: ['db', 'docker'], conflicts: [] },
+  { id: 'nginx', kind: 'infrastructure', requires: ['docker'], conflicts: [] },
+  { id: 'certbot', kind: 'infrastructure', requires: ['nginx'], conflicts: [] },
 ];
 
 export const DEFAULT_MODULE_DEFINITIONS: readonly ModuleDefinition[] = Object.freeze(

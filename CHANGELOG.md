@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- Add independent, opt-in `--postgres`, `--ubuntu`, `--docker`, `--nginx`, and
+  `--certbot` infrastructure products with explicit dependency resolution and a
+  non-mutating provisioning plan.
+- Generate a Postgres.js Drizzle runtime for self-hosted PostgreSQL selections,
+  while preserving the managed Neon adapter for the default database product.
+
+### Security
+
+- Require explicit approval gates around SSH, firewall, DNS, certificate, and
+  database operations in generated infrastructure plans; prohibit command
+  history replay and remote mutation in the initial plan-only executor.
+
 ## 0.4.2 - 2026-07-23
 
 ### Added

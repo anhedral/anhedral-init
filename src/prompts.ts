@@ -47,3 +47,4 @@ export function parsePromptConfirmation(input: string): boolean {
 
 export const DEFAULT_PROMPT_APP_MODULES = ['next'] as const;
 export const DEFAULT_PROMPT_FEATURE_MODULES = [] as const;
+export const DEFAULT_PROMPT_INFRASTRUCTURE_MODULES = [] as const;

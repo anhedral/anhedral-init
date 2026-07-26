@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { SELF_HOSTED_DATABASE_URL_PLACEHOLDER } from '../database.js';
 import { anhedralPrint } from '../print.js';
 import { appendGitignore, writeFile } from '../util.js';
+
 import { childPackageName, jsString } from '../render.js';
 import { BACKEND_DEPENDENCIES } from '../dependencies.js';
 import type { ProjectOptions } from '../project.js';
@@ -3224,7 +3226,11 @@ describe('health', () => {
     'TRUST_PROXY_HOPS=0',
     `# In production, list every exact browser origin explicitly and use HTTPS; literal null remains valid for the desktop file origin.\nCORS_ORIGINS=${corsOrigins(options).join(',')}`,
     'ANHEDRAL_DEMO=false',
-    options.features.database ? '# Production requires a postgres/postgresql URL: paste the exact pooled URL from managed Neon. Anhedral never starts local Postgres.\nDATABASE_URL=YOUR_NEON_POSTGRES_URL' : null,
+    options.features.database
+      ? options.infrastructure?.postgres
+        ? `# Replace the password with a strong URL-encoded secret injected outside Git. The postgres hostname is private to the deployment network.\nDATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}`
+        : '# Production requires a postgres/postgresql URL: paste the exact pooled URL from managed Neon. Anhedral never starts local Postgres.\nDATABASE_URL=YOUR_NEON_POSTGRES_URL'
+      : null,
     options.features.auth ? '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
     options.features.realtime ? '# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
     options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro' : null,

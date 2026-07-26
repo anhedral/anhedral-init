@@ -41,13 +41,17 @@ When `electron-updater` is selected, desktop releases follow a separate delivery
 
 ## Database
 
-Database-enabled projects use managed Neon Postgres. Anhedral does not generate local Postgres, Docker Compose, or an embedded database substitute.
+Database-enabled projects use managed Neon Postgres by default. `--postgres`
+instead selects a private self-hosted runtime and emits a non-mutating
+provisioning plan together with the explicitly selected Ubuntu, Docker, Nginx,
+and Certbot products.
 
 1. Edit the user-owned `packages/db/src/app-schema.ts`; Anhedral keeps provider tables in `generated-schema.ts`.
 2. Run `pnpm db:generate`.
 3. Review and commit generated SQL and metadata.
 4. Run `pnpm verify:db`.
-5. Apply with `pnpm db:migrate` against the intended Neon branch or project.
+5. Apply with `pnpm db:migrate` against the intended Neon branch/project or the
+   selected private PostgreSQL service.
 
 Schema generation must not happen during an application build. Migrations are reviewed release artifacts.
 
