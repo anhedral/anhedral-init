@@ -135,7 +135,17 @@ try {
   const nativeMobilePackage = packageJson(roots.native, 'mobile');
   assert.ok(nativeMobilePackage.dependencies['react-native-purchases']);
   assert.ok(nativeMobilePackage.dependencies['react-native-purchases-ui']);
+  assert.equal(nativeMobilePackage.dependencies.expo, '57.0.8');
+  assert.equal(nativeMobilePackage.dependencies.react, '19.2.3');
+  assert.equal(nativeMobilePackage.dependencies['react-native'], '0.86.0');
+  assert.equal(nativeMobilePackage.dependencies['react-native-worklets'], '0.10.0');
+  assert.equal(nativeMobilePackage.dependencies['expo-constants'], undefined);
+  assert.equal(nativeMobilePackage.devDependencies['@babel/core'], undefined);
+  assert.equal(nativeMobilePackage.devDependencies['@react-native/metro-config'], '0.86.0');
   assert.equal(nativeMobilePackage.devDependencies['@testing-library/dom'], '10.4.1');
+  const nativeMobileConfig = JSON.parse(read(roots.native, 'apps/mobile/app.json'));
+  assert.deepEqual(nativeMobileConfig.expo.plugins, ['expo-router', 'expo-secure-store', 'expo-status-bar']);
+  assert.deepEqual(nativeMobileConfig.expo.experiments, { reactCompiler: true, typedRoutes: true });
 
   const nativeAnonymousPackage = packageJson(roots.nativeAnonymous, 'mobile');
   assert.equal(nativeAnonymousPackage.dependencies['@clerk/expo'], undefined);
@@ -155,6 +165,7 @@ try {
     assert.match(read(root, 'apps/desktop/scripts/dev.mjs'), /VITE_DEV_SERVER_URL/);
     assert.match(read(root, 'apps/desktop/vite.config.ts'), /base: '\.\/'/);
     assert.doesNotMatch(read(root, 'apps/desktop/vite.config.ts'), /@tailwindcss\/vite/);
+    assert.match(read(root, 'apps/desktop/vite.config.ts'), /chunkSizeWarningLimit: 1600/);
     assert.match(read(root, 'apps/desktop/postcss.config.mjs'), /@tailwindcss\/postcss/);
     assert.match(read(root, 'apps/desktop/src/renderer/styles.css'), /@import "tailwindcss"/);
     assert.match(read(root, 'apps/desktop/src/renderer/styles.css'), /--color-primary: var\(--primary\)/);

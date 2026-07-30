@@ -16,4 +16,4 @@ yarn-error.log*
 /demo
 /.claude/
 /.fallow/
-/init-builder/
+!/init-builder/

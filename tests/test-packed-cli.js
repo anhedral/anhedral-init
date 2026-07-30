@@ -42,7 +42,7 @@ function runInstalledScaffold(installRoot) {
   mkdirSync(projectRoot);
   run(binPath, ['init', '--fastify', '--skip-install'], projectRoot);
   const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, 5);
+  assert.equal(manifest.schemaVersion, 6);
   assert.deepEqual(Object.keys(manifest.templates), ['api-fastify']);
   assert.equal(existsSync(path.join(projectRoot, 'apps/api/tsconfig.json')), true);
 }

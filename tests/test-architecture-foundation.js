@@ -64,6 +64,7 @@ assert.deepEqual(
   productIdsForModules(MODULE_IDS),
   [
     'next',
+    'admin-page',
     'expo',
     'fastify',
     'electron',
@@ -73,6 +74,7 @@ assert.deepEqual(
     'ably',
     'revenuecat',
     'r2',
+    'cloudflare-workflows',
     'revenuecat-native',
     'electron-updater',
     'ubuntu',
@@ -86,6 +88,7 @@ assert.deepEqual(
 assert.equal(new Set(STACK_PRODUCTS.map(({ id }) => id)).size, STACK_PRODUCTS.length);
 assert.equal(moduleIdForStackSelection('next'), 'web');
 assert.equal(moduleIdForStackSelection('fastify'), 'api');
+assert.equal(moduleIdForStackSelection('cloudflare-workflows'), 'workflows');
 assert.equal(moduleIdForStackSelection('postgres'), 'postgres');
 assert.equal(moduleIdForStackSelection('web'), 'web', 'legacy role selectors remain compatibility aliases');
 assert.equal(moduleIdForStackSelection('nuxt'), null);
@@ -111,6 +114,10 @@ const updaterResolution = resolveModules(['electron-updater']);
 assert.deepEqual(updaterResolution.requestedModules, ['electron-updater']);
 assert.deepEqual(updaterResolution.resolvedModules, ['desktop', 'electron-updater']);
 assert.deepEqual(updaterResolution.dependencyAddedModules, ['desktop']);
+const workflowResolution = resolveModules(['workflows']);
+assert.deepEqual(workflowResolution.requestedModules, ['workflows']);
+assert.deepEqual(workflowResolution.resolvedModules, ['workflows']);
+assert.deepEqual(workflowResolution.dependencyAddedModules, []);
 const certbotResolution = resolveModules(['certbot', 'postgres']);
 assert.deepEqual(certbotResolution.requestedModules, ['postgres', 'certbot']);
 assert.deepEqual(certbotResolution.resolvedModules, [
@@ -128,6 +135,18 @@ assert.deepEqual(updaterContributions.environment, [{
   name: 'DESKTOP_UPDATE_BASE_URL',
   defaultValue: 'https://updates.example.com',
 }]);
+assert.deepEqual(collectModuleContributions(['workflows']).environment, [
+  {
+    owner: 'workflows',
+    name: 'WORKFLOW_API_TOKEN',
+    defaultValue: '',
+  },
+  {
+    owner: 'workflows',
+    name: 'CLOUDFLARE_API_TOKEN',
+    defaultValue: '',
+  },
+]);
 const composed = collectModuleContributions(['storage', 'billing']);
 assert.equal(composed.environment.filter((entry) => entry.name === 'CRON_SECRET').length, 1);
 assert.deepEqual(composed.crons.map((entry) => entry.id), ['realtime-outbox', 'storage-cleanup']);
@@ -283,10 +302,16 @@ const manifest = createManifest({
   },
 });
 const roundTrip = readManifest(serializeManifest(manifest));
-assert.equal(roundTrip.schemaVersion, 5);
+assert.equal(roundTrip.schemaVersion, 6);
 assert.deepEqual(roundTrip, manifest);
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].ownership, 'managed');
 assert.equal(roundTrip.files['src/anhedral/features/auth.ts'].mode, null);
+const legacyV5 = JSON.parse(serializeManifest(manifest));
+legacyV5.schemaVersion = 5;
+delete legacyV5.stack;
+const migratedV5 = readManifest(legacyV5);
+assert.equal(migratedV5.schemaVersion, 6);
+assert.deepEqual(migratedV5.stack, { authProvider: 'clerk', adminMode: 'none' });
 
 const missingMode = JSON.parse(serializeManifest(manifest));
 delete missingMode.files['src/anhedral/features/auth.ts'].mode;
@@ -375,7 +400,7 @@ Object.defineProperty(prototypePath.files, '__proto__', {
   value: { owner: 'root', ownership: 'user', hash: hashContent('prototype'), mode: null },
 });
 const prototypeManifest = readManifest(prototypePath);
-assert.equal(prototypeManifest.schemaVersion, 5);
+assert.equal(prototypeManifest.schemaVersion, 6);
 assert.equal(Object.hasOwn(prototypeManifest.files, '__proto__'), true);
 assert.equal(prototypeManifest.files.__proto__.ownership, 'user');
 

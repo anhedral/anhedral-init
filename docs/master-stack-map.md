@@ -7,10 +7,16 @@ experience, and production verification.
 
 ![Anhedral master stack diagram](../assets/anhedral-cli-init.svg)
 
-The diagram is generated from `scripts/render-master-stack-map.mjs`. Change the
-content or geometry there, then run `pnpm docs:stack-map`; do not hand-edit the
-SVG. The fixed-width map below remains the detailed text and accessibility
-reference.
+The expanded runtime and operations view maps protocols, routes, authentication,
+bindings, state transitions, cache/retry policy, release ordering, and the
+optional self-hosted topology:
+
+![Anhedral technical communication diagram](../assets/anhedral-cli-init-technical.svg)
+
+The diagrams are generated from `scripts/render-master-stack-map.mjs` and
+`scripts/render-technical-stack-map.mjs`. Change content or geometry in the
+matching renderer, then run `pnpm docs:stack-maps`; do not hand-edit either SVG.
+The fixed-width map below remains the detailed text and accessibility reference.
 
 Read top to bottom. Arrows represent lifecycle order, not runtime network calls.
 Runtime and provider connections are stated explicitly inside each stage.
@@ -34,10 +40,10 @@ Runtime and provider connections are stated explicitly inside each stage.
 |CREATE anhedral new <directory> | anhedral init EXTEND anhedral add <products> | anhedral ui add <components>             |
 |INSPECT anhedral doctor AUTOMATE --dry-run | --json | --verbose | --skip-install                                          |
 |SURFACES web | mobile | api | desktop | extension                                                                         |
-|FEATURES db | auth | billing | storage | native-subscriptions | electron-updater                                          |
+|FEATURES db | auth | billing | storage | workflows | native-subscriptions | electron-updater                              |
 |UI shadcn/ui for DOM clients | React Native Reusables for Expo | NativeWind or Uniwind                                    |
-|CLOSURE auth -> api + db | realtime -> auth | billing -> realtime | storage -> auth | native-subscriptions -> mobile + billing |
-|electron-updater -> desktop                                                                                               |
+|CLOSURE auth -> api + db | realtime -> auth | billing -> realtime | storage -> auth                                       |
+|CLOSURE native-subscriptions -> mobile + billing | electron-updater -> desktop | workflows -> standalone Worker           |
 +==========================================================================================================================+
                                                              |
                                                              v
@@ -67,6 +73,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 |apps/extension WXT + React + MV3 entrypoints. WHY: browser permissions, side panel/background, builds, and packaging.     |
 |apps/assets-private-proxy Cloudflare Worker + private R2 binding. WHY: controlled GET/HEAD media delivery without bucket  |
 |listing.                                                                                                                  |
+|apps/workflows Cloudflare Workflows Worker. WHY: durable jobs with retry, sleep, event waits, and persisted progress.     |
 |apps/desktop-updater-worker Cloudflare Worker + private R2 binding. WHY: custom-domain Electron metadata, ranges, and     |
 |downloads.                                                                                                                |
 |packages/contracts Zod schemas. WHY: one validated network contract shared across every boundary.                         |
@@ -86,6 +93,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 |reads.                                                                                                                    |
 |BILLING Expo purchase -> RevenueCat -> signed webhook -> Neon entitlement + transactional outbox.                         |
 |REALTIME Outbox -> scoped Ably event -> every client refetches the authoritative entitlement.                             |
+|WORKFLOWS Trusted server -> secret-authenticated Worker -> durable steps; instance ID is the downstream idempotency key.  |
 |DESKTOP UPDATE Signed native build -> artifacts then latest metadata -> private R2 -> updates.<domain> Worker ->          |
 |electron-updater.                                                                                                         |
 |SECURITY Server-only secrets | exact CORS | rate limits/headers | Electron isolation | least privilege | private buckets. |
@@ -99,8 +107,8 @@ Runtime and provider connections are stated explicitly inside each stage.
 |GITHUB + CI Organization repository, protected environments, pinned Actions, PR checks, branches, and release artifacts.  |
 |NEON Projects/branches per environment, pooled DATABASE_URL, backups, reviewed migrations, and controlled deploy gates.   |
 |CLERK Development/production instances, publishable/secret keys, domains, OAuth, redirects, webhooks, native and CRX IDs. |
-|CLOUDFLARE Authoritative DNS, private R2 buckets, scoped tokens, CORS/lifecycle, Worker bindings, logs, and custom        |
-|domains.                                                                                                                  |
+|CLOUDFLARE DNS, private R2, Workflows, scoped tokens, CORS/lifecycle, Worker bindings, logs, and custom domains.          |
+|WORKFLOWS Separate environment Workers, secret control tokens, bindings, logs, alerts, retry policy, and recovery tests.  |
 |VERCEL Services deployment for web/API, rewrites, environment scopes, preview/production, cron endpoints, domains, and    |
 |TLS.                                                                                                                      |
 |REVENUECAT + ABLY Products, offerings, entitlements, store credentials, signed webhook, scoped realtime, and retry cron.  |
@@ -124,6 +132,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 |MOBILE mobile:eas:{login,init} | mobile:build:{internal,production}:{ios,android} | mobile:submit:{ios,android}           |
 |DATABASE neon:{login,project:create} | db:{generate,migrate,check,studio} | verify:db                                     |
 |STORAGE r2:{login,bucket:create,cors:list,cors:set} | assets:proxy:{check,dev,deploy} | verify:assets-proxy               |
+|WORKFLOWS workflows:{login,dev,deploy,types,secret:put,instances:list,instances:describe} | verify:workflows              |
 |UPDATES desktop:updates:{cloudflare:login,bucket:create,provision,publish}                                                |
 |UPDATES desktop:updates:worker:{check,dev,deploy,types} | desktop:updates:build:{mac,win,linux} | verify:desktop-updates  |
 |DESKTOP desktop:build | verify:desktop EXTENSION extension:zip | verify:extension                                         |
@@ -154,7 +163,7 @@ Runtime and provider connections are stated explicitly inside each stage.
 +--------------------------------------------------------------------------------------------------------------------------+
 |LOCAL Smallest package check -> typecheck -> full verify -> build -> doctor; never weaken a failing gate.                 |
 |DATABASE Generate -> review/commit SQL -> drift gate -> controlled migrate -> health/readiness checks.                    |
-|RUNTIME API coverage, auth/CORS, billing replay/order, Ably reconnect, R2 upload/read/range/cache, Worker method/host     |
+|RUNTIME API/auth/CORS, billing replay/order, Ably reconnect, Workflows retry/idempotency/events, and R2 range/cache.      |
 |security.                                                                                                                 |
 |CLIENTS Next build | Expo compatibility/device checks | packaged Electron smoke/upgrade | live WXT MV3 worker in Chrome.  |
 |INFRA Confirm provider team/resource names, protected env presence, DNS answers, TLS, Vercel health, Worker bindings, and |
@@ -192,6 +201,8 @@ web / mobile / desktop / extension
            clients refetch state
 
 signed desktop release -> private update R2 -> updates.<domain> Worker -> electron-updater
+
+trusted backend -> workflows Worker -> durable steps / sleeps / external events
 ```
 
 The runtime summary is intentionally smaller than the lifecycle map. It shows

@@ -89,6 +89,7 @@ try {
     ['mobile', 'native-subscriptions'],
     ['web', 'extension'],
     ['desktop', 'electron-updater'],
+    ['api', 'workflows'],
     ['web', 'electron-updater'],
     ['api', 'native-subscriptions'],
   ]) {
@@ -108,5 +109,5 @@ try {
 
 console.log(
   `Module topology invariants passed: ${2 ** MODULE_IDS.length} requests, `
-  + `${MODULE_IDS.length} singleton scaffolds, 8 add paths`,
+  + `${MODULE_IDS.length} singleton scaffolds, 9 add paths`,
 );

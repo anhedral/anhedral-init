@@ -28,15 +28,15 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 115,
-      "sha256": "b005f41bc55f8de85c7343d454e9f0717676940095ac85d686df1a7bbc88ba5a"
+      "bytes": 130,
+      "sha256": "1135ea965d857af3f458627d691aa1f07b643a3bfeacc08e914c584e63f8f75f"
     },
     {
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
       "bytes": 519,
-      "sha256": "0f3f3fc0f676672d4f06ca75b22117068c91aa18f5e1f8c9af0ab12cb7bdf6af"
+      "sha256": "72a7017181578292c8478d7708893c030c5f39269069bd6ee2c2e7e7d7a768bf"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,21 +50,21 @@
       "type": "file",
       "mode": "0644",
       "bytes": 3549,
-      "sha256": "557ea01d27801ffdbf1d53352c2f65774c8b41e960c908889910401fc01caac9"
+      "sha256": "5bb26938dde0de653142e2b377f87c87d241c99517ae11c2c9efc6054d3407a3"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7607,
-      "sha256": "6076717800583e492fde359ee72935eba5b45e6d4fd908bca7910db3bf274111"
+      "bytes": 7608,
+      "sha256": "9f2343054d34674fd67df48638962547d76293608d00c68ca00bc3e24aa05264"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 14074,
-      "sha256": "0d2fa5c4cdd1f649cd8fbd44de9648e7b13a72b11f81ff1e01b1a2deb1efbf77"
+      "bytes": 14145,
+      "sha256": "8d2a45e76710bff93e5d67fd9f9fa0e890cbbe2f96865ad8d3170e42000d5d51"
     },
     {
       "path": "apps/api/.env.example",
@@ -287,8 +287,8 @@
       "path": "apps/desktop/vite.config.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 338,
-      "sha256": "9b3df32cecd8de0a978a526083f5729af89cfec5a91685ed6d3292a9588b2a0b"
+      "bytes": 551,
+      "sha256": "087770a0fafbefb2ddae3d05e616ef9d9f7fc489ff1fe3a526cef328c2a1c65e"
     },
     {
       "path": "docs/DEVELOPMENT.md",
@@ -309,7 +309,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1928,
-      "sha256": "8a09b4da76e1c826c3657b398bef9904079194abaaefc26750946f3c207e873e"
+      "sha256": "5895e978b8f8442daa2eca1d663baf3afa7a7e382395caf0748ddbc7425763c0"
     },
     {
       "path": "packages/api-client/package.json",
@@ -420,8 +420,8 @@
       "path": "packages/db/src/generated-schema.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 80,
-      "sha256": "380c3bb16a5e59f3f28f5ac6c5c84cf222e36205b0e09e9056f709a40a5a7965"
+      "bytes": 89,
+      "sha256": "f0f417fc28f243d83fbaf8af6a1328c1035495a7b8da3000eff8f6967dc5a721"
     },
     {
       "path": "packages/db/src/index.ts",
@@ -434,8 +434,8 @@
       "path": "packages/db/src/migrate.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 192,
-      "sha256": "a208dbf5e3584f8d529552ccf3e1378dbbb2122b8b2d17ec169478a19ddbb6d6"
+      "bytes": 196,
+      "sha256": "7f76385e745f92989ab6752df91ade914d65bb65c7a158046f0760423525f175"
     },
     {
       "path": "packages/db/src/schema.ts",
@@ -487,5 +487,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "787b825cb19a700551e5c457b5278cb83ec9099c3b52b8c95ecb45ce348077ba"
+  "digest": "484ed61ea3b425b3c5677144324786fac66dbfd585ed1352381594aa0e6e2aab"
 }

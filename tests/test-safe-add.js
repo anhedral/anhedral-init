@@ -45,7 +45,7 @@ try {
   run(['init', '--fastify', '--skip-install'], project);
 
   const initialManifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
-  assert.equal(initialManifest.schemaVersion, 5);
+  assert.equal(initialManifest.schemaVersion, 6);
   assert.deepEqual(Object.keys(initialManifest.templates), ['api-fastify']);
   const initialSkill = readFileSync(path.join(project, 'SKILL.md'), 'utf8');
   assert.match(initialSkill, /^---\nname: anhedral-project\n/);
@@ -293,10 +293,10 @@ try {
   run(['init', 'web', 'api', '--skip-install'], upgradeProject);
   const upgradeManifestPath = path.join(upgradeProject, 'anhedral.json');
   const upgradeManifest = JSON.parse(readFileSync(upgradeManifestPath, 'utf8'));
-  upgradeManifest.generatorVersion = '0.3.0';
+  upgradeManifest.generatorVersion = '0.4.2';
   writeFileSync(upgradeManifestPath, JSON.stringify(upgradeManifest, null, 2) + '\n');
   const upgradePage = path.join(upgradeProject, 'apps/web/app/page.tsx');
-  const customUpgradePage = `${readFileSync(upgradePage, 'utf8')}\n// survives the 0.4 ownership migration\n`;
+  const customUpgradePage = `${readFileSync(upgradePage, 'utf8')}\n// survives the 0.5 ownership migration\n`;
   writeFileSync(upgradePage, customUpgradePage);
   const beforeUpgradeDryRun = readFileSync(upgradeManifestPath, 'utf8');
   const upgradeDryRun = JSON.parse(run(['upgrade', '--skip-install', '--dry-run', '--json'], upgradeProject).stdout);
@@ -310,15 +310,19 @@ try {
   assert.equal(readFileSync(upgradePage, 'utf8'), customUpgradePage);
   assert.match(readFileSync(path.join(upgradeProject, 'packages/contracts/src/index.ts'), 'utf8'), /\.\/generated/);
 
-  const [upgradeMajor, upgradeMinor, upgradePatch] = currentGeneratorVersion.split('.').map(Number);
-  assert.ok(upgradePatch > 0, 'safe-add compatibility coverage requires a patch release');
-  upgradedManifest.generatorVersion = `${upgradeMajor}.${upgradeMinor}.${upgradePatch - 1}`;
+  const [upgradeMajor, upgradeMinor] = currentGeneratorVersion.split('.').map(Number);
+  assert.equal(
+    `${upgradeMajor}.${upgradeMinor}`,
+    '0.5',
+    'safe-add compatibility coverage must track the current minor release',
+  );
+  upgradedManifest.generatorVersion = '0.4.2';
   writeFileSync(upgradeManifestPath, JSON.stringify(upgradedManifest, null, 2) + '\n');
   run(['upgrade', '--skip-install'], upgradeProject);
   assert.equal(
     JSON.parse(readFileSync(upgradeManifestPath, 'utf8')).generatorVersion,
     currentGeneratorVersion,
-    'the current generator must upgrade projects from its previous patch',
+    'the current generator must upgrade projects from the previous supported minor',
   );
 
   const currentUpgrade = JSON.parse(run(['upgrade', '--skip-install', '--json'], upgradeProject).stdout);

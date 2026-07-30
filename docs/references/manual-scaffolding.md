@@ -23,7 +23,7 @@ Record these values before editing:
 - `projectName`: a valid npm package name; use it for the root package and child package prefixes.
 - `displayName`: human-readable product name; escape it for every JSON, JavaScript, HTML, and Markdown context.
 - requested app surfaces: `web`, `mobile`, `api`, `desktop`, `extension`.
-- requested features: `db`, `auth`, `realtime`, `billing`, `storage`, `native-subscriptions`, `electron-updater`.
+- requested features: `db`, `auth`, `realtime`, `billing`, `storage`, `workflows`, `native-subscriptions`, `electron-updater`.
 - toolchain policy: exact tested versions for reproducibility, or current compatible versions when the user explicitly wants upgrades.
 
 Resolve the transitive closure before writing files:
@@ -141,7 +141,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/extension/src/hooks/use-entitlement.ts               [extension + billing]
 ```
 
-Do not create `anhedral.json` manually. Its schema-v5 hashes, modes, ownership classes, template and UI-provider provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
+Do not create `anhedral.json` manually. Its schema-v6 stack metadata, hashes, modes, ownership classes, template and UI-provider provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
 
 ## 3. Create root configuration
 

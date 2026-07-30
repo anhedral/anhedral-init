@@ -127,6 +127,9 @@ export default defineConfig({
   build: {
     outDir: 'dist/renderer',
     emptyOutDir: true,
+    // Clerk is already loaded behind a dynamic import. Its optional account-management
+    // surface is intentionally a large async chunk and does not inflate initial rendering.
+    chunkSizeWarningLimit: 1600,
   },
 });
 `);

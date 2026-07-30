@@ -28,15 +28,15 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 115,
-      "sha256": "b005f41bc55f8de85c7343d454e9f0717676940095ac85d686df1a7bbc88ba5a"
+      "bytes": 130,
+      "sha256": "1135ea965d857af3f458627d691aa1f07b643a3bfeacc08e914c584e63f8f75f"
     },
     {
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
       "bytes": 515,
-      "sha256": "757361d00a0a07291374a0be3f64589df763fadaa99139d1fdc7faec3d90222b"
+      "sha256": "441cb06649387686f12c9c5c685a620268e93c4925ed6cb2b9dd416929a395bd"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,21 +50,21 @@
       "type": "file",
       "mode": "0644",
       "bytes": 3779,
-      "sha256": "39e45d0c2251f42ec06f4168abb87f523117e09c8e3d612dad759df8562bfff3"
+      "sha256": "670e145b68a6bd87682b3bf9b7f7b596574c2a3dc83c92fe162f0ff1d47df6e4"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7658,
-      "sha256": "4bdf38b25ad77be4610699efbbd91560a470752044050842b50406862e2a4f8e"
+      "bytes": 7659,
+      "sha256": "0114ba5b56ad89d89b1dcdcca0ba06767704063bdb76c6f6a0fc4e28aac27250"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 13788,
-      "sha256": "3739d047d313eea5b88c6d86ab9660359acf9b9434790e9f34c2c5b0288a75f3"
+      "bytes": 13859,
+      "sha256": "4b5aa129f512c5eaa54a098b79019818f50bc5c7af7643d5a30237eb318091e1"
     },
     {
       "path": "apps/api/.env.example",
@@ -295,7 +295,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1838,
-      "sha256": "ca91185197b82e16c7c0ed0aeb6b50eca002f56b30dc37c2e3935d7525cc8908"
+      "sha256": "c29d8a73de06eb54858015e66bc81f731092fc2a2c6753aff0825c17b48fffa0"
     },
     {
       "path": "packages/api-client/package.json",
@@ -406,8 +406,8 @@
       "path": "packages/db/src/generated-schema.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 80,
-      "sha256": "380c3bb16a5e59f3f28f5ac6c5c84cf222e36205b0e09e9056f709a40a5a7965"
+      "bytes": 89,
+      "sha256": "f0f417fc28f243d83fbaf8af6a1328c1035495a7b8da3000eff8f6967dc5a721"
     },
     {
       "path": "packages/db/src/index.ts",
@@ -420,8 +420,8 @@
       "path": "packages/db/src/migrate.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 192,
-      "sha256": "a208dbf5e3584f8d529552ccf3e1378dbbb2122b8b2d17ec169478a19ddbb6d6"
+      "bytes": 196,
+      "sha256": "7f76385e745f92989ab6752df91ade914d65bb65c7a158046f0760423525f175"
     },
     {
       "path": "packages/db/src/schema.ts",
@@ -473,5 +473,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "2475e450dde5d00f551946d90213681ed4712ca781c8c47427bb890255b1320f"
+  "digest": "166e57c5fc6b25511f0406a33826d954d59079535bb9452bb62cc0bba59b757c"
 }

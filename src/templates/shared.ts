@@ -30,6 +30,7 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
   if (!options.features.database) return;
   const dir = path.join(root, 'packages/db');
   const dependencies = { ...SHARED_DB_DEPENDENCIES.dependencies };
+  if (options.features.auth && options.authProvider === 'authjs') dependencies['bcrypt-ts'] = '7.1.0';
   if (options.infrastructure?.postgres) delete dependencies['@neondatabase/serverless'];
   else delete dependencies.postgres;
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
@@ -49,6 +50,9 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
       'db:migrate': 'tsx --env-file=.env src/migrate.ts',
       'db:check': 'drizzle-kit check',
       'db:studio': 'drizzle-kit studio',
+      ...(options.features.auth && options.authProvider === 'authjs'
+        ? { 'auth:create-user': 'tsx --env-file=.env src/create-user.ts' }
+        : {}),
     },
     dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
@@ -125,8 +129,27 @@ export const realtimeOutbox = pgTable('realtime_outbox', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ` : '';
-  writeFile(path.join(dir, 'src/generated-schema.ts'), `import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-${storageTables}${billingTables}`);
+  const authTables = options.features.auth && options.authProvider === 'authjs' ? `
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  status: text('status').notNull().default('active'),
+  isPlatformAdmin: boolean('is_platform_admin').notNull().default(false),
+  disabledAt: timestamp('disabled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const authRateLimits = pgTable('auth_rate_limits', {
+  key: text('key').primaryKey(),
+  windowStartedAt: timestamp('window_started_at').defaultNow().notNull(),
+  attempts: integer('attempts').notNull().default(0),
+});
+` : '';
+  writeFile(path.join(dir, 'src/generated-schema.ts'), `import { boolean, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+${authTables}${storageTables}${billingTables}`);
   const itemOwnerColumn = options.features.auth ? "  userId: text('user_id').notNull(),\n" : '';
   const itemIndexes = options.features.auth
     ? "}, (table) => [\n  index('items_user_created_at_idx').on(table.userId, table.createdAt),\n]"
@@ -175,8 +198,34 @@ import { db } from './index';
 
 await migrate(db, { migrationsFolder: './migrations' });
 console.log('Database migrations complete.');
-`,
+    `,
   );
+  if (options.features.auth && options.authProvider === 'authjs') {
+    writeFile(path.join(dir, 'src/create-user.ts'), `import { randomUUID } from 'node:crypto';
+import { hash } from 'bcrypt-ts';
+import { db, users } from './index';
+
+const args = process.argv.slice(2);
+const isAdmin = args.includes('--admin');
+const values = args.filter((arg) => arg !== '--admin');
+const [emailInput, password, ...nameParts] = values;
+const email = emailInput?.trim().toLowerCase();
+const name = nameParts.join(' ').trim() || email?.split('@')[0];
+
+if (!email || !email.includes('@') || !password || password.length < 8 || !name) {
+  throw new Error('Usage: pnpm auth:create-user -- <email> <password-8+-chars> [name] [--admin]');
+}
+
+await db.insert(users).values({
+  id: randomUUID(),
+  email,
+  name,
+  passwordHash: await hash(password, 12),
+  isPlatformAdmin: isAdmin,
+});
+console.log(isAdmin ? 'Platform administrator created.' : 'User created.');
+`);
+  }
   writeFile(path.join(dir, 'migrations/.gitkeep'), '');
 }
 

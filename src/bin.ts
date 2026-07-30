@@ -32,15 +32,17 @@ import {
   productIdsForModules,
 } from './architecture/products.js';
 import { UI_TARGETS } from './ui.js';
+import { setupVpsProject } from './vps.js';
 
 type CliErrorCode =
   | 'UNKNOWN_COMMAND'
   | 'INVALID_ARGUMENT'
   | 'DOCTOR_FAILED'
+  | 'VPS_SETUP_FAILED'
   | 'GENERATION_FAILED'
   | 'POST_COMMIT_FAILED';
 
-const COMMANDS = ['new', 'init', 'add', 'ui', 'upgrade', 'doctor'] as const;
+const COMMANDS = ['new', 'init', 'add', 'ui', 'upgrade', 'doctor', 'setup-vps'] as const;
 type Command = (typeof COMMANDS)[number];
 const COMMAND_SET = new Set<string>(COMMANDS);
 const UI_TARGET_SET = new Set<string>(UI_TARGETS);
@@ -190,6 +192,13 @@ async function main(): Promise<void> {
         if (!report.ok) process.exitCode = 1;
         break;
       }
+      case 'setup-vps': {
+        const unknown = rawArgs.filter((arg) => !['--check', '--verbose'].includes(arg));
+        if (unknown.length) throw new Error(`Unknown setup-vps option: ${unknown[0]}`);
+        phase = 'execute';
+        setupVpsProject({ check: rawArgs.includes('--check') });
+        break;
+      }
       case 'add': {
         const options = buildAddOptions([], parseCli(rawArgs));
         phase = 'execute';
@@ -232,6 +241,8 @@ async function main(): Promise<void> {
         ? 'INVALID_ARGUMENT'
         : command === 'doctor'
           ? 'DOCTOR_FAILED'
+          : command === 'setup-vps'
+            ? 'VPS_SETUP_FAILED'
           : 'GENERATION_FAILED';
     writeCliError(error, code, json);
     process.exitCode = 1;

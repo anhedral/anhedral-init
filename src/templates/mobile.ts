@@ -259,8 +259,8 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
       scheme: expoScheme(projectName),
       userInterfaceStyle: 'automatic',
       web: { bundler: 'metro', output: 'static' },
-      plugins: ['expo-router', ...(options.features.auth ? ['expo-secure-store'] : [])],
-      experiments: { typedRoutes: true },
+      plugins: ['expo-router', ...(options.features.auth ? ['expo-secure-store'] : []), 'expo-status-bar'],
+      experiments: { reactCompiler: true, typedRoutes: true },
     },
   }, null, 2) + '\n');
 

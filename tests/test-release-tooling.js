@@ -253,6 +253,14 @@ try {
     'postgresql', '://', 'app_owner', ':', 'LongSyntheticCredential123', '@', 'db.internal', '/app',
   ].join('');
   assert.deepEqual(scanText('safe.env.example', Buffer.from('TOKEN=replace-me\n')), []);
+  assert.deepEqual(
+    scanText('safe.env.example', Buffer.from('AUTH_SECRET=replace-with-at-least-32-random-characters\n')),
+    [],
+  );
+  assert.deepEqual(
+    scanText('safe.env.example', Buffer.from('ADMIN_AUTH_SECRET=replace-with-a-different-32-character-random-secret\n')),
+    [],
+  );
   const localHomePath = ['', 'Users', 'local-developer', 'project', 'output.log'].join('/');
   const personalEmail = ['project-owner', 'private-domain.dev'].join('@');
   assert.equal(

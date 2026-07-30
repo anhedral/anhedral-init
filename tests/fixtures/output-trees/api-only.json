@@ -28,15 +28,15 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 115,
-      "sha256": "b005f41bc55f8de85c7343d454e9f0717676940095ac85d686df1a7bbc88ba5a"
+      "bytes": 130,
+      "sha256": "1135ea965d857af3f458627d691aa1f07b643a3bfeacc08e914c584e63f8f75f"
     },
     {
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
       "bytes": 500,
-      "sha256": "2559ff762e1655b611b6708b9e33a644a49270ea5b49f2149a17d3a00d8663ac"
+      "sha256": "8159b9af8291de824d51d013d074b19cdb05944c0f49af877cfb56302dbc8534"
     },
     {
       "path": "PRODUCTION.md",
@@ -50,21 +50,21 @@
       "type": "file",
       "mode": "0644",
       "bytes": 2835,
-      "sha256": "78980d13f85473884455dc7d4b811f5080d8f1b903a3f63aee4212cb160aa7b9"
+      "sha256": "852786bc3a2d1804cadeced7b46731f01124802cea56551efb73cb0b4235df4f"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 6762,
-      "sha256": "48ee6f2e947211f88f728fb15301f51412ba4bb68e06d3bb9da5251e9f731b53"
+      "bytes": 6763,
+      "sha256": "c69340c14daf3b1a7746cb39f0b0c97135e9dd3f2eddecde094389933b3496ad"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 6505,
-      "sha256": "6adcd010130281072b97e4bc5dd2c2842b9c2eaf02f45ccb2503ae88617d8048"
+      "bytes": 6576,
+      "sha256": "00626379f9384b0f698a94735a247c6e39c90d2bcfaca868ccc592f40591b4da"
     },
     {
       "path": "apps/api/.env.example",
@@ -169,7 +169,7 @@
       "type": "file",
       "mode": "0644",
       "bytes": 1218,
-      "sha256": "62c517027c5e852c3de1302cef6ec33958015f2ee8ffa22c6b56f6fa5da038bf"
+      "sha256": "161e837951312a888e38da39113e1b0795133e6b111a8057a083eed209f26c63"
     },
     {
       "path": "packages/contracts/package.json",
@@ -235,5 +235,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "0aacd42682996ccc1b7197d29db1c27a99e464ac303e01a5cd6af8bd2d29e330"
+  "digest": "be0d787c0d82b367f27ca22f890dd0d66e2592dafe111c6fb51054ca2ea7bfc4"
 }

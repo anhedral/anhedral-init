@@ -192,7 +192,7 @@ export const FRONTEND_ADDON_DEPENDENCIES: DependencyMap = {
   // renovate: datasource=npm depName=@clerk/expo
   '@clerk/expo': '3.7.5',
   // renovate: datasource=npm depName=expo-secure-store
-  'expo-secure-store': '56.0.4',
+  'expo-secure-store': '57.0.1',
   // renovate: datasource=npm depName=react-native-purchases
   'react-native-purchases': '10.4.2',
   // renovate: datasource=npm depName=react-native-purchases-ui
@@ -218,35 +218,37 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     'class-variance-authority': '0.7.1',
     clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,
     // renovate: datasource=npm depName=expo
-    expo: '56.0.16',
-    // renovate: datasource=npm depName=expo-constants
-    'expo-constants': '56.0.22',
+    expo: '57.0.8',
     // renovate: datasource=npm depName=expo-linking
-    'expo-linking': '56.0.15',
+    'expo-linking': '57.0.4',
     // renovate: datasource=npm depName=expo-router
-    'expo-router': '56.2.15',
+    'expo-router': '57.0.8',
     // renovate: datasource=npm depName=expo-status-bar
-    'expo-status-bar': '56.0.4',
+    'expo-status-bar': '57.0.1',
     // renovate: datasource=npm depName=expo-system-ui
-    'expo-system-ui': '56.0.5',
+    'expo-system-ui': '57.0.1',
     // renovate: datasource=npm depName=lucide-react-native
     'lucide-react-native': '1.21.0',
-    react: EXTENSION_DEPENDENCIES.dependencies!.react,
-    'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
+    // Expo SDK 57 targets React 19.2.3 and React Native 0.86.
+    // Keep these pins independent from the web and extension React toolchains.
+    // renovate: datasource=npm depName=react
+    react: '19.2.3',
+    // renovate: datasource=npm depName=react-dom
+    'react-dom': '19.2.3',
     // renovate: datasource=npm depName=react-native
-    'react-native': '0.85.3',
+    'react-native': '0.86.0',
     // renovate: datasource=npm depName=react-native-gesture-handler
-    'react-native-gesture-handler': '2.31.1',
+    'react-native-gesture-handler': '2.32.0',
     // renovate: datasource=npm depName=react-native-reanimated
-    'react-native-reanimated': '4.3.1',
+    'react-native-reanimated': '4.5.0',
     // renovate: datasource=npm depName=react-native-safe-area-context
     'react-native-safe-area-context': '5.7.0',
     // renovate: datasource=npm depName=react-native-screens
-    'react-native-screens': '4.25.2',
+    'react-native-screens': '4.26.2',
     // renovate: datasource=npm depName=react-native-worklets
-    'react-native-worklets': '0.8.3',
+    'react-native-worklets': '0.10.0',
     // renovate: datasource=npm depName=react-native-web
-    'react-native-web': '0.21.0',
+    'react-native-web': '0.21.2',
     // renovate: datasource=npm depName=react-native-svg
     'react-native-svg': '15.15.4',
     'tailwind-merge': '3.5.0',
@@ -254,13 +256,13 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     'tailwindcss-animate': '1.0.7',
   },
   devDependencies: {
-    // renovate: datasource=npm depName=@babel/core
-    '@babel/core': '7.29.6',
     // expo-router's web test utilities expose @testing-library/user-event, whose DOM peer is explicit when autoInstallPeers is disabled.
     // renovate: datasource=npm depName=@testing-library/dom
     '@testing-library/dom': '10.4.1',
+    // React Native and Worklets declare Metro as a peer; keep it explicit for
+    // generated pnpm workspaces with autoInstallPeers disabled.
     // renovate: datasource=npm depName=@react-native/metro-config
-    '@react-native/metro-config': '0.85.3',
+    '@react-native/metro-config': '0.86.0',
     // renovate: datasource=npm depName=@types/react
     '@types/react': '19.2.10',
     // renovate: datasource=npm depName=typescript
@@ -299,6 +301,12 @@ export const WEB_APP_DEPENDENCIES: DependencyGroup = {
     '@clerk/nextjs': '7.5.18',
     // renovate: datasource=npm depName=@clerk/ui
     '@clerk/ui': '1.25.3',
+    // renovate: datasource=npm depName=next-auth
+    'next-auth': '5.0.0-beta.32',
+    // renovate: datasource=npm depName=bcrypt-ts
+    'bcrypt-ts': '7.1.0',
+    // renovate: datasource=npm depName=jose
+    jose: '6.1.3',
     // renovate: datasource=npm depName=next
     next: '16.2.11',
     // renovate: datasource=npm depName=react
@@ -307,6 +315,7 @@ export const WEB_APP_DEPENDENCIES: DependencyGroup = {
     'react-dom': EXTENSION_DEPENDENCIES.dependencies!['react-dom'],
     clsx: EXTENSION_DEPENDENCIES.dependencies!.clsx,
     'tailwind-merge': EXTENSION_DEPENDENCIES.dependencies!['tailwind-merge'],
+    zod: CONTRACTS_DEPENDENCIES.dependencies!.zod,
   },
   devDependencies: {
     // renovate: datasource=npm depName=@tailwindcss/postcss

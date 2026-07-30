@@ -1,8 +1,8 @@
 # Contributing
 
-Changes should follow the repository's
-[engineering principles](docs/engineering-principles.md): explicit behavior,
-one source of truth, narrow namespaces, visible failures, and focused tests.
+Changes should preserve explicit behavior, one source of truth, narrow
+namespaces, visible failures, and focused tests. Follow the repository's
+[architecture and code conventions](docs/conventions.md).
 
 ## Local setup
 

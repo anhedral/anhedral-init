@@ -2,6 +2,7 @@ import type { ModuleId } from './modules.js';
 
 export const TEMPLATE_IDS = [
   'web-next',
+  'admin-next',
   'mobile-expo',
   'api-fastify',
   'desktop-electron',
@@ -28,6 +29,7 @@ export function templateIdsForModules(modules: readonly ModuleId[]): readonly Te
   const selected = new Set(modules);
   return Object.freeze([
     selected.has('web') ? 'web-next' : null,
+    selected.has('admin') ? 'admin-next' : null,
     selected.has('mobile') ? 'mobile-expo' : null,
     selected.has('api') ? 'api-fastify' : null,
     selected.has('desktop') ? 'desktop-electron' : null,

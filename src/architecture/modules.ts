@@ -1,5 +1,6 @@
 export const APP_MODULES = [
   'web',
+  'admin',
   'mobile',
   'api',
   'desktop',
@@ -12,6 +13,7 @@ export const FEATURE_MODULES = [
   'realtime',
   'billing',
   'storage',
+  'workflows',
   'native-subscriptions',
   'electron-updater',
 ] as const;
@@ -216,6 +218,7 @@ export function createModuleRegistry(definitions: readonly ModuleDefinition[]): 
 
 const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'web', kind: 'app', requires: [], conflicts: [] },
+  { id: 'admin', kind: 'app', requires: ['web', 'auth', 'db'], conflicts: [] },
   { id: 'mobile', kind: 'app', requires: [], conflicts: [] },
   { id: 'api', kind: 'app', requires: [], conflicts: [] },
   { id: 'desktop', kind: 'app', requires: [], conflicts: [] },
@@ -225,6 +228,7 @@ const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'realtime', kind: 'feature', requires: ['auth'], conflicts: [] },
   { id: 'billing', kind: 'feature', requires: ['realtime'], conflicts: [] },
   { id: 'storage', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'workflows', kind: 'feature', requires: [], conflicts: [] },
   { id: 'native-subscriptions', kind: 'feature', requires: ['mobile', 'billing'], conflicts: [] },
   { id: 'electron-updater', kind: 'feature', requires: ['desktop'], conflicts: [] },
   { id: 'ubuntu', kind: 'infrastructure', requires: [], conflicts: [] },

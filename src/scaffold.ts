@@ -8,6 +8,7 @@ import { appendGitignore, execFile, writeFile } from './util.js';
 import { MOBILE_NODE_ENGINE, NODE_ENGINE, PACKAGE_MANAGER, ROOT_DEPENDENCIES, TOOLCHAIN_DEPENDENCIES } from './dependencies.js';
 import { resolveToolchainChannel, type ToolchainChannel } from './toolchain.js';
 import { scaffoldApi } from './templates/api.js';
+import { scaffoldAdmin } from './templates/admin.js';
 import { r2BucketName, scaffoldAssetsPrivateProxy } from './templates/assets-private-proxy.js';
 import { scaffoldDesktop } from './templates/desktop.js';
 import {
@@ -20,6 +21,7 @@ import { scaffoldMobile } from './templates/mobile.js';
 import { scaffoldInfrastructure } from './templates/infrastructure.js';
 import { scaffoldSharedPackages } from './templates/shared.js';
 import { scaffoldWeb } from './templates/web.js';
+import { scaffoldCloudflareWorkflows } from './templates/workflows.js';
 import { assertPackageName, markdownHeading } from './render.js';
 import { runStagedTransaction } from './transaction.js';
 import {
@@ -60,11 +62,14 @@ import {
   type UiTarget,
 } from './ui.js';
 import type {
+  AdminMode,
   AppSelections,
+  AuthProvider,
   FeatureSelections,
   InfrastructureSelections,
   ProjectOptions,
 } from './project.js';
+import { AUTHJS_UNSUPPORTED_MODULES } from './project.js';
 
 export type {
   AppSelections,
@@ -83,18 +88,22 @@ export interface InitOptions {
   toolchainChannel: ToolchainChannel;
   uiComponents?: string[];
   nativeStyling?: NativeStylingLibrary;
+  authProvider?: AuthProvider;
+  adminMode?: AdminMode;
   /** Initialize Git after generation when the destination is not already inside a worktree. */
   initializeGit?: boolean;
   /** Destination root. Omit to scaffold the current working directory. */
   rootDirectory?: string;
 }
 
-type ResolvedInitOptions = InitOptions & {
+type ResolvedInitOptions = Omit<InitOptions, 'authProvider' | 'adminMode'> & {
   apps: AppSelections;
   features: FeatureSelections;
   infrastructure: InfrastructureSelections;
   uiComponents: string[];
   nativeStyling: NativeStylingLibrary;
+  authProvider: AuthProvider;
+  adminMode: AdminMode;
 };
 
 export interface AddOptions {
@@ -103,6 +112,8 @@ export interface AddOptions {
   dryRun: boolean;
   json: boolean;
   toolchainChannel?: ToolchainChannel;
+  authProvider?: AuthProvider;
+  adminMode?: Exclude<AdminMode, 'none'>;
 }
 
 export interface UiAddOptions {
@@ -250,6 +261,8 @@ function projectOptions(options: ResolvedInitOptions): ProjectOptions {
     infrastructure: options.infrastructure,
     skipInstall: options.skipInstall || options.dryRun,
     nativeStyling: options.nativeStyling,
+    authProvider: options.authProvider,
+    adminMode: options.adminMode,
   };
 }
 
@@ -260,6 +273,7 @@ function selectionsFromModules(
   return {
     apps: {
       web: selected.has('web'),
+      admin: selected.has('admin'),
       mobile: selected.has('mobile'),
       api: selected.has('api'),
       desktop: selected.has('desktop'),
@@ -271,6 +285,7 @@ function selectionsFromModules(
       realtime: selected.has('realtime'),
       billing: selected.has('billing'),
       storage: selected.has('storage'),
+      workflows: selected.has('workflows'),
       nativeSubscriptions: selected.has('native-subscriptions'),
       electronUpdater: selected.has('electron-updater'),
     },
@@ -287,12 +302,34 @@ function selectionsFromModules(
 function canonicalInitOptions(options: InitOptions): ResolvedInitOptions {
   assertPackageName(options.projectName);
   const resolution = resolveModules(options.modules);
+  const resolvedModules = resolution.resolvedModules;
+  const authProvider = options.authProvider ?? 'clerk';
+  const adminMode = resolvedModules.includes('admin') ? options.adminMode ?? 'page' : 'none';
+  if (authProvider === 'authjs' && (!resolvedModules.includes('auth') || !resolvedModules.includes('web'))) {
+    throw new Error('Auth.js requires the auth and web modules.');
+  }
+  const incompatibleAuthJsModules = authProvider === 'authjs'
+    ? AUTHJS_UNSUPPORTED_MODULES.filter((moduleId) => resolvedModules.includes(moduleId))
+    : [];
+  if (incompatibleAuthJsModules.length > 0) {
+    throw new Error(`Auth.js does not support selected modules: ${incompatibleAuthJsModules.join(', ')}`);
+  }
+  if (adminMode !== 'none' && !resolvedModules.includes('admin')) {
+    throw new Error('An admin mode requires the admin module.');
+  }
+  if (adminMode !== 'none' && authProvider !== 'authjs') {
+    throw new Error('Admin page and admin app modes currently require --authjs.');
+  }
+  const selections = selectionsFromModules(resolvedModules);
   return {
     ...options,
     uiComponents: options.uiComponents ?? [],
     nativeStyling: options.nativeStyling ?? 'nativewind',
     modules: [...resolution.requestedModules],
-    ...selectionsFromModules(resolution.resolvedModules),
+    authProvider,
+    adminMode,
+    ...selections,
+    apps: { ...selections.apps, admin: adminMode === 'app' },
   };
 }
 
@@ -302,17 +339,24 @@ function optionsFromManifest(
   modules: readonly ModuleId[],
 ): ResolvedInitOptions {
   const resolution = resolveModules(modules);
+  const adminMode = resolution.resolvedModules.includes('admin')
+    ? addOptions.adminMode ?? (manifest.stack.adminMode === 'none' ? 'page' : manifest.stack.adminMode)
+    : 'none';
+  const selections = selectionsFromModules(resolution.resolvedModules);
   return {
     projectName: manifest.project.name,
     displayName: manifest.project.displayName,
     modules: [...resolution.requestedModules],
-    ...selectionsFromModules(resolution.resolvedModules),
+    ...selections,
+    apps: { ...selections.apps, admin: adminMode === 'app' },
     skipInstall: addOptions.skipInstall,
     dryRun: addOptions.dryRun,
     json: addOptions.json,
     toolchainChannel: addOptions.toolchainChannel ?? toolchainChannelFromManifest(manifest),
     uiComponents: [],
     nativeStyling: manifest.ui.nativeStyling,
+    authProvider: addOptions.authProvider ?? manifest.stack.authProvider,
+    adminMode,
   };
 }
 
@@ -332,10 +376,14 @@ export function isSupportedProjectUpgrade(fromVersion: string, toVersion: string
   if (!from || !to) return false;
 
   const supportedOwnershipMigration = fromVersion === '0.3.0' && to[0] === 0 && to[1] === 4;
+  const supportedMinorUpgrade = from[0] === 0
+    && from[1] === 4
+    && to[0] === 0
+    && to[1] === 5;
   const compatiblePatchUpgrade = from[0] === to[0]
     && from[1] === to[1]
     && from[2] < to[2];
-  return supportedOwnershipMigration || compatiblePatchUpgrade;
+  return supportedOwnershipMigration || supportedMinorUpgrade || compatiblePatchUpgrade;
 }
 
 function ensureScaffoldRoot(root: string): void {
@@ -357,7 +405,10 @@ function selectedAppFilters(apps: AppSelections): string[] {
 }
 
 function rootScripts(options: ResolvedInitOptions): Record<string, string> {
-  const filters = selectedAppFilters(options.apps);
+  const filters = [
+    ...selectedAppFilters(options.apps),
+    ...(options.features.workflows ? ['./apps/workflows'] : []),
+  ];
   const primaryClient = filters.find((entry) => entry !== './apps/api');
   const primaryFilters = primaryClient
     ? [primaryClient, ...(options.apps.api ? ['./apps/api'] : [])]
@@ -381,6 +432,11 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     scripts['dev:web'] = 'pnpm --filter ./apps/web dev';
     scripts['verify:web'] = 'pnpm --filter ./apps/web typecheck && pnpm --filter ./apps/web build';
     verify.push('pnpm verify:web');
+  }
+  if (options.adminMode === 'app') {
+    scripts['dev:admin'] = 'pnpm --filter ./apps/admin dev';
+    scripts['verify:admin'] = 'pnpm --filter ./apps/admin typecheck && pnpm --filter ./apps/admin build';
+    verify.push('pnpm verify:admin');
   }
   if (options.apps.web || options.apps.api) {
     scripts['deploy:vercel:link'] = `pnpm dlx vercel@${TOOLCHAIN_DEPENDENCIES.vercel} link`;
@@ -446,12 +502,17 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     scripts['db:migrate'] = 'pnpm --filter @shared/db db:migrate';
     scripts['db:check'] = 'pnpm --filter @shared/db db:check';
     scripts['db:studio'] = 'pnpm --filter @shared/db db:studio';
+    if (options.features.auth && options.authProvider === 'authjs') {
+      scripts['auth:create-user'] = 'pnpm --filter @shared/db auth:create-user';
+    }
     scripts['verify:db'] = 'node scripts/verify-db-migrations.mjs && pnpm db:check';
     verify.push('pnpm verify:db');
   }
   if (Object.values(options.infrastructure).some(Boolean)) {
     scripts['provision:plan'] = 'node scripts/provision-plan.mjs';
     scripts['provision:plan:json'] = 'node scripts/provision-plan.mjs --json';
+    scripts['vps:setup:check'] = 'bash deploy/vps/setup.sh --check';
+    scripts['vps:setup'] = 'bash deploy/vps/setup.sh --apply';
   }
   if (options.features.storage) {
     const bucketName = r2BucketName(options.projectName);
@@ -465,6 +526,17 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
     scripts['verify:assets-proxy'] = 'pnpm assets:proxy:check';
     verify.push('pnpm verify:assets-proxy');
   }
+  if (options.features.workflows) {
+    scripts['workflows:login'] = `pnpm dlx wrangler@${TOOLCHAIN_DEPENDENCIES.wrangler} login`;
+    scripts['workflows:dev'] = 'pnpm --filter ./apps/workflows dev';
+    scripts['workflows:deploy'] = 'pnpm --filter ./apps/workflows deploy';
+    scripts['workflows:types'] = 'pnpm --filter ./apps/workflows types';
+    scripts['workflows:secret:put'] = 'pnpm --filter ./apps/workflows exec wrangler secret put WORKFLOW_API_TOKEN';
+    scripts['workflows:instances:list'] = 'pnpm --filter ./apps/workflows instances:list';
+    scripts['workflows:instances:describe'] = 'pnpm --filter ./apps/workflows instances:describe';
+    scripts['verify:workflows'] = 'pnpm --filter ./apps/workflows check';
+    verify.push('pnpm verify:workflows');
+  }
   if (!Object.values(options.apps).some(Boolean)) verify.unshift('pnpm typecheck');
   scripts.verify = verify.join(' && ');
   return scripts;
@@ -472,7 +544,7 @@ function rootScripts(options: ResolvedInitOptions): Record<string, string> {
 
 function desiredRootPackage(options: ResolvedInitOptions): Record<string, unknown> {
   const workspaces = [
-    Object.values(options.apps).some(Boolean) ? 'apps/*' : null,
+    Object.values(options.apps).some(Boolean) || options.features.workflows ? 'apps/*' : null,
     options.apps.api || options.features.database ? 'packages/*' : null,
   ].filter((value): value is string => value !== null);
   return {
@@ -725,11 +797,12 @@ function mergeJsonConfig(
 function writeRootEnv(root: string, options: ResolvedInitOptions): void {
   const corsOrigins = [
     options.apps.web ? 'http://localhost:3000' : null,
+    options.adminMode === 'app' ? 'http://localhost:3001' : null,
     options.apps.mobile ? 'http://localhost:8081' : null,
     options.apps.desktop ? 'http://127.0.0.1:5173' : null,
     options.apps.desktop ? 'null' : null,
   ].filter((value): value is string => value !== null);
-  const lines = composeRootEnvironment(
+  let lines = composeRootEnvironment(
     collectModuleContributions(options.modules),
     { corsOrigins },
   ).map((line) => (
@@ -737,6 +810,13 @@ function writeRootEnv(root: string, options: ResolvedInitOptions): void {
       ? `DATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}`
       : line
   ));
+  if (options.features.auth && options.authProvider === 'authjs') {
+    lines = lines.filter((line) => !line.startsWith('CLERK_'));
+    lines.push('AUTH_SECRET=replace-with-at-least-32-random-characters');
+    if (options.adminMode === 'app') {
+      lines.push('ADMIN_AUTH_SECRET=replace-with-a-different-32-character-random-secret');
+    }
+  }
   const filePath = path.join(root, '.env.example');
   const current = pathEntryExists(filePath) ? readFileSync(filePath, 'utf8') : '';
   const existingKeys = new Set([...current.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
@@ -748,6 +828,7 @@ function writeRootEnv(root: string, options: ResolvedInitOptions): void {
 function desiredTurboConfig(options: ResolvedInitOptions): Record<string, unknown> {
   const appBuildTasks = Object.fromEntries([
     options.apps.web ? [`${options.projectName}-web#build`, { outputs: ['.next/**', '!.next/cache/**'] }] : null,
+    options.adminMode === 'app' ? [`${options.projectName}-admin#build`, { outputs: ['.next/**', '!.next/cache/**'] }] : null,
     options.apps.mobile ? [`${options.projectName}-mobile#build`, { outputs: ['dist/**'] }] : null,
     options.apps.desktop ? [`${options.projectName}-desktop#build`, { outputs: ['dist/**'] }] : null,
     options.apps.extension ? [`${options.projectName}-chrome-ext#build`, { outputs: ['.output/**'] }] : null,
@@ -773,6 +854,9 @@ function desiredVercelConfig(options: ResolvedInitOptions): Record<string, unkno
   }
   if (options.apps.web) {
     services.web = { root: 'apps/web', framework: 'nextjs' };
+  }
+  if (options.adminMode === 'app') {
+    services.admin = { root: 'apps/admin', framework: 'nextjs' };
   }
   const rewrites = [
     options.apps.api ? { source: '/api/(.*)', destination: { service: 'api' } } : null,
@@ -917,7 +1001,7 @@ function writeRootFiles(root: string, options: ResolvedInitOptions, mode: 'init'
   const previousPackage = previousOptions ? desiredRootPackage(previousOptions) : undefined;
   writeRootPackage(root, options, mode, packageUnmodified, previousPackage);
   const workspacePackages = [
-    Object.values(options.apps).some(Boolean) ? 'apps/*' : null,
+    Object.values(options.apps).some(Boolean) || options.features.workflows ? 'apps/*' : null,
     options.apps.api || options.features.database ? 'packages/*' : null,
   ].filter((value): value is string => value !== null);
   mergeWorkspaceFile(root, workspacePackages, desiredWorkspacePolicy(), workspaceUnmodified);
@@ -944,6 +1028,7 @@ function writeRootFiles(root: string, options: ResolvedInitOptions, mode: 'init'
     '!.env.example',
     '*.tsbuildinfo',
     options.features.electronUpdater ? 'electron-builder.env' : null,
+    options.features.workflows ? 'apps/workflows/.dev.vars' : null,
   ].filter((value): value is string => value !== null));
   writeRootEnv(root, options);
   writeDatabaseVerificationScript(root, options);
@@ -956,6 +1041,7 @@ function writeRootFiles(root: string, options: ResolvedInitOptions, mode: 'init'
     'apps/desktop/release',
     'apps/assets-private-proxy',
     'apps/desktop-updater-worker',
+    'apps/workflows',
   ])];
   writeFile(vercelIgnore, ignoreLines.join('\n') + '\n');
   writeFile(path.join(root, 'scripts/first-run.mjs'), generatedFirstRunScript(options));
@@ -992,6 +1078,7 @@ pnpm ready`;
         : '| Database | Neon | Provision the project, set `DATABASE_URL`, review/apply Drizzle migrations, and use separate branches or projects for preview and production. |'
       : null,
     options.features.storage ? '| Object storage | Private Cloudflare R2 + `assets-private-proxy` Worker | Authenticated uploads use presigned R2 URLs; the Worker streams known-key GET/HEAD downloads through `assets.<domain>` while direct bucket access stays disabled. |' : null,
+    options.features.workflows ? '| Durable workflows | Cloudflare Workflows | A dedicated Worker runs retryable multi-step jobs, persists completed step state, sleeps or waits for events, and exposes a secret-authenticated control API. |' : null,
     options.features.electronUpdater ? '| Desktop updates | Private Cloudflare R2 + `desktop-updater` Worker | Signed native artifacts are uploaded to a private bucket; a custom-domain Worker supplies metadata, ranges, and downloads to `electron-updater`. |' : null,
     options.apps.extension ? '| Chrome extension | Chrome Web Store | Build the production ZIP, test it as an unpublished/trusted-tester item, complete privacy disclosures, and submit it for review. |' : null,
     options.apps.desktop ? `| Desktop | electron-builder artifacts${options.features.electronUpdater ? ' + automatic update channel' : ''} | Build and sign on each target OS, then publish through the release channel chosen for the product. |` : null,
@@ -1005,9 +1092,13 @@ pnpm ready`;
     options.apps.mobile ? 'pnpm mobile:build:internal:android' : null,
     options.features.database && !selfHostedPostgres ? `pnpm neon:project:create --name ${options.projectName}` : null,
     Object.values(options.infrastructure).some(Boolean) ? 'pnpm provision:plan' : null,
+    options.infrastructure.ubuntu ? 'pnpm dlx anhedral@latest setup-vps --check' : null,
     options.features.storage ? 'pnpm r2:bucket:create' : null,
     options.features.storage ? 'pnpm assets:proxy:check' : null,
     options.features.storage ? 'pnpm assets:proxy:deploy' : null,
+    options.features.workflows ? 'pnpm workflows:login' : null,
+    options.features.workflows ? 'pnpm workflows:secret:put' : null,
+    options.features.workflows ? 'pnpm workflows:deploy' : null,
     options.features.electronUpdater ? 'pnpm desktop:updates:cloudflare:login' : null,
     options.features.electronUpdater ? 'pnpm desktop:updates:first-provision' : null,
     options.features.electronUpdater ? 'pnpm desktop:updates:build:mac' : null,
@@ -1020,6 +1111,7 @@ pnpm ready`;
     options.apps.api ? '| Backend API | `apps/api/src/routes/app.ts`, `apps/api/src/<feature>.ts` | User-owned Fastify routes and server-only product modules; Anhedral keeps provider routes in managed wiring. |' : null,
     options.apps.desktop ? '| Desktop app | `apps/desktop/src/renderer/`, `apps/desktop/src/main/` | React UI and privileged Electron main-process code. |' : null,
     options.features.electronUpdater ? '| Desktop update edge | `apps/desktop-updater-worker/`, `apps/desktop/scripts/publish-updates.mjs` | Private R2 delivery Worker, custom domain, and ordered release publisher. |' : null,
+    options.features.workflows ? '| Durable jobs | `apps/workflows/src/workflow.ts` | User-owned Cloudflare Workflow steps; managed control routes create, inspect, and send events to instances. |' : null,
     options.apps.extension ? '| Browser extension | `apps/extension/src/entrypoints/`, `apps/extension/src/components/` | WXT entrypoints and extension UI. |' : null,
     options.apps.api ? '| Shared API contracts | `packages/contracts/src/app.ts` | User-owned Zod request and response schemas exported beside managed provider contracts. |' : null,
     options.apps.api ? '| Typed API client | `packages/api-client/src/app.ts` | User-owned client-safe methods exported beside the managed fetch client. |' : null,
@@ -1031,6 +1123,7 @@ pnpm ready`;
     options.apps.api ? '- API: `pnpm dev:api`' : null,
     options.apps.desktop ? '- Desktop: `pnpm dev:desktop`' : null,
     options.apps.extension ? '- Extension: `pnpm dev:extension`' : null,
+    options.features.workflows ? '- Workflows: `pnpm workflows:dev`' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const toolRows = [
     options.apps.web ? '| Next.js | Web routes and rendering | `apps/web` | https://nextjs.org/docs/app/getting-started |' : null,
@@ -1041,6 +1134,7 @@ pnpm ready`;
     options.features.database ? '| Drizzle | SQL schema, queries, migrations | `packages/db` | https://orm.drizzle.team/docs/get-started |' : null,
     options.features.auth ? '| Clerk | Identity and sessions | generated auth files | https://clerk.com/docs/getting-started/quickstart/overview |' : null,
     options.features.storage ? '| Cloudflare R2 | Private object storage | upload API and `apps/assets-private-proxy` | https://developers.cloudflare.com/r2/ |' : null,
+    options.features.workflows ? '| Cloudflare Workflows | Durable multi-step jobs, retries, sleeps, and external events | `apps/workflows` | https://developers.cloudflare.com/workflows/ |' : null,
     options.features.billing ? '| RevenueCat | Subscription authority | API and native client | https://www.revenuecat.com/docs |' : null,
     options.features.realtime ? '| Ably | Authenticated realtime events | `packages/realtime` | https://ably.com/docs |' : null,
     options.apps.desktop ? '| Electron | Desktop runtime | `apps/desktop` | https://www.electronjs.org/docs/latest/ |' : null,
@@ -1088,6 +1182,9 @@ Frontend applications use their generated Clerk provider and hooks. The API veri
     options.features.storage ? `### Upload a file
 
 Use \`@shared/api-client\`. The API authorizes the user and creates a short-lived signed R2 upload; the client uploads directly and confirms through the API. Never put R2 credentials in a client or make the bucket public.` : null,
+    options.features.workflows ? `### Add a durable workflow
+
+Edit the user-owned \`apps/workflows/src/workflow.ts\`. Put each external side effect in a stable, narrowly scoped \`step.do()\`; keep step names deterministic, return only serializable state, and pass the workflow instance ID to downstream systems as an idempotency key. Use \`step.sleep()\` for durable delays and \`step.waitForEvent()\` for approvals or webhooks. Run \`pnpm verify:workflows\` before deployment.` : null,
   ].filter((value): value is string => value !== null).join('\n\n');
   const verticalSliceExample = options.apps.api && options.features.database ? `## Your working starter feature
 
@@ -1112,6 +1209,7 @@ To run it, set \`DATABASE_URL\`, run \`pnpm ready\`, generate and review the mig
       ? `apps/api      -> @shared/db -> ${selfHostedPostgres ? 'self-hosted PostgreSQL' : 'managed Neon Postgres'}`
       : null,
     options.features.electronUpdater ? 'apps/desktop -> updates.<domain> Worker -> private R2 bucket' : null,
+    options.features.workflows ? 'trusted backend -> authenticated control Worker -> durable Workflow steps' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const uiTaskSection = Object.values(options.apps).some(Boolean) && (options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension)
     ? `### Add UI primitives
@@ -1257,6 +1355,8 @@ Clients may import contracts and the API client. They must not import API servic
       options.features.billing ? '- Use a dedicated RevenueCat secret REST API key with customer-read access; keep it server-only and rotate it independently from the 32+ character webhook authorization secret.' : null,
       options.features.storage ? '- List the live R2 CORS policy, merge every exact browser origin into `cloudflare/r2-cors.template.json`, then apply the complete replacement policy and verify preflight plus signed PUT.' : null,
       options.features.storage ? '- Configure an R2 lifecycle rule for the `storage/staging/` prefix as a backstop, with an age longer than the application cleanup grace period.' : null,
+      options.features.workflows ? '- Store a unique 32+ character `WORKFLOW_API_TOKEN` with `wrangler secret put`; never place it in Wrangler vars, a client bundle, a URL, or source control.' : null,
+      options.features.workflows ? '- Make every retried workflow side effect idempotent, use deterministic step names, and persist durable business outcomes outside Workflow instance retention.' : null,
       options.features.database ? '- Commit every reviewed Drizzle SQL migration and its metadata with the schema change; `pnpm verify:db` rejects a missing or untracked SQL baseline and validates migration history.' : null,
       options.features.database ? '- Generated CI runs `pnpm db:generate` and fails when `packages/db/migrations` changes, preventing schema changes without a matching migration.' : null,
       '- Run `pnpm verify` before deployment.',
@@ -1294,7 +1394,7 @@ When web and API are both selected, keep the generated \`/api/(.*)\` route befor
         ? selfHostedPostgres
           ? `## PostgreSQL and Drizzle: database
 
-1. Run \`pnpm provision:plan\` and review the PostgreSQL probes, proposed changes, approval gates, and verification requirements. The current plan does not mutate a host.
+1. Run \`pnpm provision:plan\` and review the PostgreSQL probes, proposed changes, approval gates, and verification requirements. The plan does not mutate a host. On a fresh Ubuntu VPS, run \`pnpm dlx anhedral@latest setup-vps --check\`, then set the documented non-secret domain, email, administrator, and authorized-key inputs and run the single idempotent \`pnpm dlx anhedral@latest setup-vps\` command.
 2. Keep PostgreSQL on a private container network with no published database port. Inject the strong URL-encoded password outside Git and put the resulting URL in \`DATABASE_URL\`.
 3. Change the Drizzle schema, run \`pnpm db:generate\`, review and commit the SQL and metadata, then run \`pnpm verify:db\`.
 4. Apply \`pnpm db:migrate\` as a controlled release step before sending production traffic to code that requires the new schema. Keep migrations backward-compatible and never generate them during an application build.
@@ -1318,6 +1418,16 @@ When web and API are both selected, keep the generated \`/api/(.*)\` route befor
 7. Add an R2 lifecycle rule for \`storage/staging/\` longer than the API cleanup grace period. Set a strong \`CRON_SECRET\` in Vercel and verify cleanup. Test missing keys, invalid encodings, GET, HEAD, range, conditional, cache HIT/MISS, forbidden methods, private-prefix rejection, authenticated read authorization, TTL bounds, and direct bucket inaccessibility.
 
 \`app.yourdomain.com\` is a Cloudflare DNS-only record targeting Vercel. \`assets.yourdomain.com\` is a Cloudflare-managed Worker Custom Domain and stays proxied. Never connect the asset hostname directly to R2, never CNAME it to \`r2.dev\`, and never expose S3 credentials in a client bundle.` : null,
+      options.features.workflows ? `## Cloudflare Workflows: durable jobs
+
+1. Run \`pnpm workflows:login\`, then generate a unique random control token with at least 32 characters. Run \`pnpm workflows:secret:put\` and paste it directly into Wrangler's secret prompt. For local development, \`pnpm first-run\` creates the ignored \`apps/workflows/.dev.vars\`; place the same kind of development-only token there.
+2. Review the user-owned \`apps/workflows/src/workflow.ts\`. Keep nondeterministic reads and side effects inside \`step.do()\`, use stable step names, return serializable state, set explicit retries/timeouts, and make external writes idempotent with \`event.instanceId\`.
+3. Run \`pnpm verify:workflows\`, then \`pnpm workflows:deploy\`. The generated Wrangler configuration creates the \`APPLICATION_WORKFLOW\` binding and enables Worker observability. Use a separate Worker name and secret for each environment.
+4. Only a trusted server or operator may call the control Worker. Send \`Authorization: Bearer <WORKFLOW_API_TOKEN>\` to \`POST /instances\`, \`GET /instances/:id\`, or \`POST /instances/:id/events/:eventType\`. Do not call these routes directly from browser, mobile, desktop-renderer, or extension code.
+5. Inspect production runs with \`pnpm workflows:instances:list\` and \`pnpm workflows:instances:describe -- <instance-id>\`. Alert on terminal errors and retry exhaustion. Persist audit records, deliverables, and other business-critical results in the application's authoritative database or object storage rather than depending on Workflow instance retention.
+6. Test duplicate instance IDs, retryable and non-retryable errors, downstream idempotency, sleep/wake behavior, external event timeout, deploy rollback, and provider outage recovery before enabling production triggers.
+
+The generated control API limits JSON bodies, validates IDs and event types, compares hashed bearer tokens without an early string comparison, disables caching, and returns sanitized errors. Add product-specific authorization at the trusted caller; the Worker token authenticates the calling service, not an end user.` : null,
       options.apps.mobile ? `## Expo, TestFlight, and app stores
 
 Accounts required: an Expo/EAS account, an Apple Developer Program membership with App Store Connect access for iOS, and a Google Play Console developer account for Android. Create unique iOS bundle and Android package identifiers before the first store build.
@@ -1387,6 +1497,7 @@ Resolved modules: ${modules.join(', ')}
     options.features.electronUpdater ? '- Desktop update delivery lives in `apps/desktop-updater-worker`: keep the R2 bucket private, the Worker read-only, and the Worker Custom Domain aligned with `DESKTOP_UPDATE_BASE_URL`.' : null,
     options.apps.extension ? '- Browser extension code lives in `apps/extension`: use WXT entrypoints and request only permissions required by the feature.' : null,
     options.features.storage ? '- Private-bucket asset delivery lives in `apps/assets-private-proxy`: preserve the `ASSETS` R2 binding, streaming responses, method/host restrictions, and Cloudflare-managed custom domain.' : null,
+    options.features.workflows ? '- Durable jobs live in `apps/workflows`: keep product steps in user-owned `src/workflow.ts`, preserve the managed secret-authenticated control API, and deploy with the generated Workflow binding.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const featureGuidance = [
     options.apps.api ? '- Reuse `@shared/contracts` at every network boundary and call the API through `@shared/api-client`; clients must not import server implementation modules.' : null,
@@ -1395,6 +1506,7 @@ Resolved modules: ${modules.join(', ')}
     options.features.realtime ? '- Ably tokens are scoped server-side to the authenticated user channel. Add product event schemas in `packages/realtime/src/app.ts`; never expose `ABLY_API_KEY` to a client.' : null,
     options.features.billing ? `- RevenueCat events reconcile into ${selfHostedPostgres ? 'PostgreSQL' : 'Neon'} before Ably publishes an invalidation. Clients refetch entitlements instead of treating realtime payloads as authority.` : null,
     options.features.storage ? '- R2 credentials and signed-upload policy stay in the API. The `assets-private-proxy` Worker uses its binding instead of S3 credentials and publicly serves GET/HEAD only by known unguessable key.' : null,
+    options.features.workflows ? '- Cloudflare Workflow steps may retry. Keep step names deterministic, put side effects inside `step.do()`, use the instance ID as a downstream idempotency key, and persist business outcomes outside temporary Workflow state.' : null,
     options.features.electronUpdater ? '- Electron releases use `electron-updater` through the generated private R2 + Worker channel. Build signed native artifacts first and publish mutable channel metadata last.' : null,
   ].filter((value): value is string => value !== null).join('\n');
   const skillFeatureSteps = [
@@ -1408,6 +1520,7 @@ Resolved modules: ${modules.join(', ')}
     options.apps.api ? 'Add client-safe calls to user-owned `packages/api-client/src/app.ts`; frontends must not import server implementations.' : null,
     options.apps.web ? 'Write web product code with normal Next.js App Router conventions in `apps/web`.' : null,
     options.apps.mobile ? 'Write native product code with normal Expo Router conventions in `apps/mobile`.' : null,
+    options.features.workflows ? 'Implement long-running product operations as deterministic, idempotent steps in user-owned `apps/workflows/src/workflow.ts`.' : null,
     'Verify the affected package, then run the root verification before handoff.',
   ].filter((value): value is string => value !== null).map((value, index) => `${index + 1}. ${value}`).join('\n');
   writeFile(path.join(root, 'SKILL.md'), `---
@@ -1487,6 +1600,7 @@ ${options.features.storage || options.features.electronUpdater
 ${options.apps.web || options.apps.api ? '- Prefer GitHub-triggered Vercel Preview and Production deployments. Keep the generated Services routing intact; use manual `deploy:vercel:*` scripts only when explicitly required.' : ''}
 ${options.features.database ? `- Treat reviewed, committed Drizzle SQL as the release artifact. Apply migrations as a controlled step against the intended ${selfHostedPostgres ? 'private PostgreSQL service' : 'Neon environment'}; never generate migrations during an application build.` : ''}
 ${options.features.storage ? '- Keep the R2 bucket private and deploy `assets-private-proxy` at the Cloudflare Worker custom domain. Expose only `storage/confirmed/` publicly; use the owner-authorized read-URL endpoint for private objects and keep `CLOUDFLARE_API_TOKEN` operations-only.' : ''}
+${options.features.workflows ? '- Deploy `apps/workflows` with a production `WORKFLOW_API_TOKEN` Wrangler secret. Only trusted server-side callers may create instances, query status, or deliver external events.' : ''}
 ${options.features.electronUpdater ? '- Provision the private desktop-update R2 bucket and deploy `desktop-updater` at `updates.<domain>`. Keep the update origin identical in Wrangler and `electron-builder.env`, then publish signed per-platform artifacts before channel metadata.' : ''}
 ${options.apps.mobile ? '- Promote mobile artifacts through EAS internal distribution, TestFlight/Google Play testing, then store review. Build-time public variables are not secrets.' : ''}
 ${options.apps.extension ? '- Publish the exact verified WXT ZIP through trusted/unlisted Chrome Web Store testing before production review; preserve a stable CRX ID and least-privilege permissions.' : ''}
@@ -1523,6 +1637,7 @@ function collectFiles(root: string, relativeRoot = ''): string[] {
 
 function ownerForPath(relativePath: string): ModuleId | 'root' {
   if (relativePath === 'scripts/provision-plan.mjs') return 'ubuntu';
+  if (relativePath.startsWith('deploy/vps/')) return 'ubuntu';
   if (relativePath.startsWith('deploy/certbot/')) return 'certbot';
   if (relativePath.startsWith('deploy/nginx/')) return 'nginx';
   if (relativePath.startsWith('deploy/postgres/')) return 'postgres';
@@ -1533,6 +1648,9 @@ function ownerForPath(relativePath: string): ModuleId | 'root' {
   if (relativePath === 'apps/desktop/electron-builder.env.example') return 'electron-updater';
   if (relativePath === 'cloudflare/desktop-updates.md') return 'electron-updater';
   if (relativePath.startsWith('apps/assets-private-proxy/')) return 'storage';
+  if (relativePath.startsWith('apps/workflows/')) return 'workflows';
+  if (relativePath.startsWith('apps/admin/')) return 'admin';
+  if (relativePath.startsWith('apps/web/app/(admin)/') || relativePath === 'apps/web/lib/authz.ts') return 'admin';
   if (relativePath.startsWith('cloudflare/')) return 'storage';
   const app = /^apps\/(web|mobile|api|desktop|extension)(?:\/|$)/.exec(relativePath);
   if (app) return app[1] as ModuleId;
@@ -1549,6 +1667,7 @@ function defaultOwnership(relativePath: string): FileOwnershipClass {
   ) return 'user';
   if (relativePath === 'apps/assets-private-proxy/wrangler.jsonc') return 'user';
   if (relativePath === 'apps/desktop-updater-worker/wrangler.jsonc') return 'user';
+  if (relativePath === 'apps/workflows/wrangler.jsonc') return 'user';
   if (relativePath === 'cloudflare/r2-cors.template.json') return 'user';
   if (
     relativePath === 'apps/web/app/page.tsx'
@@ -1564,6 +1683,7 @@ function defaultOwnership(relativePath: string): FileOwnershipClass {
     || relativePath === 'packages/api-client/src/app.ts'
     || relativePath === 'packages/realtime/src/app.ts'
     || relativePath === 'packages/db/src/app-schema.ts'
+    || relativePath === 'apps/workflows/src/workflow.ts'
   ) return 'user';
   if (ROOT_MERGEABLE_FILES.has(relativePath)) return 'mergeable';
   return 'managed';
@@ -1640,6 +1760,8 @@ function createProjectManifest(
     toolchain: options.toolchainChannel,
     templates,
     nativeStyling: options.nativeStyling,
+    authProvider: options.authProvider,
+    adminMode: options.adminMode,
     components,
   });
   const files = Object.freeze(Object.fromEntries(Object.entries(manifest.files).map(([relativePath, record]) => [
@@ -1795,9 +1917,11 @@ async function writeSelectedModules(
   if (options.apps.api) await scaffoldApi(root, shared);
   if (options.apps.mobile) await scaffoldMobile(root, shared);
   if (options.apps.web) await scaffoldWeb(root, shared);
+  if (options.adminMode === 'app') await scaffoldAdmin(root, shared);
   if (options.apps.desktop) await scaffoldDesktop(root, shared);
   if (options.apps.extension) await scaffoldExtension(root, shared);
   if (options.features.storage) scaffoldAssetsPrivateProxy(root, shared);
+  if (options.features.workflows) scaffoldCloudflareWorkflows(root, shared);
   if (options.features.electronUpdater) scaffoldElectronUpdater(root, shared);
   if (Object.values(options.infrastructure).some(Boolean)) scaffoldInfrastructure(root, shared);
   return templates;
@@ -2005,19 +2129,23 @@ export async function scaffoldUiComponents(uiOptions: UiAddOptions): Promise<voi
           noOp = true;
           return false;
         }
+        const selections = selectionsFromModules(manifest.modules);
         options = {
           projectName: manifest.project.name,
           displayName: manifest.project.displayName,
           modules: [...manifest.modules],
-          ...selectionsFromModules(manifest.modules),
+          ...selections,
+          apps: { ...selections.apps, admin: manifest.stack.adminMode === 'app' },
           skipInstall: uiOptions.skipInstall,
           dryRun: uiOptions.dryRun,
           json: uiOptions.json,
           toolchainChannel: toolchainChannelFromManifest(manifest),
           uiComponents: [],
           nativeStyling: manifest.ui.nativeStyling,
+          authProvider: manifest.stack.authProvider,
+          adminMode: manifest.stack.adminMode,
         };
-        env.ANHEDRAL_TOOLCHAIN = options.toolchainChannel;
+        env.ANHEDRAL_TOOLCHAIN = options!.toolchainChannel;
         seedPaths.push(...new Set([
           ...Object.keys(manifest.files).filter((relativePath) => pathEntryExists(path.join(root, relativePath))),
           'anhedral.json',

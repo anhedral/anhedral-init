@@ -71,6 +71,18 @@ const cases = [
     stderrIncludes: 'Unknown command: whoops',
   },
   {
+    name: 'requires an Anhedral project for VPS setup',
+    args: ['setup-vps', '--check'],
+    expectedExit: 1,
+    stderrIncludes: 'anhedral.json was not found',
+  },
+  {
+    name: 'rejects unknown VPS setup options',
+    args: ['setup-vps', '--wat'],
+    expectedExit: 1,
+    stderrIncludes: 'Unknown setup-vps option: --wat',
+  },
+  {
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
@@ -364,7 +376,7 @@ assert.deepEqual(
   ['web', 'api'],
   'legacy role selectors should remain accepted for pre-1.0 compatibility',
 );
-assert.equal(parseCli(['--all']).modules.size, 12, '--all should explicitly select every supported module');
+assert.equal(parseCli(['--all']).modules.size, 13, '--all should explicitly select every supported module');
 assert.equal(
   [...parseCli(['--all']).modules].some((moduleId) => ['ubuntu', 'docker', 'postgres', 'nginx', 'certbot'].includes(moduleId)),
   false,
@@ -394,6 +406,30 @@ assert.throws(() => assertPackageName('node_modules'), /Invalid package name/);
 
 const minimalOptions = buildOptions(parseCli(['--next', '--fastify', '--neon', '--clerk']));
 assert.deepEqual(minimalOptions.modules, ['web', 'api', 'db', 'auth']);
+assert.equal(minimalOptions.authProvider, 'clerk');
+assert.equal(minimalOptions.adminMode, 'none');
+const authJsAdminPage = buildOptions(parseCli(['--next', '--fastify', '--neon', '--authjs', '--admin-page']));
+assert.equal(authJsAdminPage.authProvider, 'authjs');
+assert.equal(authJsAdminPage.adminMode, 'page');
+assert.deepEqual(authJsAdminPage.modules, ['web', 'admin', 'api', 'db', 'auth']);
+const authJsAdminApp = buildOptions(parseCli(['--next', '--fastify', '--neon', '--authjs', '--admin-app']));
+assert.equal(authJsAdminApp.adminMode, 'app');
+assert.throws(
+  () => buildOptions(parseCli(['--fastify', '--neon', '--authjs'])),
+  /Auth\.js requires the Next\.js web application/,
+);
+assert.throws(
+  () => buildOptions(parseCli(['--next', '--expo', '--authjs'])),
+  /Auth\.js does not yet support.*mobile/,
+);
+assert.throws(
+  () => parseCli(['--clerk', '--authjs']),
+  /Conflicting values/,
+);
+assert.throws(
+  () => parseCli(['--admin-page', '--admin-app']),
+  /Conflicting values/,
+);
 const infrastructureOptions = buildOptions(parseCli([
   '--next',
   '--fastify',
@@ -446,6 +482,10 @@ assert.throws(
 assert.deepEqual(
   buildAddOptions(['electron-updater'], parseCli(['--skip-install'])).modules,
   ['electron-updater'],
+);
+assert.deepEqual(
+  buildAddOptions(['cloudflare-workflows'], parseCli(['--skip-install'])).modules,
+  ['workflows'],
 );
 assert.equal(shouldPromptForInitModules([], true), true);
 assert.equal(shouldPromptForInitModules(['--json'], true), false, '--json must never open interactive prompts');

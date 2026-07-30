@@ -56,6 +56,7 @@ try {
   ]);
   assert.equal(manifest.files['deploy/anhedral-provision.json'].owner, 'ubuntu');
   assert.equal(manifest.files['deploy/README.md'].ownership, 'user');
+  assert.equal(manifest.files['deploy/vps/setup.sh'].owner, 'ubuntu');
   assert.equal(manifest.files['scripts/provision-plan.mjs'].owner, 'ubuntu');
 
   const planPath = path.join(project, 'deploy', 'anhedral-provision.json');
@@ -80,6 +81,8 @@ try {
 
   const packageJson = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'));
   assert.equal(packageJson.scripts['provision:plan'], 'node scripts/provision-plan.mjs');
+  assert.equal(packageJson.scripts['vps:setup:check'], 'bash deploy/vps/setup.sh --check');
+  assert.equal(packageJson.scripts['vps:setup'], 'bash deploy/vps/setup.sh --apply');
   assert.equal(packageJson.scripts['neon:project:create'], undefined);
   assert.match(
     readFileSync(path.join(project, 'packages/db/.env.example'), 'utf8'),
@@ -114,6 +117,36 @@ try {
   });
   assert.notEqual(rejectedApply.status, 0);
   assert.match(rejectedApply.stderr, /remote apply is not implemented/);
+
+  const setupScript = readFileSync(path.join(project, 'deploy/vps/setup.sh'), 'utf8');
+  assert.match(setupScript, /PermitRootLogin prohibit-password/);
+  assert.match(setupScript, /ufw default deny incoming/);
+  assert.match(setupScript, /fail2ban/);
+  assert.match(setupScript, /DOCKER-USER/);
+  assert.match(setupScript, /net\.ipv4\.conf\.all\.accept_redirects = 0/);
+  assert.match(setupScript, /docker compose .* config --quiet/);
+  assert.match(setupScript, /Refusing SSH changes without ANHEDRAL_AUTHORIZED_KEYS_FILE/);
+
+  const checkedSetup = spawnSync('bash', ['deploy/vps/setup.sh', '--check'], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+  assert.equal(checkedSetup.status, 0, checkedSetup.stderr);
+  assert.match(checkedSetup.stdout, /Preflight only/);
+
+  const checkedViaCli = spawnSync(process.execPath, [cliEntry, 'setup-vps', '--check'], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+  assert.equal(checkedViaCli.status, 0, checkedViaCli.stderr);
+  assert.match(checkedViaCli.stdout, /Anhedral VPS bootstrap/);
+  assert.match(checkedViaCli.stdout, /Preflight only/);
+
+  const syntaxCheck = spawnSync('bash', ['-n', 'deploy/vps/setup.sh'], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+  assert.equal(syntaxCheck.status, 0, syntaxCheck.stderr);
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

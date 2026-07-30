@@ -533,6 +533,31 @@ public identifiers:
     unsigned local package is not equivalent to a production-ready desktop
     release.
 
+12. **Ubuntu VPS (`ubuntu`, with optional `docker`, `nginx`, `certbot`)**
+
+    - Keep provider-console access open. On the intended checked-out release,
+      run `pnpm provision:plan` and
+      `pnpm dlx anhedral@latest setup-vps --check` before applying.
+    - Select an existing authorized-keys file for the non-root administrator.
+      The bootstrap refuses SSH hardening if it cannot validate a public key.
+      Set `ANHEDRAL_AUTHORIZED_KEYS_FILE` when the provider does not place the
+      key in root’s or the sudo user’s standard location.
+    - Set `ANHEDRAL_DOMAIN` and `ANHEDRAL_EMAIL`; set
+      `ANHEDRAL_ENABLE_TLS=1` only after the domain resolves to this VPS. Run
+      `pnpm dlx anhedral@latest setup-vps` once. It validates the checkout,
+      elevates with sudo, and is idempotent.
+    - Open a second key-authenticated session as the generated administrator
+      before closing the first. Root password login is disabled; root key login
+      intentionally remains a recovery path until that verification is done.
+    - Put immutable application releases below `/opt/<project>/releases`, keep
+      secrets only in `/opt/<project>/shared/app.env`, validate the release’s
+      `compose.yaml`, then activate it atomically with
+      `sudo anhedral-deploy /absolute/path/to/release`.
+    - Verify UFW, Fail2ban, unattended upgrades, listening sockets, Nginx, TLS
+      renewal, container health, private PostgreSQL networking, off-host
+      backups, and a restore drill. The bootstrap prepares the host; it does not
+      make a Docker volume a backup or fetch unreviewed application source.
+
 Create strong `CRON_SECRET` and webhook secrets through a password manager or a
 local non-logging generator. The user places them directly into server and
 deployment environments.

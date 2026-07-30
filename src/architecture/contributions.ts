@@ -40,6 +40,7 @@ const EMPTY = Object.freeze([]) as readonly never[];
 
 const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribution>> = Object.freeze({
   web: Object.freeze({ module: 'web', environment: EMPTY, crons: EMPTY }),
+  admin: Object.freeze({ module: 'admin', environment: EMPTY, crons: EMPTY }),
   mobile: Object.freeze({ module: 'mobile', environment: EMPTY, crons: EMPTY }),
   api: Object.freeze({
     module: 'api',
@@ -101,6 +102,14 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     crons: Object.freeze([
       { id: 'storage-cleanup', path: '/api/internal/storage/cleanup', schedule: '0 3 * * *' },
     ]),
+  }),
+  workflows: Object.freeze({
+    module: 'workflows',
+    environment: Object.freeze([
+      { name: 'WORKFLOW_API_TOKEN', defaultValue: '' },
+      { name: 'CLOUDFLARE_API_TOKEN', defaultValue: '' },
+    ]),
+    crons: EMPTY,
   }),
   'native-subscriptions': Object.freeze({
     module: 'native-subscriptions',

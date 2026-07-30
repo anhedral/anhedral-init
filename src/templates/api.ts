@@ -26,7 +26,7 @@ function dependenciesFor(options: ProjectOptions): {
     '@fastify/rate-limit',
     'zod',
     ...(options.features.database ? ['@shared/db', 'drizzle-orm'] : []),
-    ...(options.features.auth ? ['@clerk/fastify'] : []),
+    ...(options.features.auth && options.authProvider !== 'authjs' ? ['@clerk/fastify'] : []),
     ...(options.features.realtime ? ['ably'] : []),
     ...(options.features.storage ? ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'] : []),
   ]);
@@ -39,6 +39,7 @@ function dependenciesFor(options: ProjectOptions): {
 function corsOrigins(options: ProjectOptions): string[] {
   return [
     options.apps.web ? 'http://localhost:3000' : null,
+    options.adminMode === 'app' ? 'http://localhost:3001' : null,
     options.apps.mobile ? 'http://localhost:8081' : null,
     options.apps.desktop ? 'http://127.0.0.1:5173' : null,
     options.apps.desktop ? 'null' : null,
@@ -58,8 +59,9 @@ function envSource(options: ProjectOptions): string {
     'CORS_ORIGINS: CorsOriginsSchema',
     "ANHEDRAL_DEMO: z.enum(['true', 'false']).default('false')",
     options.features.database ? 'DATABASE_URL: z.string().min(1)' : null,
-    options.features.auth ? 'CLERK_PUBLISHABLE_KEY: z.string().optional()' : null,
-    options.features.auth ? 'CLERK_SECRET_KEY: z.string().optional()' : null,
+    options.features.auth && options.authProvider !== 'authjs' ? 'CLERK_PUBLISHABLE_KEY: z.string().optional()' : null,
+    options.features.auth && options.authProvider !== 'authjs' ? 'CLERK_SECRET_KEY: z.string().optional()' : null,
+    options.features.auth && options.authProvider === 'authjs' ? 'AUTH_SECRET: z.string().min(32).optional()' : null,
     options.features.billing ? 'RC_WEBHOOK_SECRET: OptionalSecretSchema' : null,
     options.features.billing ? 'RC_SECRET_API_KEY: OptionalSecretSchema' : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: z.string().default('pro')" : null,
@@ -75,7 +77,9 @@ function envSource(options: ProjectOptions): string {
     options.features.billing || options.features.storage ? 'CRON_SECRET: OptionalSecretSchema' : null,
   ].filter((value): value is string => value !== null);
   const productionKeys = [...new Set([
-    ...(options.features.auth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
+    ...(options.features.auth
+      ? options.authProvider === 'authjs' ? ['AUTH_SECRET'] : ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY']
+      : []),
     ...(options.features.realtime ? ['ABLY_API_KEY'] : []),
     ...(options.features.billing ? ['RC_WEBHOOK_SECRET', 'RC_SECRET_API_KEY', 'CRON_SECRET'] : []),
     ...(options.features.storage ? ['BASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'CRON_SECRET'] : []),
@@ -136,7 +140,7 @@ ${options.features.database ? `function assertProductionDatabaseUrl(value: strin
   }
 }
 ` : ''}
-${options.features.auth ? `function assertProductionClerkKey(
+${options.features.auth && options.authProvider !== 'authjs' ? `function assertProductionClerkKey(
   key: 'CLERK_PUBLISHABLE_KEY' | 'CLERK_SECRET_KEY',
   value: string | undefined,
   prefix: 'pk_live_' | 'sk_live_',
@@ -246,7 +250,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       if (!env[key]?.trim()) throw new Error(\`Missing production environment variable: \${key}\`);
     }` : ''}
     ${options.features.database ? 'assertProductionDatabaseUrl(env.DATABASE_URL);' : ''}
-    ${options.features.auth ? `assertProductionClerkKey('CLERK_PUBLISHABLE_KEY', env.CLERK_PUBLISHABLE_KEY, 'pk_live_');
+    ${options.features.auth && options.authProvider !== 'authjs' ? `assertProductionClerkKey('CLERK_PUBLISHABLE_KEY', env.CLERK_PUBLISHABLE_KEY, 'pk_live_');
     assertProductionClerkKey('CLERK_SECRET_KEY', env.CLERK_SECRET_KEY, 'sk_live_');` : ''}
     ${options.features.realtime ? 'assertProductionAblyApiKey(env.ABLY_API_KEY);' : ''}
     ${options.features.billing ? `assertStrongBillingSecret('RC_WEBHOOK_SECRET', env.RC_WEBHOOK_SECRET);
@@ -268,8 +272,9 @@ function envTestSource(options: ProjectOptions): string {
     options.features.database
       ? "DATABASE_URL: syntheticDatabaseUrl('ep-bright-cloud-a1b2c3.us-east-2.aws.neon.tech')"
       : null,
-    options.features.auth ? "CLERK_PUBLISHABLE_KEY: syntheticClerkKey('pk')" : null,
-    options.features.auth ? "CLERK_SECRET_KEY: syntheticClerkKey('sk')" : null,
+    options.features.auth && options.authProvider !== 'authjs' ? "CLERK_PUBLISHABLE_KEY: syntheticClerkKey('pk')" : null,
+    options.features.auth && options.authProvider !== 'authjs' ? "CLERK_SECRET_KEY: syntheticClerkKey('sk')" : null,
+    options.features.auth && options.authProvider === 'authjs' ? "AUTH_SECRET: syntheticSecret('authjs')" : null,
     options.features.billing ? "RC_WEBHOOK_SECRET: syntheticSecret('webhook')" : null,
     options.features.billing ? "RC_SECRET_API_KEY: syntheticSecret('revenuecat')" : null,
     options.features.billing ? "RC_ENTITLEMENT_ID: 'pro'" : null,
@@ -305,7 +310,7 @@ function envTestSource(options: ProjectOptions): string {
     expect(() => loadEnv({ ...validProductionEnv, DATABASE_URL: syntheticDatabaseUrl('localhost') })).toThrow(/non-local, non-placeholder database host/);
     expect(() => loadEnv({ ...validProductionEnv, DATABASE_URL: syntheticDatabaseUrl('db.example.com') })).toThrow(/non-local, non-placeholder database host/);
   });` : null,
-    options.features.auth ? `  it('requires well-formed Clerk live keys', () => {
+    options.features.auth && options.authProvider !== 'authjs' ? `  it('requires well-formed Clerk live keys', () => {
     expect(() => loadEnv({ ...validProductionEnv, CLERK_PUBLISHABLE_KEY: syntheticClerkKey('pk', 'test') })).toThrow(/CLERK_PUBLISHABLE_KEY must be a well-formed pk_live_/);
     expect(() => loadEnv({ ...validProductionEnv, CLERK_PUBLISHABLE_KEY: 'pk_live_example-placeholder-value' })).toThrow(/CLERK_PUBLISHABLE_KEY must be a well-formed pk_live_/);
     expect(() => loadEnv({ ...validProductionEnv, CLERK_SECRET_KEY: syntheticClerkKey('sk', 'test') })).toThrow(/CLERK_SECRET_KEY must be a well-formed sk_live_/);
@@ -340,13 +345,13 @@ import { loadEnv } from '../src/env';
 ${options.features.database ? `function syntheticDatabaseUrl(host: string, username = 'app_owner'): string {
   return ['postgresql://', username, ':', 'S3cureRandomDatabaseCredential123', '@', host, '/app?sslmode=require'].join('');
 }
-` : ''}${options.features.auth ? `function syntheticClerkKey(kind: 'pk' | 'sk', environment: 'live' | 'test' = 'live'): string {
+` : ''}${options.features.auth && options.authProvider !== 'authjs' ? `function syntheticClerkKey(kind: 'pk' | 'sk', environment: 'live' | 'test' = 'live'): string {
   return [kind, environment, 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4'].join('_');
 }
 ` : ''}${options.features.realtime ? `function syntheticAblyApiKey(): string {
   return ['appId', '.', 'keyId', ':', 'A1b2C3d4E5f6G7h8I9j0K1l2'].join('');
 }
-` : ''}${options.features.billing || options.features.storage ? `function syntheticSecret(label: string): string {
+` : ''}${options.features.billing || options.features.storage || (options.features.auth && options.authProvider === 'authjs') ? `function syntheticSecret(label: string): string {
   return [label, 'A1b2C3d4E5f6G7h8', 'I9j0K1l2M3n4O5p6'].join('_');
 }
 ` : ''}
@@ -364,7 +369,52 @@ ${cases.join('\n\n')}
 `;
 }
 
-function authSource(): string {
+function authSource(options: ProjectOptions): string {
+  if (options.authProvider === 'authjs') return `import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { AppEnv } from './env';
+
+export async function registerAuth(_app: FastifyInstance, _env: AppEnv) {}
+
+export function authenticatedUserId(request: FastifyRequest, env: AppEnv): string {
+  if (env.ANHEDRAL_DEMO === 'true') return 'demo-user';
+  if (!env.AUTH_SECRET) {
+    const error = new Error('Authentication is not configured') as Error & { statusCode: number };
+    error.statusCode = 503;
+    throw error;
+  }
+  const authorization = request.headers.authorization;
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
+  if (!token) {
+    const error = new Error('Authentication required') as Error & { statusCode: number };
+    error.statusCode = 401;
+    throw error;
+  }
+  try {
+    const [encodedHeader, encodedPayload, encodedSignature, extra] = token.split('.');
+    if (!encodedHeader || !encodedPayload || !encodedSignature || extra) throw new Error('Malformed token');
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8')) as { alg?: unknown };
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as {
+      sub?: unknown; iss?: unknown; aud?: unknown; exp?: unknown;
+    };
+    if (header.alg !== 'HS256' || payload.iss !== 'anhedral-web' || payload.aud !== 'anhedral-api') {
+      throw new Error('Invalid token claims');
+    }
+    if (typeof payload.exp !== 'number' || payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('Expired token');
+    const expected = createHmac('sha256', env.AUTH_SECRET)
+      .update(encodedHeader + '.' + encodedPayload)
+      .digest();
+    const actual = Buffer.from(encodedSignature, 'base64url');
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error('Invalid signature');
+    if (typeof payload.sub !== 'string' || !payload.sub) throw new Error('Missing subject');
+    return payload.sub;
+  } catch {
+    const error = new Error('Authentication required') as Error & { statusCode: number };
+    error.statusCode = 401;
+    throw error;
+  }
+}
+`;
   return `import { clerkPlugin, getAuth } from '@clerk/fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppEnv } from './env';
@@ -387,6 +437,115 @@ export function authenticatedUserId(request: FastifyRequest, env: AppEnv): strin
   }
   return userId;
 }
+`;
+}
+
+function authTestSource(): string {
+  return `import { createHmac } from 'node:crypto';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { describe, expect, it } from 'vitest';
+import { authenticatedUserId, registerAuth } from '../src/auth';
+import type { AppEnv } from '../src/env';
+
+const secret = ['authjs', 'A1b2C3d4E5f6G7h8', 'I9j0K1l2M3n4O5p6'].join('_');
+const baseEnv = {
+  ANHEDRAL_DEMO: 'false',
+  AUTH_SECRET: secret,
+} as AppEnv;
+
+function request(authorization?: string): FastifyRequest {
+  return { headers: { authorization } } as FastifyRequest;
+}
+
+function encode(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function token(
+  payload: Record<string, unknown>,
+  header: Record<string, unknown> = { alg: 'HS256' },
+  signingSecret = secret,
+): string {
+  const encodedHeader = encode(header);
+  const encodedPayload = encode(payload);
+  const signature = createHmac('sha256', signingSecret)
+    .update(encodedHeader + '.' + encodedPayload)
+    .digest('base64url');
+  return encodedHeader + '.' + encodedPayload + '.' + signature;
+}
+
+function validPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    sub: 'user_123',
+    iss: 'anhedral-web',
+    aud: 'anhedral-api',
+    exp: Math.floor(Date.now() / 1000) + 60,
+    ...overrides,
+  };
+}
+
+function expectAuthError(callback: () => unknown, statusCode: number): void {
+  try {
+    callback();
+    throw new Error('Expected authentication to fail');
+  } catch (error) {
+    expect(error).toMatchObject({ statusCode });
+  }
+}
+
+describe('Auth.js API bridge authentication', () => {
+  it('keeps registration side-effect free and supports explicit demo mode', async () => {
+    await expect(registerAuth({} as FastifyInstance, baseEnv)).resolves.toBeUndefined();
+    expect(authenticatedUserId(request(), { ...baseEnv, ANHEDRAL_DEMO: 'true' })).toBe('demo-user');
+  });
+
+  it('distinguishes missing server configuration from missing credentials', () => {
+    expectAuthError(
+      () => authenticatedUserId(request(), { ...baseEnv, AUTH_SECRET: undefined }),
+      503,
+    );
+    expectAuthError(() => authenticatedUserId(request(), baseEnv), 401);
+    expectAuthError(() => authenticatedUserId(request('Basic ignored'), baseEnv), 401);
+  });
+
+  it('accepts a short-lived, correctly scoped bridge token', () => {
+    const authorization = 'Bearer ' + token(validPayload());
+    expect(authenticatedUserId(request(authorization), baseEnv)).toBe('user_123');
+  });
+
+  it('rejects malformed structure, algorithms, claims, and subjects', () => {
+    const invalidTokens = [
+      'one.two',
+      token(validPayload(), { alg: 'none' }),
+      token(validPayload({ iss: 'other-web' })),
+      token(validPayload({ aud: 'other-api' })),
+      token(validPayload({ exp: Math.floor(Date.now() / 1000) - 1 })),
+      token(validPayload({ exp: 'tomorrow' })),
+      token(validPayload({ sub: '' })),
+      token(validPayload({ sub: 123 })),
+      token(validPayload()) + '.extra',
+    ];
+    for (const value of invalidTokens) {
+      expectAuthError(() => authenticatedUserId(request('Bearer ' + value), baseEnv), 401);
+    }
+  });
+
+  it('rejects invalid encodings and signatures without exposing verification details', () => {
+    expectAuthError(
+      () => authenticatedUserId(request('Bearer not-json.not-json.not-a-signature'), baseEnv),
+      401,
+    );
+    expectAuthError(
+      () => authenticatedUserId(request('Bearer ' + token(validPayload(), { alg: 'HS256' }, secret + '-wrong')), baseEnv),
+      401,
+    );
+    const [header, payload] = token(validPayload()).split('.');
+    expectAuthError(
+      () => authenticatedUserId(request('Bearer ' + header + '.' + payload + '.AA'), baseEnv),
+      401,
+    );
+  });
+});
 `;
 }
 
@@ -2994,7 +3153,7 @@ export default defineConfig({
 });
 `);
   writeFile(path.join(dir, 'src/env.ts'), envSource(options));
-  if (options.features.auth) writeFile(path.join(dir, 'src/auth.ts'), authSource());
+  if (options.features.auth) writeFile(path.join(dir, 'src/auth.ts'), authSource(options));
   if (options.features.realtime) writeFile(path.join(dir, 'src/realtime.ts'), realtimeSource());
   if (options.features.storage) writeFile(path.join(dir, 'src/storage.ts'), storageSource());
   if (options.features.billing) writeFile(path.join(dir, 'src/billing.ts'), billingSource());
@@ -3214,6 +3373,9 @@ describe('health', () => {
 });
 `);
   writeFile(path.join(dir, 'tests/env.test.ts'), envTestSource(options));
+  if (options.features.auth && options.authProvider === 'authjs') {
+    writeFile(path.join(dir, 'tests/auth.test.ts'), authTestSource());
+  }
   if (options.features.billing) {
     writeFile(path.join(dir, 'tests/revenuecat-webhook.test.ts'), billingRouteTestSource(options));
   }
@@ -3231,7 +3393,11 @@ describe('health', () => {
         ? `# Replace the password with a strong URL-encoded secret injected outside Git. The postgres hostname is private to the deployment network.\nDATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}`
         : '# Production requires a postgres/postgresql URL: paste the exact pooled URL from managed Neon. Anhedral never starts local Postgres.\nDATABASE_URL=YOUR_NEON_POSTGRES_URL'
       : null,
-    options.features.auth ? '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***' : null,
+    options.features.auth
+      ? options.authProvider === 'authjs'
+        ? '# Shared only by the trusted Next.js Auth.js bridge and Fastify. Use 32+ random characters.\nAUTH_SECRET=replace-with-at-least-32-random-characters'
+        : '# Production requires Clerk keys from the live instance (pk_live_ / sk_live_).\nCLERK_PUBLISHABLE_KEY=pk_test_***\nCLERK_SECRET_KEY=sk_test_***'
+      : null,
     options.features.realtime ? '# Server-only Ably API key; clients receive scoped, short-lived token requests.\nABLY_API_KEY=' : null,
     options.features.billing ? '# Generate a dedicated high-entropy webhook authorization value (32+ characters).\nRC_WEBHOOK_SECRET=\n# Server-only RevenueCat secret key used to reconcile GET /v1/subscribers/{app_user_id}.\nRC_SECRET_API_KEY=\nRC_ENTITLEMENT_ID=pro' : null,
     options.features.storage ? '# Canonical application/API origin used when constructing protected storage links. Use HTTPS in production.\nBASE_URL=http://localhost:8787\n# R2 presigned PUTs bind exact Content-Length and require the declared Content-Type; configure bucket CORS for each client origin.\n# Production expects the 32-hex account ID, 32-hex access key ID, and 64-hex secret issued by Cloudflare.\nR2_ACCOUNT_ID=\nR2_ACCESS_KEY_ID=\nR2_SECRET_ACCESS_KEY=\n# Bucket names are 3-63 lowercase letters, numbers, or hyphens and cannot begin or end with a hyphen.\nR2_BUCKET_NAME=\n# Keep every application object inside one top-level namespace.\nR2_PREFIX=storage\n# Authenticated read URLs are clamped to 60-604800 seconds.\nR2_PROXY_READ_URL_TTL_SECONDS=600\n# Operations/CI only. Wrangler reads this automatically; do not expose it to clients or the Worker.\nCLOUDFLARE_API_TOKEN=' : null,
