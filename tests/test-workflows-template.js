@@ -47,6 +47,11 @@ try {
   scaffoldCloudflareWorkflows(root, options);
 
   assert.equal(workflowWorkerName('@scope/My.App'), 'my-app-workflows');
+  assert.equal(
+    workflowWorkerName(`---My${'-'.repeat(10_000)}App---`),
+    'my-app-workflows',
+    'worker names should normalize long separator runs in linear time',
+  );
   assert.equal(applicationWorkflowName('---'), 'anhedral-application');
   assert.ok(workflowWorkerName('a'.repeat(100)).length <= 64);
   assert.ok(applicationWorkflowName('a'.repeat(100)).length <= 64);

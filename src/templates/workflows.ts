@@ -7,11 +7,25 @@ import { writeFile } from '../util.js';
 
 function normalizedWorkflowName(projectName: string): string {
   const unscoped = projectName.replace(/^@[^/]+\//, '');
-  const normalized = unscoped.toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'anhedral';
-  return normalized.slice(0, 42).replace(/-+$/g, '') || 'anhedral';
+  const characters: string[] = [];
+  let separatorPending = false;
+
+  for (const character of unscoped.toLowerCase()) {
+    const code = character.charCodeAt(0);
+    const alphanumeric = (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
+
+    if (alphanumeric) {
+      if (separatorPending && characters.length > 0) characters.push('-');
+      characters.push(character);
+      separatorPending = false;
+    } else {
+      separatorPending = characters.length > 0;
+    }
+  }
+
+  const normalized = characters.join('') || 'anhedral';
+  const truncated = normalized.slice(0, 42);
+  return truncated.endsWith('-') ? truncated.slice(0, -1) : truncated;
 }
 
 export function workflowWorkerName(projectName: string): string {
