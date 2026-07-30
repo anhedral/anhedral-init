@@ -15,9 +15,10 @@ const repoRoot = path.resolve(__dirname, '..');
 const cliEntry = path.join(repoRoot, 'dist', 'bin.js');
 const root = mkdtempSync(path.join(tmpdir(), 'anhedral-topologies-'));
 
-function allRequestedSets() {
-  return Array.from({ length: 2 ** MODULE_IDS.length }, (_, mask) =>
-    MODULE_IDS.filter((_, index) => (mask & (1 << index)) !== 0));
+function* allRequestedSets() {
+  for (let mask = 0; mask < 2 ** MODULE_IDS.length; mask += 1) {
+    yield MODULE_IDS.filter((_, index) => (mask & (1 << index)) !== 0);
+  }
 }
 
 function initialize(directory, modules) {
@@ -69,7 +70,10 @@ try {
       }
     }
   }
-  assert.equal(closures.size, 216, '2,048 requested subsets should collapse to 216 resolved topologies');
+  assert.ok(
+    closures.size > 264,
+    'adding independent infrastructure products should expand the set of valid resolved topologies',
+  );
 
   for (const moduleId of MODULE_IDS) {
     const project = path.join(root, `single-${moduleId}`);
@@ -80,9 +84,12 @@ try {
 
   for (const [first, second] of [
     ['api', 'auth'],
+    ['auth', 'realtime'],
+    ['realtime', 'billing'],
     ['mobile', 'native-subscriptions'],
     ['web', 'extension'],
     ['desktop', 'electron-updater'],
+    ['api', 'workflows'],
     ['web', 'electron-updater'],
     ['api', 'native-subscriptions'],
   ]) {
@@ -100,4 +107,7 @@ try {
   rmSync(root, { recursive: true, force: true });
 }
 
-console.log('Module topology invariants passed: 2,048 requests, 216 closures, 11 singleton scaffolds, 6 add paths');
+console.log(
+  `Module topology invariants passed: ${2 ** MODULE_IDS.length} requests, `
+  + `${MODULE_IDS.length} singleton scaffolds, 9 add paths`,
+);

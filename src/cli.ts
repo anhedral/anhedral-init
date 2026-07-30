@@ -5,12 +5,21 @@ import { TOOLCHAIN_CHANNELS, resolveToolchainChannel } from './toolchain.js';
 import {
   APP_MODULES,
   FEATURE_MODULES,
-  isModuleId,
+  INFRASTRUCTURE_MODULES,
   resolveModules,
   type AppModule,
   type FeatureModule,
+  type InfrastructureModule,
   type ModuleId,
 } from './architecture/modules.js';
+import {
+  APP_PRODUCTS,
+  DEFAULT_STACK_PRODUCTS,
+  FEATURE_PRODUCTS,
+  INFRASTRUCTURE_PRODUCTS,
+  STACK_PRODUCTS,
+  moduleIdForStackSelection,
+} from './architecture/products.js';
 import { packageNameFromText } from './render.js';
 import {
   isNativeStylingLibrary,
@@ -20,47 +29,57 @@ import {
   type UiTarget,
 } from './ui.js';
 import type { UiAddOptions } from './scaffold.js';
+import { AUTHJS_UNSUPPORTED_MODULES, type AdminMode, type AuthProvider } from './project.js';
+
+function productUsage(kind: 'app' | 'feature' | 'infrastructure'): string {
+  return STACK_PRODUCTS
+    .filter((product) => product.kind === kind)
+    .map((product) => `  ${product.id.padEnd(22)} ${product.description}`)
+    .join('\n');
+}
 
 export const USAGE = `
-anhedral new <directory> [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
-anhedral init [modules...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
-anhedral add <module...|--all> [--skip-install] [--dry-run] [--json] [--verbose]
+anhedral new <directory> [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
+anhedral init [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
+anhedral add <product...|--all> [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral upgrade [--skip-install] [--dry-run] [--json] [--verbose]
 anhedral doctor [--json] [--verbose]
-anhedral --version
+anhedral setup-vps [--check] [--verbose]
+anhedral --version [--json]
+anhedral --help [--json]
 
 Commands:
   anhedral new my-app
-    Interactively choose a focused stack in a terminal. In noninteractive use, pass module flags; no flags explicitly means the complete stack.
-  anhedral new my-app --web --api --db --auth
+    Interactively choose a focused stack in a terminal. In noninteractive use, pass product flags; no flags explicitly means the complete stack.
+  anhedral new my-app --next --fastify --neon --clerk
     Generate a web app, Fastify API, shared database package, and auth wiring.
-  anhedral init --web --api --db --auth
+  anhedral new my-app --next --fastify --neon --authjs --admin-page
+    Generate database-backed Auth.js with (auth) and (admin) route groups.
+  anhedral new my-app --next --fastify --neon --authjs --admin-app
+    Generate database-backed Auth.js plus a separately deployable Next.js admin app.
+  anhedral init --next --fastify --neon --clerk
     Generate the same readable workspace in the current empty directory.
-  anhedral add mobile extension
+  anhedral add expo wxt
     Add missing modules to an existing Anhedral project.
   anhedral ui add button dialog --target mobile
     Add React Native Reusables components to Expo. DOM clients use shadcn/ui.
   anhedral upgrade
     Transactionally upgrade a supported older Anhedral project before adding modules.
+  anhedral setup-vps
+    From a generated project checkout on Ubuntu, validate and apply its idempotent VPS security and hosting bootstrap.
 
-App surfaces:
-  web                    Next.js App Router application
-  mobile                 Expo Router application for iOS, Android, and web
-  api                    Fastify HTTP API
-  desktop                Electron desktop application
-  extension              WXT browser extension
+Application products:
+${productUsage('app')}
 
-Capabilities:
-  db                     Neon Postgres + Drizzle
-  auth                   Clerk; adds api + db
-  billing                RevenueCat + Stripe + Ably; adds auth
-  storage                Private Cloudflare R2; adds auth
-  native-subscriptions   Native RevenueCat client; adds mobile + billing
-  electron-updater       Private Electron update channel; adds desktop
+Service products:
+${productUsage('feature')}
+
+Infrastructure products (opt-in):
+${productUsage('infrastructure')}
 
 Behavior:
-  --all explicitly selects every app surface and capability.
+  --all explicitly selects the default application and service products. Infrastructure remains opt-in.
   new initializes Git when Git is available; use --no-git to opt out.
   init preserves the current directory's repository state; use --git to initialize Git.
   --dry-run never writes the destination. --json emits stable machine-readable plans.
@@ -74,12 +93,19 @@ export type NewProjectRequest = {
 
 export function parseNewProjectRequest(args: readonly string[]): NewProjectRequest {
   const [directory, ...moduleArgs] = args;
-  if (!directory || directory.startsWith('--')) throw new Error('anhedral new requires a destination directory before module flags');
+  if (!directory || directory.startsWith('--')) throw new Error('anhedral new requires a destination directory before product flags');
   return Object.freeze({ directory, moduleArgs: Object.freeze(moduleArgs) });
 }
 
-export { APP_MODULES, FEATURE_MODULES };
-export type { AppModule, FeatureModule };
+export {
+  APP_MODULES,
+  APP_PRODUCTS,
+  FEATURE_MODULES,
+  FEATURE_PRODUCTS,
+  INFRASTRUCTURE_MODULES,
+  INFRASTRUCTURE_PRODUCTS,
+};
+export type { AppModule, FeatureModule, InfrastructureModule };
 export type SupportedModule = ModuleId;
 
 export type ParsedFlags = {
@@ -91,6 +117,8 @@ export type ParsedFlags = {
   initializeGit?: boolean;
   uiComponents: string[];
   nativeStyling?: NativeStylingLibrary;
+  authProvider?: AuthProvider;
+  adminMode?: Exclude<AdminMode, 'none'>;
   modules: Set<SupportedModule>;
 };
 
@@ -112,12 +140,22 @@ export function parseCli(args: readonly string[]): ParsedFlags {
     const token = args[index];
 
     if (!token.startsWith('--')) {
+      if (token === 'clerk' || token === 'authjs') {
+        flags.authProvider = assignOption('--clerk/--authjs', flags.authProvider, token);
+      }
+      if (token === 'admin-page' || token === 'admin-app') {
+        flags.adminMode = assignOption(
+          '--admin-page/--admin-app',
+          flags.adminMode,
+          token === 'admin-page' ? 'page' : 'app',
+        );
+      }
       const moduleName = normalizeModuleName(token);
       if (moduleName) {
         flags.modules.add(moduleName);
         continue;
       }
-      throw new Error(`Unexpected argument: ${token}. Use module names, module flags, --toolchain, or --skip-install`);
+      throw new Error(`Unexpected argument: ${token}. Use product names, product flags, --toolchain, or --skip-install`);
     }
 
     if (token === '--skip-install') {
@@ -151,7 +189,27 @@ export function parseCli(args: readonly string[]): ParsedFlags {
     }
 
     if (token === '--all') {
-      for (const moduleName of [...APP_MODULES, ...FEATURE_MODULES]) flags.modules.add(moduleName);
+      for (const product of DEFAULT_STACK_PRODUCTS) flags.modules.add(product.module);
+      continue;
+    }
+
+    if (token === '--clerk' || token === '--authjs') {
+      flags.authProvider = assignOption(
+        '--clerk/--authjs',
+        flags.authProvider,
+        token === '--clerk' ? 'clerk' : 'authjs',
+      );
+      flags.modules.add('auth');
+      continue;
+    }
+
+    if (token === '--admin-page' || token === '--admin-app') {
+      flags.adminMode = assignOption(
+        '--admin-page/--admin-app',
+        flags.adminMode,
+        token === '--admin-page' ? 'page' : 'app',
+      );
+      flags.modules.add('admin');
       continue;
     }
 
@@ -215,7 +273,7 @@ export function parseCli(args: readonly string[]): ParsedFlags {
 }
 
 export function normalizeModuleName(raw: string): SupportedModule | null {
-  return isModuleId(raw) ? raw : null;
+  return moduleIdForStackSelection(raw);
 }
 
 export function deriveProjectName(cwd: string): string {
@@ -241,9 +299,24 @@ export function buildOptionsForRoot(flags: ParsedFlags, root: string): InitOptio
   }
 
   const requestedModules = flags.modules.size === 0
-    ? [...APP_MODULES, ...FEATURE_MODULES]
+    ? DEFAULT_STACK_PRODUCTS.map((product) => product.module)
     : [...flags.modules];
   const resolution = resolveModules(requestedModules);
+  const adminMode = resolution.resolvedModules.includes('admin')
+    ? flags.adminMode ?? 'page'
+    : 'none';
+  const authProvider = flags.authProvider ?? (adminMode === 'none' ? 'clerk' : 'authjs');
+  if (authProvider === 'authjs' && !resolution.resolvedModules.includes('web')) {
+    throw new Error('Auth.js requires the Next.js web application. Add --next or use --clerk.');
+  }
+  const incompatibleAuthJsModules = authProvider === 'authjs'
+    ? AUTHJS_UNSUPPORTED_MODULES.filter((moduleId) => resolution.resolvedModules.includes(moduleId))
+    : [];
+  if (incompatibleAuthJsModules.length > 0) {
+    throw new Error(
+      `Auth.js does not yet support these selected surfaces or capabilities: ${incompatibleAuthJsModules.join(', ')}. Use --clerk.`,
+    );
+  }
 
   return {
     projectName,
@@ -257,6 +330,8 @@ export function buildOptionsForRoot(flags: ParsedFlags, root: string): InitOptio
     toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN),
     rootDirectory: resolvedRoot,
     initializeGit: flags.initializeGit,
+    authProvider,
+    adminMode,
   };
 }
 
@@ -315,13 +390,13 @@ export function buildAddOptions(modules: string[], flags: ParsedFlags): AddOptio
   const requestedModules = [...modules, ...flags.modules];
 
   if (requestedModules.length === 0) {
-    throw new Error('anhedral add requires at least one module');
+    throw new Error('anhedral add requires at least one product');
   }
 
   const normalizedModules = requestedModules.map((moduleName) => {
     const normalized = normalizeModuleName(moduleName);
     if (!normalized) {
-      throw new Error(`Unknown module: ${moduleName}`);
+      throw new Error(`Unknown product: ${moduleName}`);
     }
     return normalized;
   });
@@ -331,6 +406,8 @@ export function buildAddOptions(modules: string[], flags: ParsedFlags): AddOptio
     skipInstall: flags.skipInstall === true || env.ANHEDRAL_SKIP_INSTALL === '1',
     dryRun: flags.dryRun === true,
     json: flags.json === true,
+    ...(flags.authProvider ? { authProvider: flags.authProvider } : {}),
+    ...(flags.adminMode ? { adminMode: flags.adminMode } : {}),
     ...((flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN) != null
       ? { toolchainChannel: resolveToolchainChannel(flags.toolchain ?? env.ANHEDRAL_TOOLCHAIN) }
       : {}),

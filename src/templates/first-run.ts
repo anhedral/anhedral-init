@@ -23,6 +23,11 @@ function environmentFiles(options: ProjectOptions): EnvironmentFile[] {
       target: 'apps/web/.env.local',
       optional: [],
     } : null,
+    options.adminMode === 'app' ? {
+      example: 'apps/admin/.env.example',
+      target: 'apps/admin/.env.local',
+      optional: [],
+    } : null,
     options.apps.mobile ? {
       example: 'apps/mobile/.env.example',
       target: 'apps/mobile/.env',
@@ -36,6 +41,11 @@ function environmentFiles(options: ProjectOptions): EnvironmentFile[] {
     options.features.electronUpdater ? {
       example: 'apps/desktop/electron-builder.env.example',
       target: 'apps/desktop/electron-builder.env',
+      optional: [],
+    } : null,
+    options.features.workflows ? {
+      example: 'apps/workflows/.env.example',
+      target: 'apps/workflows/.dev.vars',
       optional: [],
     } : null,
     options.apps.extension ? {
@@ -56,7 +66,9 @@ function nextCommands(options: ProjectOptions): string[] {
     options.features.database ? 'git add packages/db/migrations' : null,
     'pnpm verify',
     options.features.database ? 'pnpm db:migrate' : null,
-    'pnpm dev',
+    options.features.workflows && !Object.values(options.apps).some(Boolean)
+      ? 'pnpm workflows:dev'
+      : 'pnpm dev',
   ].filter((entry): entry is string => entry !== null);
 }
 

@@ -41,6 +41,13 @@ const PLACEHOLDER_VALUES = Object.freeze(new Set([
   'replace-me',
 ]));
 
+function isPlaceholderValue(value) {
+  const normalized = value.trim().toLowerCase();
+  return PLACEHOLDER_VALUES.has(normalized)
+    || /^(?:change|replace)(?:[-_ ]?me)?(?:[-_ ].*)?$/.test(normalized)
+    || /^(?:placeholder|your value|your-value|your_value)$/.test(normalized);
+}
+
 const TEXT_EXTENSIONS = new Set([
   '', '.cjs', '.css', '.env', '.html', '.js', '.json', '.jsx', '.md', '.mjs', '.mts',
   '.sh', '.ts', '.tsx', '.txt', '.yaml', '.yml',
@@ -68,7 +75,7 @@ export function scanText(relativePath, contents) {
         && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
       ) continue;
       const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
-      if (assignedValue && PLACEHOLDER_VALUES.has(assignedValue.toLowerCase())) continue;
+      if (id === 'credential-assignment' && assignedValue && isPlaceholderValue(assignedValue)) continue;
       const line = text.slice(0, match.index).split('\n').length;
       findings.push({ path: relativePath, line, pattern: id });
     }

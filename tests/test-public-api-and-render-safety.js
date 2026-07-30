@@ -65,7 +65,7 @@ try {
   assert.equal(result.stderr, '');
 
   const manifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, 5);
+  assert.equal(manifest.schemaVersion, 6);
   assert.deepEqual(Object.keys(manifest.templates).sort(), [
     'api-fastify',
     'db-drizzle',
@@ -82,8 +82,10 @@ try {
     'extension',
     'db',
     'auth',
+    'realtime',
     'billing',
     'storage',
+    'workflows',
     'native-subscriptions',
     'electron-updater',
   ]);

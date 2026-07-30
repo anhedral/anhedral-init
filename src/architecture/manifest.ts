@@ -30,8 +30,9 @@ import {
   type NativeStylingLibrary,
   type UiComponentInstall,
 } from '../ui.js';
+import { AUTHJS_UNSUPPORTED_MODULES, type AdminMode, type AuthProvider } from '../project.js';
 
-export const MANIFEST_SCHEMA_VERSION = 5 as const;
+export const MANIFEST_SCHEMA_VERSION = 6 as const;
 
 export type ManifestToolchain = 'stable' | 'latest';
 
@@ -53,6 +54,10 @@ export type ProjectManifest = {
   /** The complete, canonically ordered module dependency closure. */
   readonly modules: readonly ModuleId[];
   readonly toolchain: ManifestToolchain;
+  readonly stack: {
+    readonly authProvider: AuthProvider;
+    readonly adminMode: AdminMode;
+  };
   /** Immutable template catalog entries used to seed the generated workspace. */
   readonly templates: TemplateProvenanceMap;
   readonly ui: {
@@ -72,6 +77,8 @@ export type CreateManifestInput = {
   readonly toolchain: ManifestToolchain;
   readonly templates: TemplateProvenanceMap;
   readonly nativeStyling?: NativeStylingLibrary;
+  readonly authProvider?: AuthProvider;
+  readonly adminMode?: AdminMode;
   readonly components?: readonly UiComponentInstall[];
   readonly registry?: ModuleRegistry;
 };
@@ -106,6 +113,55 @@ function readNonEmptyString(value: unknown, path: string): string {
     throw new ManifestValidationError('INVALID_MANIFEST', `${path} must be a non-empty string`, path);
   }
   return value;
+}
+
+function readStack(value: unknown, modules: readonly ModuleId[]): ProjectManifest['stack'] {
+  if (!isRecord(value)) {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'stack must be an object', 'stack');
+  }
+  assertExactKeys(value, ['authProvider', 'adminMode'], 'stack');
+  if (value.authProvider !== 'clerk' && value.authProvider !== 'authjs') {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'stack.authProvider must be clerk or authjs', 'stack.authProvider');
+  }
+  if (value.adminMode !== 'none' && value.adminMode !== 'page' && value.adminMode !== 'app') {
+    throw new ManifestValidationError('INVALID_MANIFEST', 'stack.adminMode must be none, page, or app', 'stack.adminMode');
+  }
+  const selected = new Set(modules);
+  if (value.authProvider === 'authjs' && (!selected.has('auth') || !selected.has('web'))) {
+    throw new ManifestValidationError(
+      'INVALID_MANIFEST',
+      'Auth.js requires the auth and web modules',
+      'stack.authProvider',
+    );
+  }
+  if (selected.has('admin') && value.authProvider !== 'authjs') {
+    throw new ManifestValidationError(
+      'INVALID_MANIFEST',
+      'The generated admin modes currently require Auth.js',
+      'stack.authProvider',
+    );
+  }
+  const incompatibleAuthJsModules = value.authProvider === 'authjs'
+    ? AUTHJS_UNSUPPORTED_MODULES.filter((moduleId) => selected.has(moduleId))
+    : [];
+  if (incompatibleAuthJsModules.length > 0) {
+    throw new ManifestValidationError(
+      'INVALID_MANIFEST',
+      `Auth.js does not support selected modules: ${incompatibleAuthJsModules.join(', ')}`,
+      'stack.authProvider',
+    );
+  }
+  if ((value.adminMode === 'none') === selected.has('admin')) {
+    throw new ManifestValidationError(
+      'INVALID_MANIFEST',
+      'stack.adminMode must select page or app exactly when the admin module is installed',
+      'stack.adminMode',
+    );
+  }
+  return Object.freeze({
+    authProvider: value.authProvider,
+    adminMode: value.adminMode,
+  });
 }
 
 function assertExactKeys(
@@ -389,7 +445,8 @@ export function readManifest(
       'schemaVersion',
     );
   }
-  if (schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+  const legacyV5 = schemaVersion === 5;
+  if (schemaVersion !== MANIFEST_SCHEMA_VERSION && !legacyV5) {
     throw new ManifestValidationError(
       'INVALID_SCHEMA_VERSION',
       `Unsupported manifest schema: ${schemaVersion}; expected ${MANIFEST_SCHEMA_VERSION}`,
@@ -399,7 +456,9 @@ export function readManifest(
 
   assertExactKeys(
     value,
-    ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'templates', 'ui', 'files'],
+    legacyV5
+      ? ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'templates', 'ui', 'files']
+      : ['schemaVersion', 'generatorVersion', 'project', 'modules', 'toolchain', 'stack', 'templates', 'ui', 'files'],
     '$',
   );
   if (!isRecord(value.project)) {
@@ -427,6 +486,9 @@ export function readManifest(
     project,
     modules,
     toolchain: value.toolchain,
+    stack: legacyV5
+      ? Object.freeze({ authProvider: 'clerk', adminMode: 'none' })
+      : readStack(value.stack, modules),
     templates: readTemplates(value.templates, modules),
     ui: readUi(value.ui, modules),
     files: readFiles(value.files, modules),
@@ -450,6 +512,10 @@ export function createManifest(input: CreateManifestInput): ProjectManifest {
     project: input.project,
     modules: input.plan.resolvedModules,
     toolchain: input.toolchain,
+    stack: {
+      authProvider: input.authProvider ?? 'clerk',
+      adminMode: input.adminMode ?? (input.plan.resolvedModules.includes('admin') ? 'page' : 'none'),
+    },
     templates: input.templates,
     ui: {
       nativeStyling: input.nativeStyling ?? 'nativewind',

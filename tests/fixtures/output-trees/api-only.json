@@ -28,15 +28,15 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 115,
-      "sha256": "b005f41bc55f8de85c7343d454e9f0717676940095ac85d686df1a7bbc88ba5a"
+      "bytes": 130,
+      "sha256": "1135ea965d857af3f458627d691aa1f07b643a3bfeacc08e914c584e63f8f75f"
     },
     {
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 499,
-      "sha256": "d07751f2983ef2213c2e0f5863977013c6e4afc65f599de8dd7905fa134bcb9b"
+      "bytes": 500,
+      "sha256": "8159b9af8291de824d51d013d074b19cdb05944c0f49af877cfb56302dbc8534"
     },
     {
       "path": "PRODUCTION.md",
@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 2834,
-      "sha256": "ddf962f8e05a5abc50bcafbb6e4da9428442690f530ffca326392c9fbee1640f"
+      "bytes": 2835,
+      "sha256": "852786bc3a2d1804cadeced7b46731f01124802cea56551efb73cb0b4235df4f"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 6761,
-      "sha256": "34273539d8d01b6df318e8ef3f8b0d242ae3b561d7037a1b8787b8b3f99ad1fb"
+      "bytes": 6763,
+      "sha256": "c69340c14daf3b1a7746cb39f0b0c97135e9dd3f2eddecde094389933b3496ad"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 6505,
-      "sha256": "d7bda2e74e2a4295954eb0e16200473a11b9fa9486db29c8d7472d6f868a0d77"
+      "bytes": 6576,
+      "sha256": "00626379f9384b0f698a94735a247c6e39c90d2bcfaca868ccc592f40591b4da"
     },
     {
       "path": "apps/api/.env.example",
@@ -98,8 +98,8 @@
       "path": "apps/api/src/env.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 1625,
-      "sha256": "c12ac2dcb21afbf58d49cafcdaacf929f35bd3baa8d01bccaa1552dbc22d0067"
+      "bytes": 1632,
+      "sha256": "0d91721f7ef74cf2ab2da58a75224d8831416d4d1288566dd79ba4d8d1c487fa"
     },
     {
       "path": "apps/api/src/index.ts",
@@ -154,22 +154,22 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1503,
-      "sha256": "9aff4868877624edee6228bd823815b26d07faf24d8f067bcfcb634913a5df84"
+      "bytes": 1499,
+      "sha256": "86846dc35d9c36af2b56eb4ec9969f69590dd998ec2647da12952e10e6ae886a"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1046,
-      "sha256": "fbd6fb8edf86c0da610d6abcb41768d21e4d1e59c17db1b1e38d43e2551de2fa"
+      "bytes": 1054,
+      "sha256": "b3fff420be94097342002422ec01f0103941541bd014bb9c2b4da8cac4efa13e"
     },
     {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
       "bytes": 1218,
-      "sha256": "62c517027c5e852c3de1302cef6ec33958015f2ee8ffa22c6b56f6fa5da038bf"
+      "sha256": "161e837951312a888e38da39113e1b0795133e6b111a8057a083eed209f26c63"
     },
     {
       "path": "packages/contracts/package.json",
@@ -210,8 +210,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 725,
-      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
+      "bytes": 762,
+      "sha256": "a38d7361ca1a1158e621b7ea4767722a7541f8bfdb4bdb0f2cecd67869618a9f"
     },
     {
       "path": "scripts/first-run.mjs",
@@ -235,5 +235,5 @@
       "sha256": "125066d93c2573fadb41e0c420c3860441aa6f44c8b0013e6fbbcd73dfdb6691"
     }
   ],
-  "digest": "3d4c80296467bb735456fc2e2485889b6583e9daac8934e6c3205a0dc47ad04e"
+  "digest": "be0d787c0d82b367f27ca22f890dd0d66e2592dafe111c6fb51054ca2ea7bfc4"
 }

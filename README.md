@@ -13,6 +13,10 @@ Anhedral generates a complete, production-oriented TypeScript stack whose source
 
 ![Anhedral Init Stack architecture diagram](assets/anhedral-cli-init.svg)
 
+For protocol-level routes, trust boundaries, provider bindings, durable state,
+release ordering, and the opt-in self-hosted path, open the
+[expanded technical communication map](assets/anhedral-cli-init-technical.svg).
+
 Anhedral is not a new programming language and generated applications do not run inside a proprietary application framework. It assembles well-documented tools, connects their difficult integration boundaries, and leaves developers with ordinary Next.js, Expo Router, Fastify, Drizzle, Electron, and WXT projects.
 
 The measurable product and developer-experience contract is documented in the
@@ -57,7 +61,7 @@ cd my-product
 
 The suggested selection is a focused web app, and Anhedral shows the complete
 resolved stack before it writes anything. To explicitly create every supported
-surface and capability, use:
+application surface and service capability, use:
 
 ```sh
 pnpm dlx anhedral@latest new my-product --all
@@ -66,29 +70,58 @@ pnpm dlx anhedral@latest new my-product --all
 The generated `README.md` contains the exact next steps for the selected stack.
 Run `pnpm first-run` to create missing local environment files without
 overwriting anything, then use `pnpm ready` for a secret-safe readiness check.
-For the complete stack, configure the selected managed providers—including a
+For the default stack, configure the selected managed providers—including a
 Neon `DATABASE_URL`—and create the reviewed initial migration before running
-`pnpm dev`. Anhedral intentionally does not generate a local Postgres substitute
-or pretend that production provider credentials already exist.
+`pnpm dev`. Self-hosted infrastructure is opt-in and Anhedral never pretends
+that production provider credentials or a provisioned server already exist.
 
-In noninteractive environments, no module flags retain the complete-stack
+In noninteractive environments, no product flags retain the complete-stack
 default for compatibility. Prefer `--all` when that is your intent, or name
 only what the product needs:
 
 ```sh
-pnpm dlx anhedral@latest new my-product --web --api --db --auth
-pnpm dlx anhedral@latest new my-api --api --db
-pnpm dlx anhedral@latest new my-clients --web --mobile
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk
+pnpm dlx anhedral@latest new my-api --fastify --neon
+pnpm dlx anhedral@latest new my-clients --next --expo
+pnpm dlx anhedral@latest new my-vps-app --next --fastify --postgres --ubuntu --docker --nginx --certbot
+pnpm dlx anhedral@latest new my-worker --cloudflare-workflows
 ```
+
+Auth.js is the supported alternative to Clerk for the Next.js stack. It
+generates an `app/(auth)` route group, database-backed credentials, secure JWT
+sessions, and a server-side bridge to Fastify:
+
+```sh
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --authjs
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --authjs --admin-page
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --authjs --admin-app
+```
+
+`--admin-page` creates `apps/web/app/(admin)/admin`. `--admin-app` creates
+`apps/admin/app/(auth)` and `apps/admin/app/(admin)` with an independent admin
+session boundary, cookie name, and `ADMIN_AUTH_SECRET`. Both modes re-check active platform-admin status in the
+database before privileged server operations. After applying the generated
+migration, create identities with
+`pnpm auth:create-user -- <email> <password> [name] [--admin]`.
 
 `init` generates the same workspace in the current empty directory:
 
 ```sh
 mkdir my-product && cd my-product
-pnpm dlx anhedral@latest init --web --api --db --auth
+pnpm dlx anhedral@latest init --next --fastify --neon --clerk
 ```
 
-Interactive terminals prompt for surfaces and capabilities. CI and coding agents should pass explicit module flags.
+Interactive terminals prompt for products by stack category. CI and coding agents should pass explicit product flags.
+
+Infrastructure products are independent selectors: `--postgres`, `--ubuntu`,
+`--docker`, `--nginx`, and `--certbot`. They are not bundled behind a
+deployment-profile flag. Dependency resolution adds only the substrate required
+by the selection: Docker adds Ubuntu, PostgreSQL adds Drizzle and Docker, Nginx
+adds Docker, and Certbot adds Nginx. The infrastructure artifact includes a
+non-mutating review plan plus an explicit Ubuntu-host bootstrap. Inspect with
+`pnpm provision:plan` and `pnpm dlx anhedral@latest setup-vps --check`; on the
+intended fresh VPS, `pnpm dlx anhedral@latest setup-vps` applies the idempotent
+security and hosting baseline.
 
 ## What gets generated
 
@@ -101,15 +134,17 @@ my-product/
 │   ├── desktop/                # Electron + React
 │   ├── extension/              # WXT browser extension
 │   ├── assets-private-proxy/   # Cloudflare Worker for private asset delivery
+│   ├── workflows/              # Cloudflare durable workflows + authenticated control API
 │   └── desktop-updater-worker/ # private R2 Electron update delivery
 ├── packages/
 │   ├── contracts/              # shared Zod network contracts
 │   ├── api-client/             # typed client used by every frontend
 │   ├── db/                     # Drizzle schema and reviewed migrations
-│   └── realtime/               # Ably client when billing is selected
+│   └── realtime/               # authenticated Ably client when realtime is selected
 ├── docs/
 │   ├── DEVELOPMENT.md          # task-oriented feature recipes
 │   └── STACK.md                # tool map and official documentation
+├── deploy/                     # opt-in VPS plan, bootstrap, and hosting substrate
 ├── README.md                   # first run and where-to-write-code map
 ├── PRODUCTION.md               # selection-specific release runbook
 ├── SKILL.md                    # repository guidance for coding agents
@@ -175,35 +210,75 @@ contracts -> database/service -> Fastify route -> typed API client -> frontend
 | Native | Expo Router | One TypeScript application for iOS and Android |
 | API | Fastify | Typed validation, structured logging, plugin boundaries |
 | Database | Neon + Drizzle | Managed Postgres with TypeScript schema and SQL-like queries |
+| Self-hosted database | PostgreSQL | Private runtime, credentials outside Git, off-host backup and restore gates |
+| VPS host | Ubuntu + Docker | Recoverable host baseline and container-aware firewall planning |
+| Edge and TLS | Nginx + Certbot | Reverse-proxy and observable Let’s Encrypt lifecycle planning |
 | Authentication | Clerk | Connected frontend and backend identity/session flows |
 | UI | shadcn/ui + React Native Reusables | Accessible source code the application owns |
 | Storage | private Cloudflare R2 | Signed uploads and controlled asset delivery |
-| Billing/realtime | RevenueCat + Stripe + Ably | Unified billing entitlements and realtime invalidation |
+| Realtime | Ably | Authenticated, user-scoped events across every selected client |
+| Durable workflows | Cloudflare Workflows | Retryable multi-step jobs with persisted progress, sleeps, and external events |
+| Billing | RevenueCat + Stripe | Unified billing entitlements with realtime invalidation |
 | Desktop | Electron | Predictable cross-platform TypeScript desktop runtime |
 | Desktop updates | electron-updater + private R2 + Worker | Signed automatic updates through a product-owned custom domain |
 | Extension | WXT | Browser-extension entrypoints, builds, and packaging |
 | Workspace | pnpm + Turborepo | Strict dependencies and dependency-aware tasks |
 
-Anhedral does **not** generate or require local Postgres. Database-enabled projects use a managed Neon connection through `DATABASE_URL`; teams should use isolated Neon branches or projects for development, preview, and production.
+Managed database selections use Neon through `DATABASE_URL`; teams should use
+isolated branches or projects for development, preview, and production.
+`--postgres` instead selects the self-hosted PostgreSQL runtime and generates a
+non-mutating plan plus a host-local Ubuntu bootstrap. It never replays remote
+commands; the operator explicitly runs
+`pnpm dlx anhedral@latest setup-vps` on the intended VPS.
 
 ## Commands
 
 ```text
-anhedral new <directory> [modules...]    Generate a new readable workspace
-anhedral init [modules...]               Generate in the current empty directory
-anhedral new <directory> --all           Explicitly select the complete stack
-pnpm anhedral:add <module...>             Add connected stack capabilities
-pnpm anhedral:ui <component...>           Add source-owned UI components
-pnpm anhedral:upgrade                     Transactionally upgrade a supported project
-pnpm anhedral:doctor                      Check ownership and generator drift
+anhedral new <directory> [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--no-git] [--dry-run] [--json] [--verbose]
+  Create a new Anhedral workspace in a new directory; Git is initialized when available unless --no-git is passed.
+
+anhedral init [products...|--all] [--ui <components>] [--native-styling <nativewind|uniwind>] [--toolchain <latest|stable>] [--skip-install] [--git] [--dry-run] [--json] [--verbose]
+  Create the same workspace in the current empty directory while preserving its repository state unless --git is passed.
+
+anhedral add <product...|--all> [--toolchain <latest|stable>] [--skip-install] [--dry-run] [--json] [--verbose]
+  Resolve and transactionally add connected products to an existing Anhedral workspace without overwriting product-owned code.
+
+anhedral ui add <component...> [--target <client>] [--skip-install] [--dry-run] [--json] [--verbose]
+  Add source-owned shadcn/ui or React Native Reusables components to selected generated clients.
+
+anhedral upgrade [--skip-install] [--dry-run] [--json] [--verbose]
+  Transactionally upgrade a supported older Anhedral workspace while preserving user-owned extension seams.
+
+anhedral doctor [--json] [--verbose]
+  Inspect the manifest, ownership records, managed-file drift, and interrupted transaction state without modifying the workspace.
+
+anhedral setup-vps [--check] [--verbose]
+  Validate and apply the generated idempotent Ubuntu VPS security and hosting bootstrap; --check performs validation only.
+
+anhedral --version
+  Print the installed Anhedral CLI version.
+
+anhedral --help
+  Print current command syntax, products, dependency behavior, and runtime requirements.
 ```
+
+Run these commands directly when Anhedral is installed, or prefix them with
+`pnpm dlx anhedral@latest`, for example
+`pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk`.
+The [complete CLI reference](docs/cli-reference.md) documents every product
+selector, option, default, compatibility rule, environment variable, and
+machine-readable behavior.
+Generated workspaces expose `add`, `ui add`, `upgrade`, and `doctor` through the
+equivalent `pnpm anhedral:add`, `pnpm anhedral:ui`,
+`pnpm anhedral:upgrade`, and `pnpm anhedral:doctor` scripts.
 
 Useful examples:
 
 ```sh
-pnpm anhedral:add storage --dry-run
-pnpm anhedral:add desktop extension
+pnpm anhedral:add r2 --dry-run
+pnpm anhedral:add electron wxt
 pnpm anhedral:add electron-updater
+pnpm anhedral:add postgres ubuntu docker nginx certbot --dry-run
 pnpm anhedral:ui button dialog
 pnpm anhedral:ui data-table --target web --dry-run
 pnpm anhedral:upgrade --dry-run
@@ -248,7 +323,7 @@ Before a structural change:
 
 ```sh
 pnpm anhedral:doctor
-pnpm anhedral:add <module> --dry-run
+pnpm anhedral:add <product> --dry-run
 ```
 
 When `doctor` reports that a project was generated by a supported older release, run `pnpm anhedral:upgrade --dry-run`, inspect the plan, and then run `pnpm anhedral:upgrade`. Version 0.4 supports transactional upgrades from 0.3 projects while preserving user-owned extension seams. If a 0.3 project changed a file that was generator-managed, the upgrade stops instead of overwriting it. Preserve the change in source control, restore that managed file to its recorded 0.3 content, run the upgrade, and then move the product behavior into the new user-owned `app.ts`, `app-schema.ts`, page, component, or `app-window.ts` seam.
@@ -263,12 +338,16 @@ Every generated project teaches both humans and coding agents how to work in it:
 - `SKILL.md` gives coding agents concise repository-specific workflow and safety rules.
 - `PRODUCTION.md` covers only the accounts, environment, infrastructure, DNS, stores, and release steps selected for that project.
 
-The generator's exact output contract is documented in [docs/output-tree-contract.md](docs/output-tree-contract.md). Contributor architecture remains available in the [source repository](https://github.com/anhedral/anhedral-init/tree/main/docs/architecture).
+The generator's command surface is documented in the
+[complete CLI reference](docs/cli-reference.md), and its exact output contract
+is documented in [docs/output-tree-contract.md](docs/output-tree-contract.md).
+Contributor architecture remains available in the
+[source repository](https://github.com/anhedral/anhedral-init/tree/main/docs/architecture).
 
 The complete lifecycle, runtime, cloud, command, and coding-agent topology is in
 the [Anhedral master stack map](docs/master-stack-map.md).
-The repository's implementation policy is the
-[Zen of Anhedral](docs/engineering-principles.md).
+Read [Build for What Comes Next](docs/build-for-what-comes-next.md), a short poem
+about the problem Anhedral is built to solve.
 
 ## Module dependency rules
 
@@ -276,7 +355,8 @@ Anhedral resolves integrations as a deterministic graph:
 
 ```text
 auth                 -> api + db
-billing              -> auth
+realtime             -> auth
+billing              -> realtime
 storage              -> auth
 native-subscriptions -> mobile + billing
 electron-updater     -> desktop

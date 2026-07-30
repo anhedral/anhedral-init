@@ -42,10 +42,10 @@ try {
     assert.equal(statSync(modePath).mode & 0o777, 0o600, 'existing files must retain their selected mode');
   }
 
-  run(['init', '--api', '--skip-install'], project);
+  run(['init', '--fastify', '--skip-install'], project);
 
   const initialManifest = JSON.parse(readFileSync(path.join(project, 'anhedral.json'), 'utf8'));
-  assert.equal(initialManifest.schemaVersion, 5);
+  assert.equal(initialManifest.schemaVersion, 6);
   assert.deepEqual(Object.keys(initialManifest.templates), ['api-fastify']);
   const initialSkill = readFileSync(path.join(project, 'SKILL.md'), 'utf8');
   assert.match(initialSkill, /^---\nname: anhedral-project\n/);
@@ -60,7 +60,7 @@ try {
   }, null, 2) + '\n';
   const packageBeforeIncompatibleAdd = readFileSync(path.join(project, 'package.json'));
   writeFileSync(manifestPath, incompatibleManifestText);
-  const incompatibleAdd = run(['add', 'desktop', '--skip-install'], project, 1);
+  const incompatibleAdd = run(['add', 'electron', '--skip-install'], project, 1);
   assert.match(incompatibleAdd.stderr, /only supports exact-current projects/);
   assert.equal(readFileSync(manifestPath, 'utf8'), incompatibleManifestText);
   assert.deepEqual(readFileSync(path.join(project, 'package.json')), packageBeforeIncompatibleAdd);
@@ -92,6 +92,7 @@ try {
     'overrides:',
     "  'adm-zip@<0.6.0': '0.6.0'",
     "  '@vitejs/plugin-react': '5.2.0'",
+    "  'brace-expansion@<=5.0.7': '5.0.8'",
     "  'postcss': '8.5.19'",
     "  'esbuild@<=0.24.2': '0.25.12'",
     "  'esbuild@>=0.27.3 <0.28.1': '0.28.1'",
@@ -264,7 +265,7 @@ try {
     writeFileSync(target, content);
     return [relativePath, content];
   }));
-  run(['add', 'billing', '--skip-install'], extensionSeamProject);
+  run(['add', 'revenuecat', '--skip-install'], extensionSeamProject);
   for (const [relativePath, content] of Object.entries(seamContents)) {
     assert.equal(
       readFileSync(path.join(extensionSeamProject, relativePath), 'utf8'),
@@ -292,10 +293,10 @@ try {
   run(['init', 'web', 'api', '--skip-install'], upgradeProject);
   const upgradeManifestPath = path.join(upgradeProject, 'anhedral.json');
   const upgradeManifest = JSON.parse(readFileSync(upgradeManifestPath, 'utf8'));
-  upgradeManifest.generatorVersion = '0.3.0';
+  upgradeManifest.generatorVersion = '0.4.2';
   writeFileSync(upgradeManifestPath, JSON.stringify(upgradeManifest, null, 2) + '\n');
   const upgradePage = path.join(upgradeProject, 'apps/web/app/page.tsx');
-  const customUpgradePage = `${readFileSync(upgradePage, 'utf8')}\n// survives the 0.4 ownership migration\n`;
+  const customUpgradePage = `${readFileSync(upgradePage, 'utf8')}\n// survives the 0.5 ownership migration\n`;
   writeFileSync(upgradePage, customUpgradePage);
   const beforeUpgradeDryRun = readFileSync(upgradeManifestPath, 'utf8');
   const upgradeDryRun = JSON.parse(run(['upgrade', '--skip-install', '--dry-run', '--json'], upgradeProject).stdout);
@@ -309,15 +310,19 @@ try {
   assert.equal(readFileSync(upgradePage, 'utf8'), customUpgradePage);
   assert.match(readFileSync(path.join(upgradeProject, 'packages/contracts/src/index.ts'), 'utf8'), /\.\/generated/);
 
-  const [upgradeMajor, upgradeMinor, upgradePatch] = currentGeneratorVersion.split('.').map(Number);
-  assert.ok(upgradePatch > 0, 'safe-add compatibility coverage requires a patch release');
-  upgradedManifest.generatorVersion = `${upgradeMajor}.${upgradeMinor}.${upgradePatch - 1}`;
+  const [upgradeMajor, upgradeMinor] = currentGeneratorVersion.split('.').map(Number);
+  assert.equal(
+    `${upgradeMajor}.${upgradeMinor}`,
+    '0.5',
+    'safe-add compatibility coverage must track the current minor release',
+  );
+  upgradedManifest.generatorVersion = '0.4.2';
   writeFileSync(upgradeManifestPath, JSON.stringify(upgradedManifest, null, 2) + '\n');
   run(['upgrade', '--skip-install'], upgradeProject);
   assert.equal(
     JSON.parse(readFileSync(upgradeManifestPath, 'utf8')).generatorVersion,
     currentGeneratorVersion,
-    'the current generator must upgrade projects from its previous patch',
+    'the current generator must upgrade projects from the previous supported minor',
   );
 
   const currentUpgrade = JSON.parse(run(['upgrade', '--skip-install', '--json'], upgradeProject).stdout);
@@ -332,6 +337,31 @@ try {
     paths: [],
     nextSteps: [],
   });
+
+  const legacyBillingProject = path.join(workspace, 'legacy-billing-project');
+  mkdirSync(legacyBillingProject);
+  run(['init', 'web', 'billing', '--skip-install'], legacyBillingProject);
+  const legacyBillingManifestPath = path.join(legacyBillingProject, 'anhedral.json');
+  const legacyBillingManifest = JSON.parse(readFileSync(legacyBillingManifestPath, 'utf8'));
+  legacyBillingManifest.modules = legacyBillingManifest.modules.filter((moduleId) => moduleId !== 'realtime');
+  for (const [relativePath, record] of Object.entries(legacyBillingManifest.files)) {
+    if (relativePath.startsWith('packages/realtime/')) record.owner = 'root';
+  }
+  writeFileSync(legacyBillingManifestPath, JSON.stringify(legacyBillingManifest, null, 2) + '\n');
+  const legacyBillingDoctor = JSON.parse(run(['doctor', '--json'], legacyBillingProject, 1).stdout);
+  assert.equal(legacyBillingDoctor.ok, false);
+  assert.match(
+    legacyBillingDoctor.issues.find((issue) => issue.path === 'anhedral.json')?.message ?? '',
+    /legacy module closure/,
+  );
+  run(['upgrade', '--skip-install'], legacyBillingProject);
+  const migratedBillingManifest = JSON.parse(readFileSync(legacyBillingManifestPath, 'utf8'));
+  assert.deepEqual(
+    migratedBillingManifest.modules,
+    ['web', 'api', 'db', 'auth', 'realtime', 'billing'],
+    'upgrade must promote Ably from a billing implementation detail to the realtime module',
+  );
+  assert.equal(migratedBillingManifest.files['packages/realtime/src/index.ts'].owner, 'realtime');
 
   const updaterProject = path.join(workspace, 'updater-project');
   mkdirSync(updaterProject);
@@ -458,7 +488,7 @@ try {
   fieldMergePackage.scripts['user:check'] = 'node user-check.js';
   fieldMergePackage.dependencies = { 'user-owned-package': '1.0.0' };
   writeFileSync(fieldMergePackagePath, JSON.stringify(fieldMergePackage, null, 2) + '\n');
-  run(['add', 'mobile', '--skip-install'], fieldMergeProject);
+  run(['add', 'expo', '--skip-install'], fieldMergeProject);
   const fieldMergedPackage = JSON.parse(readFileSync(fieldMergePackagePath, 'utf8'));
   assert.equal(fieldMergedPackage.engines.node, '^22.13.0 || ^24.3.0 || >=25');
   assert.equal(fieldMergedPackage.scripts['user:check'], 'node user-check.js');
@@ -471,7 +501,7 @@ try {
   const conflictingEnginePackage = JSON.parse(readFileSync(conflictingEnginePackagePath, 'utf8'));
   conflictingEnginePackage.engines = { node: '>=26' };
   writeFileSync(conflictingEnginePackagePath, JSON.stringify(conflictingEnginePackage, null, 2) + '\n');
-  const engineConflict = run(['add', 'mobile', '--skip-install'], conflictingEngineProject, 1);
+  const engineConflict = run(['add', 'expo', '--skip-install'], conflictingEngineProject, 1);
   assert.match(String(engineConflict.stderr), /engines was user-modified/);
   assert.equal(existsSync(path.join(conflictingEngineProject, 'apps/mobile')), false);
 
@@ -488,7 +518,7 @@ try {
   const customWorkflow = path.join(project, '.github/workflows/custom.yml');
   writeFileSync(customWorkflow, 'name: User workflow\non: workflow_dispatch\njobs: {}\n');
 
-  run(['add', 'desktop', '--skip-install'], project);
+  run(['add', 'electron', '--skip-install'], project);
   assert.equal(readFileSync(readmePath, 'utf8'), customReadme);
   assert.equal(readFileSync(customWorkflow, 'utf8'), 'name: User workflow\non: workflow_dispatch\njobs: {}\n');
   const mergedPackage = JSON.parse(readFileSync(rootPackagePath, 'utf8'));
@@ -502,38 +532,38 @@ try {
   assert.match(readFileSync(path.join(project, 'SKILL.md'), 'utf8'), /Desktop lives in `apps\/desktop`/);
 
   const manifestHash = fileHash(path.join(project, 'anhedral.json'));
-  run(['add', 'desktop', '--skip-install'], project);
+  run(['add', 'electron', '--skip-install'], project);
   assert.equal(fileHash(path.join(project, 'anhedral.json')), manifestHash, 'repeated add should be a no-op');
 
   const beforeDryRun = fileHash(path.join(project, 'anhedral.json'));
-  const dryRun = run(['add', 'storage', '--skip-install', '--dry-run'], project);
+  const dryRun = run(['add', 'r2', '--skip-install', '--dry-run'], project);
   assert.match(String(dryRun.stdout), /add plan:/);
   assert.equal(fileHash(path.join(project, 'anhedral.json')), beforeDryRun, 'dry-run must not mutate the project');
 
   const managedApp = path.join(project, 'apps/api/src/application.ts');
   writeFileSync(managedApp, readFileSync(managedApp, 'utf8') + '\n// user modification\n');
   const beforeConflict = fileHash(path.join(project, 'anhedral.json'));
-  const conflict = run(['add', 'auth', '--skip-install'], project, 1);
+  const conflict = run(['add', 'clerk', '--skip-install'], project, 1);
   assert.match(String(conflict.stderr), /Managed file has user modifications/);
   assert.equal(fileHash(path.join(project, 'anhedral.json')), beforeConflict, 'conflict must leave the manifest unchanged');
 
   const latestProject = path.join(workspace, 'latest-project');
   mkdirSync(latestProject);
-  run(['init', '--api', '--toolchain', 'latest', '--skip-install'], latestProject);
-  run(['add', 'desktop', '--skip-install'], latestProject);
+  run(['init', '--fastify', '--toolchain', 'latest', '--skip-install'], latestProject);
+  run(['add', 'electron', '--skip-install'], latestProject);
   const latestManifest = JSON.parse(readFileSync(path.join(latestProject, 'anhedral.json'), 'utf8'));
   assert.equal(latestManifest.toolchain, 'latest', 'add should preserve the manifest toolchain channel by default');
 
   const peerConflictProject = path.join(workspace, 'peer-conflict-project');
   mkdirSync(peerConflictProject);
-  run(['init', '--api', '--skip-install'], peerConflictProject);
+  run(['init', '--fastify', '--skip-install'], peerConflictProject);
   const peerConflictWorkspacePath = path.join(peerConflictProject, 'pnpm-workspace.yaml');
   writeFileSync(
     peerConflictWorkspacePath,
     readFileSync(peerConflictWorkspacePath, 'utf8').replace('autoInstallPeers: false', "'autoInstallPeers': TRUE # user policy"),
   );
   const peerConflictManifestHash = fileHash(path.join(peerConflictProject, 'anhedral.json'));
-  const peerConflict = run(['add', 'desktop', '--skip-install'], peerConflictProject, 1);
+  const peerConflict = run(['add', 'electron', '--skip-install'], peerConflictProject, 1);
   assert.match(String(peerConflict.stderr), /autoInstallPeers must be false/);
   assert.match(readFileSync(peerConflictWorkspacePath, 'utf8'), /'autoInstallPeers': TRUE # user policy/);
   assert.equal(
@@ -544,7 +574,7 @@ try {
 
   const ownedPeerPolicyProject = path.join(workspace, 'owned-peer-policy-project');
   mkdirSync(ownedPeerPolicyProject);
-  run(['init', '--api', '--skip-install'], ownedPeerPolicyProject);
+  run(['init', '--fastify', '--skip-install'], ownedPeerPolicyProject);
   const ownedPeerWorkspacePath = path.join(ownedPeerPolicyProject, 'pnpm-workspace.yaml');
   writeFileSync(
     ownedPeerWorkspacePath,
@@ -554,13 +584,13 @@ try {
   const ownedPeerManifest = JSON.parse(readFileSync(ownedPeerManifestPath, 'utf8'));
   ownedPeerManifest.files['pnpm-workspace.yaml'].hash = fileHash(ownedPeerWorkspacePath);
   writeFileSync(ownedPeerManifestPath, JSON.stringify(ownedPeerManifest, null, 2) + '\n');
-  run(['add', 'desktop', '--skip-install'], ownedPeerPolicyProject);
+  run(['add', 'electron', '--skip-install'], ownedPeerPolicyProject);
   assert.doesNotMatch(readFileSync(ownedPeerWorkspacePath, 'utf8'), /TRUE/);
   assert.match(readFileSync(ownedPeerWorkspacePath, 'utf8'), /"autoInstallPeers": false # generated policy/);
 
   const ownedMappingProject = path.join(workspace, 'owned-mapping-project');
   mkdirSync(ownedMappingProject);
-  run(['init', '--web', '--skip-install'], ownedMappingProject);
+  run(['init', '--next', '--skip-install'], ownedMappingProject);
   const ownedMappingWorkspacePath = path.join(ownedMappingProject, 'pnpm-workspace.yaml');
   writeFileSync(
     ownedMappingWorkspacePath,
@@ -575,7 +605,7 @@ try {
   const ownedMappingManifest = JSON.parse(readFileSync(ownedMappingManifestPath, 'utf8'));
   ownedMappingManifest.files['pnpm-workspace.yaml'].hash = fileHash(ownedMappingWorkspacePath);
   writeFileSync(ownedMappingManifestPath, JSON.stringify(ownedMappingManifest, null, 2) + '\n');
-  run(['add', 'desktop', '--skip-install'], ownedMappingProject);
+  run(['add', 'electron', '--skip-install'], ownedMappingProject);
   assert.match(
     readFileSync(ownedMappingWorkspacePath, 'utf8'),
     /'esbuild': '>=0\.25\.0' # generated policy/,
@@ -584,7 +614,7 @@ try {
 
   const mappingConflictProject = path.join(workspace, 'mapping-conflict-project');
   mkdirSync(mappingConflictProject);
-  run(['init', '--web', '--skip-install'], mappingConflictProject);
+  run(['init', '--next', '--skip-install'], mappingConflictProject);
   const mappingConflictWorkspacePath = path.join(mappingConflictProject, 'pnpm-workspace.yaml');
   writeFileSync(
     mappingConflictWorkspacePath,
@@ -594,7 +624,7 @@ try {
     ),
   );
   const mappingConflictManifestHash = fileHash(path.join(mappingConflictProject, 'anhedral.json'));
-  const mappingConflict = run(['add', 'desktop', '--skip-install'], mappingConflictProject, 1);
+  const mappingConflict = run(['add', 'electron', '--skip-install'], mappingConflictProject, 1);
   assert.match(
     String(mappingConflict.stderr),
     /peerDependencyRules\.allowedVersions: mapping entry esbuild differs from the generated value/,
@@ -608,7 +638,7 @@ try {
 
   const healthyProject = path.join(workspace, 'doctor-project');
   mkdirSync(healthyProject);
-  run(['init', '--web', '--skip-install'], healthyProject);
+  run(['init', '--next', '--skip-install'], healthyProject);
   const healthyDoctor = JSON.parse(run(['doctor', '--json'], healthyProject).stdout);
   assert.deepEqual(healthyDoctor.recommendedActions, []);
   assert.deepEqual(healthyDoctor.project, { name: 'doctor-project', displayName: 'doctor-project' });
@@ -655,7 +685,7 @@ try {
 
   const binaryIntegrityProject = path.join(workspace, 'binary-integrity-project');
   mkdirSync(binaryIntegrityProject);
-  run(['init', '--api', '--skip-install'], binaryIntegrityProject);
+  run(['init', '--fastify', '--skip-install'], binaryIntegrityProject);
   const binaryRelativePath = 'apps/api/src/application.ts';
   const binaryTarget = path.join(binaryIntegrityProject, binaryRelativePath);
   const binaryManifestPath = path.join(binaryIntegrityProject, 'anhedral.json');
@@ -669,13 +699,13 @@ try {
   assert.ok(binaryDoctor.issues.some((issue) => (
     issue.path === binaryRelativePath && issue.severity === 'error'
   )), 'doctor must not collapse distinct malformed byte sequences through UTF-8 replacement');
-  const binaryAdd = run(['add', 'desktop', '--skip-install'], binaryIntegrityProject, 1);
+  const binaryAdd = run(['add', 'electron', '--skip-install'], binaryIntegrityProject, 1);
   assert.match(binaryAdd.stderr, /Managed file has user modifications/);
   assert.deepEqual(readFileSync(binaryTarget), Buffer.from([0x81]), 'byte-level conflicts must not be overwritten');
 
   const modeOwnershipProject = path.join(workspace, 'mode-ownership-project');
   mkdirSync(modeOwnershipProject);
-  run(['init', '--api', '--skip-install'], modeOwnershipProject);
+  run(['init', '--fastify', '--skip-install'], modeOwnershipProject);
   const modeManifestPath = path.join(modeOwnershipProject, 'anhedral.json');
   const modeRelativePath = 'apps/api/src/application.ts';
   const modeTarget = path.join(modeOwnershipProject, modeRelativePath);
@@ -688,7 +718,7 @@ try {
         && issue.severity === 'error'
         && issue.message.includes('file mode differs from its recorded mode')
     )), 'doctor must report managed-file permission drift');
-    const modeAdd = run(['add', 'desktop', '--skip-install'], modeOwnershipProject, 1);
+    const modeAdd = run(['add', 'electron', '--skip-install'], modeOwnershipProject, 1);
     assert.match(modeAdd.stderr, /Managed file mode has user modifications/);
     assert.equal(statSync(modeTarget).mode & 0o777, 0o600, 'a rejected add must not reset a user-changed mode');
     assert.equal(fileHash(modeManifestPath), beforeModeConflict, 'a mode conflict must leave the manifest unchanged');
@@ -709,7 +739,7 @@ try {
   const mergeGitignorePath = path.join(mergeProject, '.gitignore');
   writeFileSync(mergeGitignorePath, originalGitignore);
   if (process.platform !== 'win32') chmodSync(mergeGitignorePath, 0o600);
-  run(['init', '--web', '--skip-install'], mergeProject);
+  run(['init', '--next', '--skip-install'], mergeProject);
   const generatedGitignore = readFileSync(mergeGitignorePath, 'utf8');
   if (process.platform !== 'win32') {
     assert.equal(statSync(mergeGitignorePath).mode & 0o777, 0o600, 'a seeded mergeable file must retain its user-selected mode');
@@ -774,7 +804,7 @@ try {
   customVercel.customTopLevel = { enabled: true };
   writeFileSync(vercelPath, JSON.stringify(customVercel, null, 2) + '\n');
 
-  run(['add', 'auth', '--skip-install'], mergeProject);
+  run(['add', 'clerk', '--skip-install'], mergeProject);
   const mergedWorkspaceAfterAuth = readFileSync(workspacePath, 'utf8');
   assert.match(mergedWorkspaceAfterAuth, /# Workspace header/);
   assert.match(mergedWorkspaceAfterAuth, /# User catalog must remain byte-for-byte\ncatalog:\n  react: '19\.1\.0'/);
@@ -822,12 +852,12 @@ try {
     webRoot: 'apps/custom-web',
   });
 
-  run(['add', 'extension', '--skip-install'], mergeProject);
+  run(['add', 'wxt', '--skip-install'], mergeProject);
   assertCustomStructuredConfigSurvives({
     turboCache: true,
     webRoot: 'apps/custom-web',
   });
-  run(['add', 'desktop', '--skip-install'], mergeProject);
+  run(['add', 'electron', '--skip-install'], mergeProject);
   assertCustomStructuredConfigSurvives({
     turboCache: true,
     webRoot: 'apps/custom-web',

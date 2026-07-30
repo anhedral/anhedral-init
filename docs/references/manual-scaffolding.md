@@ -23,20 +23,21 @@ Record these values before editing:
 - `projectName`: a valid npm package name; use it for the root package and child package prefixes.
 - `displayName`: human-readable product name; escape it for every JSON, JavaScript, HTML, and Markdown context.
 - requested app surfaces: `web`, `mobile`, `api`, `desktop`, `extension`.
-- requested features: `db`, `auth`, `billing`, `storage`, `native-subscriptions`, `electron-updater`.
+- requested features: `db`, `auth`, `realtime`, `billing`, `storage`, `workflows`, `native-subscriptions`, `electron-updater`.
 - toolchain policy: exact tested versions for reproducibility, or current compatible versions when the user explicitly wants upgrades.
 
 Resolve the transitive closure before writing files:
 
 ```text
 auth                 -> api + db
-billing              -> auth -> api + db
+realtime             -> auth -> api + db
+billing              -> realtime -> auth -> api + db
 storage              -> auth -> api + db
-native-subscriptions -> mobile + billing -> auth + api + db
+native-subscriptions -> mobile + billing -> realtime + auth + api + db
 electron-updater     -> desktop
 ```
 
-If no modules were specified, select all five surfaces and all six features. Never create a feature without its prerequisites. Keep normalized order `web, mobile, api, desktop, extension, db, auth, billing, storage, native-subscriptions, electron-updater` when displaying or recording a plan.
+If no modules were specified, select all five surfaces and all seven features. Never create a feature without its prerequisites. Keep normalized order `web, mobile, api, desktop, extension, db, auth, realtime, billing, storage, native-subscriptions, electron-updater` when displaying or recording a plan.
 
 Choose Node `^20.19.0 || >=22.12.0` unless mobile is selected. Expo mobile requires `^22.13.0 || ^24.3.0 || >=25`. Use one root pnpm workspace and one root lockfile; never leave nested lockfiles, workspaces, `.git` directories, or `node_modules` inside apps.
 
@@ -85,7 +86,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   scripts/verify-db-migrations.mjs                         [db]
   packages/contracts/{package.json,tsconfig.json,src/index.ts} [api]
   packages/api-client/{package.json,tsconfig.json,src/index.ts} [api + any client]
-  packages/realtime/{package.json,tsconfig.json,src/index.ts}   [billing + any client]
+  packages/realtime/{package.json,tsconfig.json,src/{generated.ts,app.ts,index.ts}} [realtime + any client]
   packages/db/{package.json,tsconfig.json,drizzle.config.ts,.env.example} [db]
   packages/db/src/{index.ts,migrate.ts,schema.ts}           [db]
   packages/db/migrations/.gitkeep                           [db]
@@ -93,7 +94,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/api/src/{application.ts,env.ts,index.ts,routes.ts}    [api]
   apps/api/src/auth.ts                                      [auth]
   apps/api/src/billing.ts                                   [billing]
-  apps/api/src/realtime.ts                                  [billing]
+  apps/api/src/realtime.ts                                  [realtime]
   apps/api/src/storage.ts                                   [storage]
   apps/api/tests/{health.test.ts,env.test.ts}                [api]
   apps/api/tests/revenuecat-webhook.test.ts                  [billing]
@@ -140,7 +141,7 @@ Create only selected branches of this tree. A bracketed condition makes the file
   apps/extension/src/hooks/use-entitlement.ts               [extension + billing]
 ```
 
-Do not create `anhedral.json` manually. Its schema-v5 hashes, modes, ownership classes, template and UI-provider provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
+Do not create `anhedral.json` manually. Its schema-v6 stack metadata, hashes, modes, ownership classes, template and UI-provider provenance, module resolution, generator version, and toolchain channel form a trust boundary for `add` and `doctor`. Invented records are worse than no manifest. Also omit `ANHEDRAL.md`, whose CLI-management claims would be false for a manual workspace.
 
 ## 3. Create root configuration
 
@@ -230,7 +231,7 @@ Use strict TypeScript with `moduleResolution: Bundler`, `noEmit`, `skipLibCheck`
 
 ### Contracts
 
-Create `@shared/contracts` whenever API is selected. Depend on Zod. Define and export schemas plus inferred types for health and readiness; authenticated user when auth is selected; revisioned entitlement, realtime token request, and `subscription.changed` invalidation when billing is selected; and strict create-upload, confirm-upload, upload-record, and route-param data when storage is selected.
+Create `@shared/contracts` whenever API is selected. Depend on Zod. Define and export schemas plus inferred types for health and readiness; authenticated user when auth is selected; the realtime token request when realtime is selected; revisioned entitlement and the `subscription.changed` invalidation when billing is selected; and strict create-upload, confirm-upload, upload-record, and route-param data when storage is selected.
 
 Keep the upload content-type allowlist and maximum upload size in contracts so API and clients share one source of truth. Validate API response bodies in the client package before returning them.
 
@@ -254,7 +255,7 @@ Do not make server-only provider SDKs dependencies of clients.
 
 ### Realtime client
 
-Create `@shared/realtime` only when billing and at least one client are selected. Depend on Ably and contracts. Accept an async API-token callback, connect with `authCallback`, subscribe only to `private:users/<userId>/subscriptions`, validate every `subscription.changed` payload, expose connection errors, and return an idempotent cleanup function that unsubscribes and closes the client. Never put `ABLY_API_KEY` or a broad Ably capability in a client package.
+Create `@shared/realtime` only when realtime and at least one client are selected. Depend on Ably and contracts. Accept an async API-token callback, connect with `authCallback`, subscribe only to the server-authorized `private:users:<userId>` channel, validate every payload, expose connection errors, and return an idempotent cleanup function that unsubscribes and closes the client. Put product-specific event adapters in the user-owned `src/app.ts`. Never put `ABLY_API_KEY` or a broad Ably capability in a client package.
 
 ### Database
 
@@ -277,7 +278,7 @@ Implement these layers:
 
 Always provide `GET /api/health` and `GET /api/ready`. Readiness returns 503 for dependency failure or shutdown. Do not leak internal errors, stack traces, credentials, or arbitrary details in 5xx responses. Allow safe details only for intentional 4xx errors.
 
-When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation. In the same database transaction as every accepted subscription mutation, increment its revision and insert an outbox record. Expose authenticated `GET /api/subscriptions/me`, `POST /api/subscriptions/refresh`, and `POST /api/realtime/token`; issue a short-lived Ably token request limited to the authenticated Clerk user's subscribe-only channel. Publish only `{ type, revision }`, mark delivery after publish, retain failures for retry, and expose `GET /api/internal/realtime/flush` behind `CRON_SECRET`. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate every key below `R2_PREFIX`, expose an owner-authorized read-URL endpoint with a bounded presigned-GET TTL, and provide an authenticated cleanup endpoint for the scheduled cron.
+When auth is selected, verify Clerk requests server-side and expose protected `/api/me`. When realtime is selected, expose authenticated `POST /api/realtime/token`, issue a short-lived Ably token request limited to the authenticated Clerk user's exact subscribe-only channel, and keep publishing server-only. When billing is selected, implement a RevenueCat webhook with constant-time secret comparison, shape validation, durable idempotency, claim/retry handling, monotonic event timestamps, and server-side subscriber reconciliation. In the same database transaction as every accepted subscription mutation, increment its revision and insert an outbox record. Publish only `{ type, revision }` with the outbox ID as the Ably message ID, mark delivery after publish, retain failures for retry, and expose `GET /api/internal/realtime/flush` behind `CRON_SECRET`. When storage is selected, issue short-lived R2 presigned PUTs bound to content type and length, persist pending uploads, verify object metadata before confirmation, isolate every key below `R2_PREFIX`, expose an owner-authorized read-URL endpoint with a bounded presigned-GET TTL, and provide an authenticated cleanup endpoint for the scheduled cron.
 
 Test health, readiness, shutdown state, safe errors, and exact CORS behavior. Test environment validation. Add replay/out-of-order/retry tests for billing and size/type/ownership/cleanup tests for storage.
 
@@ -306,7 +307,8 @@ Create a WXT React side-panel extension with Tailwind/shadcn-style UI. Generate 
 After selected surfaces exist, perform a cross-surface pass:
 
 - `auth`: Clerk server verification; protected API route; provider/account UI in every selected client; token-aware API hooks; client publishable keys and server secret separated.
-- `billing`: revisioned database state and transactional outbox; RevenueCat webhook/direct refresh; entitlement, scoped-token, and retry routes; Ably publisher and shared subscriber; contracts/API-client methods; live hooks in every client. Never expose RevenueCat or Ably secret keys.
+- `realtime`: authenticated Ably token route; exact user-channel subscribe capability; server-only publishing; shared validated subscriber and product event seam. Never expose `ABLY_API_KEY`.
+- `billing`: revisioned database state and transactional outbox; RevenueCat webhook/direct refresh; entitlement and retry routes; subscription invalidation adapter; contracts/API-client methods; live hooks in every client. Never expose RevenueCat secret keys.
 - `storage`: upload tables; R2 presign/confirm/cleanup; owner-authorized presigned GET URLs; contracts and client methods; Vercel cron; generated R2 CORS/lifecycle guidance; and `apps/assets-private-proxy` with Worker name `assets-private-proxy`, private bucket binding `ASSETS`, `workers.dev` disabled, a user-owned custom-domain config, confirmed-prefix-only streaming GET/HEAD delivery, ranges, conditionals, cache, method/host validation, and no bucket listing.
 - `native-subscriptions`: mobile RevenueCat SDKs, platform keys, Clerk identity synchronization, entitlement/paywall behavior, and error recovery.
 

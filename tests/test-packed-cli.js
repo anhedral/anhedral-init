@@ -40,9 +40,9 @@ function runInstalledScaffold(installRoot) {
   const binPath = path.join(binRoot, process.platform === 'win32' ? 'anhedral.cmd' : 'anhedral');
   const projectRoot = path.join(installRoot, 'packed-project');
   mkdirSync(projectRoot);
-  run(binPath, ['init', '--api', '--skip-install'], projectRoot);
+  run(binPath, ['init', '--fastify', '--skip-install'], projectRoot);
   const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, 5);
+  assert.equal(manifest.schemaVersion, 6);
   assert.deepEqual(Object.keys(manifest.templates), ['api-fastify']);
   assert.equal(existsSync(path.join(projectRoot, 'apps/api/tsconfig.json')), true);
 }

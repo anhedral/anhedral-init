@@ -16,6 +16,8 @@ themselves:
 - a clear path from first run to production without changing architecture; and
 - built-in scale through managed, autoscaling providers rather than custom
   infrastructure.
+- durable background work through explicit, retryable Cloudflare Workflow
+  steps whose product logic remains source-owned.
 
 Anhedral succeeds when developers spend their time on the product idea, not on
 repeating setup, reconciling integrations, or reverse-engineering generated

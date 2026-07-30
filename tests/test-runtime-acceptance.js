@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import {
   accessSync,
   chmodSync,
@@ -205,7 +206,7 @@ async function evaluateTarget(debugTarget, expression) {
       socket.send(JSON.stringify({
         id: commandId,
         method: 'Runtime.evaluate',
-        params: { expression, returnByValue: true },
+        params: { expression, returnByValue: true, awaitPromise: true },
       }));
     }, { once: true });
     socket.addEventListener('message', (event) => {
@@ -295,7 +296,14 @@ try {
   runCommand(process.execPath, ['-e', "require('node:fs').mkdirSync(process.argv[1], { recursive: true })", projectRoot], temporaryRoot, { log: false });
   const requestedModule = target === 'mobile' ? 'native-subscriptions' : target;
   runCommand(process.execPath, [cliEntry, 'init', requestedModule, '--skip-install'], projectRoot);
-  runCommand('pnpm', ['install', '--no-frozen-lockfile'], projectRoot, { env: { CI: '1' } });
+  const installResult = runCommand('pnpm', ['install', '--no-frozen-lockfile'], projectRoot, { env: { CI: '1' } });
+  if (target === 'mobile') {
+    assert.doesNotMatch(
+      `${installResult.stdout}\n${installResult.stderr}`,
+      /missing peer @react-native\/metro-config/,
+      'generated mobile dependencies must satisfy the React Native Metro peer',
+    );
+  }
 
   if (target === 'desktop') {
     runCommand('pnpm', ['--filter', './apps/desktop', 'build'], projectRoot, { env: { CI: '1' } });
@@ -350,12 +358,25 @@ try {
   }
 
   if (target === 'extension') {
-    runCommand('pnpm', ['--filter', './apps/extension', 'build'], projectRoot, { env: { CI: '1' } });
-    runCommand('pnpm', ['--filter', './apps/extension', 'zip'], projectRoot, { env: { CI: '1' } });
+    const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const extensionPublicKey = publicKey.export({ type: 'spki', format: 'der' });
+    const extensionId = createHash('sha256')
+      .update(extensionPublicKey)
+      .digest()
+      .subarray(0, 16)
+      .toString('hex')
+      .replace(/[0-9a-f]/g, (character) => String.fromCharCode(97 + Number.parseInt(character, 16)));
+    const extensionBuildEnv = {
+      CI: '1',
+      VITE_CRX_PUBLIC_KEY: extensionPublicKey.toString('base64'),
+    };
+    runCommand('pnpm', ['--filter', './apps/extension', 'build'], projectRoot, { env: extensionBuildEnv });
+    runCommand('pnpm', ['--filter', './apps/extension', 'zip'], projectRoot, { env: extensionBuildEnv });
     const manifestPath = findFile(path.join(projectRoot, 'apps/extension/.output'), 'manifest.json');
     assert.ok(manifestPath, 'WXT build should emit an unpacked manifest');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     assert.equal(manifest.manifest_version, 3);
+    assert.equal(manifest.key, extensionPublicKey.toString('base64'), 'runtime build must use its deterministic CRX public key');
     assert.equal(typeof manifest.background?.service_worker, 'string', 'built extension must declare a service worker');
     assert.equal(existsSync(path.join(path.dirname(manifestPath), manifest.background.service_worker)), true, 'declared service worker must exist');
     assert.equal(typeof manifest.side_panel?.default_path, 'string', 'built extension must declare its side panel');
@@ -367,6 +388,8 @@ try {
     if (chromeSetting) {
       assert.ok(chromePath, `ANHEDRAL_CHROME_PATH is not executable: ${chromeSetting}`);
       const extensionRoot = path.dirname(manifestPath);
+      const sidePanelPath = manifest.side_panel.default_path.replace(/^\/+/, '');
+      const sidePanelUrl = `chrome-extension://${extensionId}/${sidePanelPath}`;
       const debugPort = await reserveLoopbackPort();
       const state = launchManaged(chromePath, [
         '--headless=new',
@@ -379,9 +402,40 @@ try {
         '--remote-allow-origins=*',
         '--remote-debugging-address=127.0.0.1',
         `--remote-debugging-port=${debugPort}`,
-        'chrome://extensions/',
+        sidePanelUrl,
       ], projectRoot, { CI: '1' });
       managedProcesses.push(state);
+      const { debugTarget: sidePanelTarget, inspection: sidePanelInspection } = await waitForInspectableTarget({
+        port: debugPort,
+        state,
+        label: 'Chrome extension side panel',
+        matches: (candidate) => candidate.type === 'page' && candidate.url === sidePanelUrl,
+        inspect: async (candidate) => {
+          const value = await evaluateTarget(candidate, `JSON.stringify({
+            readyState: document.readyState,
+            runtimeId: chrome?.runtime?.id,
+            renderedChildren: document.querySelector('#root')?.childElementCount ?? 0
+          })`);
+          const parsed = JSON.parse(value);
+          return parsed.readyState === 'complete'
+            && parsed.runtimeId === extensionId
+            && parsed.renderedChildren > 0
+            ? parsed
+            : null;
+        },
+      });
+      assert.equal(sidePanelInspection.runtimeId, extensionId, 'side panel must run under the expected extension ID');
+      await evaluateTarget(
+        sidePanelTarget,
+        `(async () => {
+          try {
+            await chrome.runtime.sendMessage({ type: 'anhedral-runtime-acceptance' });
+          } catch {
+            // A missing message handler is expected; dispatch still wakes the MV3 worker.
+          }
+          return chrome.runtime.id;
+        })()`,
+      );
       const serviceWorkerPath = manifest.background.service_worker.replace(/^\/+/, '');
       const { debugTarget, inspection } = await waitForInspectableTarget({
         port: debugPort,
@@ -391,7 +445,9 @@ try {
           if (candidate.type !== 'service_worker') return false;
           try {
             const url = new URL(candidate.url);
-            return url.protocol === 'chrome-extension:' && url.pathname.slice(1) === serviceWorkerPath;
+            return url.protocol === 'chrome-extension:'
+              && url.hostname === extensionId
+              && url.pathname.slice(1) === serviceWorkerPath;
           } catch {
             return false;
           }

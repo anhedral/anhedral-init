@@ -64,7 +64,7 @@ try {
 
 const project = mkdtempSync(path.join(tmpdir(), 'anhedral-ui-test-'));
 try {
-  const init = spawnSync('node', [cliEntry, 'init', '--web', '--mobile', '--native-styling', 'uniwind', '--skip-install'], {
+  const init = spawnSync('node', [cliEntry, 'init', '--next', '--expo', '--native-styling', 'uniwind', '--skip-install'], {
     cwd: project,
     encoding: 'utf8',
   });

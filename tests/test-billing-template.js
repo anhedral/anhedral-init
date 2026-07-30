@@ -10,7 +10,7 @@ const options = {
   projectName: 'billing-template',
   displayName: 'Billing Template',
   apps: { web: true, mobile: false, api: true, desktop: false, extension: false },
-  features: { database: true, auth: true, billing: true, storage: false, nativeSubscriptions: false },
+  features: { database: true, auth: true, realtime: true, billing: true, storage: false, nativeSubscriptions: false, electronUpdater: false },
   skipInstall: true,
 };
 const read = (relativePath) => readFileSync(path.join(root, relativePath), 'utf8');
@@ -88,9 +88,11 @@ try {
   assert.match(routeTests, /persisted active entitlement as expired/);
   assert.match(read('apps/api/src/realtime.ts'), /createTokenRequest/);
   assert.match(read('apps/api/src/realtime.ts'), /private:users:/);
+  assert.match(read('apps/api/src/realtime.ts'), /id: message\.id/);
   assert.match(read('packages/contracts/src/generated.ts'), /SubscriptionChangedEventSchema/);
   assert.match(read('packages/api-client/src/generated.ts'), /refreshEntitlement/);
-  assert.match(read('packages/realtime/src/index.ts'), /subscribeToSubscriptionChanges/);
+  assert.match(read('packages/realtime/src/generated.ts'), /subscribeToSubscriptionChanges/);
+  assert.match(read('packages/realtime/src/app.ts'), /product-specific, schema-validated realtime subscriptions/);
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

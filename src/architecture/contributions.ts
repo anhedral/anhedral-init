@@ -40,6 +40,7 @@ const EMPTY = Object.freeze([]) as readonly never[];
 
 const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribution>> = Object.freeze({
   web: Object.freeze({ module: 'web', environment: EMPTY, crons: EMPTY }),
+  admin: Object.freeze({ module: 'admin', environment: EMPTY, crons: EMPTY }),
   mobile: Object.freeze({ module: 'mobile', environment: EMPTY, crons: EMPTY }),
   api: Object.freeze({
     module: 'api',
@@ -66,13 +67,19 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     ]),
     crons: EMPTY,
   }),
+  realtime: Object.freeze({
+    module: 'realtime',
+    environment: Object.freeze([
+      { name: 'ABLY_API_KEY', defaultValue: '' },
+    ]),
+    crons: EMPTY,
+  }),
   billing: Object.freeze({
     module: 'billing',
     environment: Object.freeze([
       { name: 'RC_WEBHOOK_SECRET', defaultValue: '' },
       { name: 'RC_SECRET_API_KEY', defaultValue: '' },
       { name: 'RC_ENTITLEMENT_ID', defaultValue: 'pro' },
-      { name: 'ABLY_API_KEY', defaultValue: '' },
       { name: 'CRON_SECRET', defaultValue: '' },
     ]),
     crons: Object.freeze([
@@ -96,6 +103,14 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
       { id: 'storage-cleanup', path: '/api/internal/storage/cleanup', schedule: '0 3 * * *' },
     ]),
   }),
+  workflows: Object.freeze({
+    module: 'workflows',
+    environment: Object.freeze([
+      { name: 'WORKFLOW_API_TOKEN', defaultValue: '' },
+      { name: 'CLOUDFLARE_API_TOKEN', defaultValue: '' },
+    ]),
+    crons: EMPTY,
+  }),
   'native-subscriptions': Object.freeze({
     module: 'native-subscriptions',
     environment: EMPTY,
@@ -105,6 +120,32 @@ const MODULE_CONTRIBUTIONS: Readonly<Record<ModuleId, ModuleCompositionContribut
     module: 'electron-updater',
     environment: Object.freeze([
       { name: 'DESKTOP_UPDATE_BASE_URL', defaultValue: 'https://updates.example.com' },
+    ]),
+    crons: EMPTY,
+  }),
+  ubuntu: Object.freeze({ module: 'ubuntu', environment: EMPTY, crons: EMPTY }),
+  docker: Object.freeze({ module: 'docker', environment: EMPTY, crons: EMPTY }),
+  postgres: Object.freeze({
+    module: 'postgres',
+    environment: Object.freeze([
+      { name: 'POSTGRES_DB', defaultValue: 'app' },
+      { name: 'POSTGRES_USER', defaultValue: 'app_owner' },
+      { name: 'POSTGRES_PASSWORD', defaultValue: '' },
+    ]),
+    crons: EMPTY,
+  }),
+  nginx: Object.freeze({
+    module: 'nginx',
+    environment: Object.freeze([
+      { name: 'DOMAIN', defaultValue: 'app.example.com' },
+      { name: 'ROOT_DOMAIN', defaultValue: 'example.com' },
+    ]),
+    crons: EMPTY,
+  }),
+  certbot: Object.freeze({
+    module: 'certbot',
+    environment: Object.freeze([
+      { name: 'LETSENCRYPT_EMAIL', defaultValue: 'ops@example.com' },
     ]),
     crons: EMPTY,
   }),

@@ -22,7 +22,7 @@ function selectedDependencies(options: ProjectOptions): Record<string, string> {
       : MOBILE_NATIVEWIND_DEPENDENCIES.dependencies,
   );
   if (!options.apps.api) delete dependencies['@shared/api-client'];
-  if (!options.features.billing) delete dependencies['@shared/realtime'];
+  if (!options.features.realtime) delete dependencies['@shared/realtime'];
 
   if (options.features.auth) {
     Object.assign(dependencies, CLERK_SOLANA_PEER_DEPENDENCIES);
@@ -259,8 +259,8 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
       scheme: expoScheme(projectName),
       userInterfaceStyle: 'automatic',
       web: { bundler: 'metro', output: 'static' },
-      plugins: ['expo-router', ...(options.features.auth ? ['expo-secure-store'] : [])],
-      experiments: { typedRoutes: true },
+      plugins: ['expo-router', ...(options.features.auth ? ['expo-secure-store'] : []), 'expo-status-bar'],
+      experiments: { reactCompiler: true, typedRoutes: true },
     },
   }, null, 2) + '\n');
 

@@ -6,6 +6,7 @@ These source-only trees are generated with the stable toolchain and `--skip-inst
 Each contract records every file or symlink path, Unix mode, byte length, and SHA-256 digest.
 Installed dependencies, compiler output, and framework caches are forbidden.
 Deterministic provider-placeholder `.env.example` files are hashed by the contract; generated real `.env` files are forbidden.
+Trees use IDE-style ordering: folders appear before files at every level, with each group sorted by name.
 
 Runtime E2E builds use disposable operating-system temp directories and are not part of these golden trees.
 A generated project may contain only the root `pnpm-workspace.yaml` and root `pnpm-lock.yaml`; nested pnpm workspace islands are rejected.
@@ -21,42 +22,32 @@ node tests/update-output-tree-contracts.js
 
 | Scenario | Apps | Features | Contract | Entries | Tree SHA-256 |
 | --- | --- | --- | --- | ---: | --- |
-| `expo-extension` | web, mobile, api, desktop, extension | database, auth, billing, storage, nativeSubscriptions, electronUpdater | deterministic golden | 150 | `4fcbb6a1bc51387abe3a5f629a6a6f83b4580da668aa00514d24471e50ef652b` |
-| `web-api-minimal` | web, api | database, auth | deterministic golden | 67 | `512f2af0a3ef250d43c24400df730488dee50bc81616dd9f58c4f4e3125aed3a` |
-| `api-only` | api |  | deterministic golden | 33 | `3d4c80296467bb735456fc2e2485889b6583e9daac8934e6c3205a0dc47ad04e` |
-| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 69 | `79e0686d8a0b50f34334b73ffc3c766cbe1a13283a0bc7dfe814c9e7d63cc75c` |
+| `expo-extension` | web, mobile, api, desktop, extension | database, auth, realtime, billing, storage, workflows, nativeSubscriptions, electronUpdater | deterministic golden | 161 | `2cb873b525350c65c9a1962a6e3c9e2a8d5021b765273b9810c52e46e14fbf15` |
+| `web-api-minimal` | web, api | database, auth | deterministic golden | 67 | `166e57c5fc6b25511f0406a33826d954d59079535bb9452bb62cc0bba59b757c` |
+| `authjs-admin-app` | web, admin, api | database, auth | installed public E2E | — | — |
+| `api-only` | api |  | deterministic golden | 33 | `be0d787c0d82b367f27ca22f890dd0d66e2592dafe111c6fb51054ca2ea7bfc4` |
+| `add-desktop-flow` | api, desktop | database, auth | deterministic golden | 69 | `484ed61ea3b425b3c5677144324786fac66dbfd585ed1352381594aa0e6e2aab` |
 
-## expo-extension
+## Full stack (`expo-extension`)
 
 All app surfaces and feature modules
 
 ```text
 expo-extension-sample/
-├── .env.example
 ├── .github/
 │   └── workflows/
 │       └── anhedral-ci.yml
-├── .gitignore
-├── .vercelignore
-├── ANHEDRAL.md
-├── PRODUCTION.md
-├── README.md
-├── SKILL.md
-├── anhedral.json
 ├── apps/
 │   ├── api/
-│   │   ├── .env.example
-│   │   ├── .gitignore
-│   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   ├── application.ts
 │   │   │   ├── auth.ts
 │   │   │   ├── billing.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
 │   │   │   ├── realtime.ts
-│   │   │   ├── routes/
-│   │   │   │   └── app.ts
 │   │   │   ├── routes.ts
 │   │   │   └── storage.ts
 │   │   ├── tests/
@@ -64,20 +55,17 @@ expo-extension-sample/
 │   │   │   ├── health.test.ts
 │   │   │   ├── revenuecat-webhook.test.ts
 │   │   │   └── storage.test.ts
+│   │   ├── .env.example
+│   │   ├── .gitignore
+│   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── vitest.config.ts
 │   ├── assets-private-proxy/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   └── index.js
+│   │   ├── package.json
 │   │   └── wrangler.jsonc
 │   ├── desktop/
-│   │   ├── .env.example
-│   │   ├── components.json
-│   │   ├── electron-builder.env.example
-│   │   ├── index.html
-│   │   ├── package.json
-│   │   ├── postcss.config.mjs
 │   │   ├── scripts/
 │   │   │   ├── dev.mjs
 │   │   │   └── publish-updates.mjs
@@ -88,9 +76,9 @@ expo-extension-sample/
 │   │   │   │   └── preload.cts
 │   │   │   └── renderer/
 │   │   │       ├── components/
-│   │   │       │   ├── item-list.tsx
-│   │   │       │   └── ui/
-│   │   │       │       └── button.tsx
+│   │   │       │   ├── ui/
+│   │   │       │   │   └── button.tsx
+│   │   │       │   └── item-list.tsx
 │   │   │       ├── hooks/
 │   │   │       │   └── use-entitlement.ts
 │   │   │       ├── lib/
@@ -99,35 +87,36 @@ expo-extension-sample/
 │   │   │       │   └── utils.ts
 │   │   │       ├── main.tsx
 │   │   │       └── styles.css
+│   │   ├── .env.example
+│   │   ├── components.json
+│   │   ├── electron-builder.env.example
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   ├── postcss.config.mjs
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.main.json
 │   │   └── vite.config.ts
 │   ├── desktop-updater-worker/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   └── index.js
 │   │   ├── tests/
 │   │   │   └── worker.test.js
+│   │   ├── package.json
 │   │   └── wrangler.jsonc
 │   ├── extension/
-│   │   ├── .env.example
-│   │   ├── README.md
-│   │   ├── components.json
-│   │   ├── package.json
-│   │   ├── postcss.config.cjs
 │   │   ├── src/
 │   │   │   ├── components/
-│   │   │   │   ├── item-list.tsx
-│   │   │   │   └── ui/
-│   │   │   │       └── button.tsx
+│   │   │   │   ├── ui/
+│   │   │   │   │   └── button.tsx
+│   │   │   │   └── item-list.tsx
 │   │   │   ├── contexts/
 │   │   │   │   └── auth-context.tsx
 │   │   │   ├── entrypoints/
-│   │   │   │   ├── background.ts
-│   │   │   │   └── sidepanel/
-│   │   │   │       ├── app.tsx
-│   │   │   │       ├── index.html
-│   │   │   │       └── main.tsx
+│   │   │   │   ├── sidepanel/
+│   │   │   │   │   ├── app.tsx
+│   │   │   │   │   ├── index.html
+│   │   │   │   │   └── main.tsx
+│   │   │   │   └── background.ts
 │   │   │   ├── hooks/
 │   │   │   │   └── use-entitlement.ts
 │   │   │   ├── lib/
@@ -135,24 +124,21 @@ expo-extension-sample/
 │   │   │   │   └── utils.ts
 │   │   │   └── styles/
 │   │   │       └── main.css
+│   │   ├── .env.example
+│   │   ├── README.md
+│   │   ├── components.json
+│   │   ├── package.json
+│   │   ├── postcss.config.cjs
 │   │   ├── tailwind.config.cjs
 │   │   ├── tsconfig.json
 │   │   └── wxt.config.ts
 │   ├── mobile/
-│   │   ├── .env.example
-│   │   ├── .gitignore
 │   │   ├── app/
 │   │   │   ├── _layout.tsx
 │   │   │   └── index.tsx
-│   │   ├── app.json
-│   │   ├── babel.config.js
 │   │   ├── components/
 │   │   │   ├── account-controls.tsx
 │   │   │   └── item-list.tsx
-│   │   ├── components.json
-│   │   ├── eas.json
-│   │   ├── expo-env.d.ts
-│   │   ├── global.css
 │   │   ├── hooks/
 │   │   │   ├── use-api-client.ts
 │   │   │   └── use-entitlement.ts
@@ -160,36 +146,56 @@ expo-extension-sample/
 │   │   │   ├── api.ts
 │   │   │   ├── subscriptions.ts
 │   │   │   └── utils.ts
+│   │   ├── .env.example
+│   │   ├── .gitignore
+│   │   ├── app.json
+│   │   ├── babel.config.js
+│   │   ├── components.json
+│   │   ├── eas.json
+│   │   ├── expo-env.d.ts
+│   │   ├── global.css
 │   │   ├── metro.config.js
 │   │   ├── nativewind-env.d.ts
 │   │   ├── package.json
 │   │   ├── tailwind.config.js
 │   │   └── tsconfig.json
-│   └── web/
+│   ├── web/
+│   │   ├── app/
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── components/
+│   │   │   ├── ui/
+│   │   │   │   ├── button.tsx
+│   │   │   │   └── card.tsx
+│   │   │   ├── account-actions.tsx
+│   │   │   ├── item-list.tsx
+│   │   │   └── subscription-status.tsx
+│   │   ├── hooks/
+│   │   │   ├── use-api-client.ts
+│   │   │   └── use-entitlement.ts
+│   │   ├── lib/
+│   │   │   ├── api.ts
+│   │   │   └── utils.ts
+│   │   ├── .env.example
+│   │   ├── components.json
+│   │   ├── next-env.d.ts
+│   │   ├── next.config.ts
+│   │   ├── package.json
+│   │   ├── postcss.config.mjs
+│   │   └── tsconfig.json
+│   └── workflows/
+│       ├── src/
+│       │   ├── control.ts
+│       │   ├── index.ts
+│       │   └── workflow.ts
+│       ├── tests/
+│       │   └── control.test.ts
 │       ├── .env.example
-│       ├── app/
-│       │   ├── globals.css
-│       │   ├── layout.tsx
-│       │   └── page.tsx
-│       ├── components/
-│       │   ├── account-actions.tsx
-│       │   ├── item-list.tsx
-│       │   ├── subscription-status.tsx
-│       │   └── ui/
-│       │       ├── button.tsx
-│       │       └── card.tsx
-│       ├── components.json
-│       ├── hooks/
-│       │   ├── use-api-client.ts
-│       │   └── use-entitlement.ts
-│       ├── lib/
-│       │   ├── api.ts
-│       │   └── utils.ts
-│       ├── next-env.d.ts
-│       ├── next.config.ts
+│       ├── .gitignore
 │       ├── package.json
-│       ├── postcss.config.mjs
-│       └── tsconfig.json
+│       ├── tsconfig.json
+│       └── wrangler.jsonc
 ├── cloudflare/
 │   ├── README.md
 │   ├── desktop-updates.md
@@ -197,44 +203,54 @@ expo-extension-sample/
 ├── docs/
 │   ├── DEVELOPMENT.md
 │   └── STACK.md
-├── package.json
 ├── packages/
 │   ├── api-client/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── contracts/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── db/
-│   │   ├── .env.example
-│   │   ├── drizzle.config.ts
 │   │   ├── migrations/
 │   │   │   └── .gitkeep
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app-schema.ts
 │   │   │   ├── generated-schema.ts
 │   │   │   ├── index.ts
 │   │   │   ├── migrate.ts
 │   │   │   └── schema.ts
+│   │   ├── .env.example
+│   │   ├── drizzle.config.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── realtime/
-│       ├── package.json
 │       ├── src/
+│       │   ├── app.ts
+│       │   ├── generated.ts
 │       │   └── index.ts
+│       ├── package.json
 │       └── tsconfig.json
-├── pnpm-workspace.yaml
 ├── scripts/
 │   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
+├── .env.example
+├── .gitignore
+├── .vercelignore
+├── ANHEDRAL.md
+├── PRODUCTION.md
+├── README.md
+├── SKILL.md
+├── anhedral.json
+├── package.json
+├── pnpm-workspace.yaml
 ├── turbo.json
 └── vercel.json
 ```
@@ -245,53 +261,45 @@ Next.js, Fastify, database, and auth
 
 ```text
 web-api-minimal/
-├── .env.example
 ├── .github/
 │   └── workflows/
 │       └── anhedral-ci.yml
-├── .gitignore
-├── .vercelignore
-├── ANHEDRAL.md
-├── PRODUCTION.md
-├── README.md
-├── SKILL.md
-├── anhedral.json
 ├── apps/
 │   ├── api/
-│   │   ├── .env.example
-│   │   ├── .gitignore
-│   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   ├── application.ts
 │   │   │   ├── auth.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
-│   │   │   ├── routes/
-│   │   │   │   └── app.ts
 │   │   │   └── routes.ts
 │   │   ├── tests/
 │   │   │   ├── env.test.ts
 │   │   │   └── health.test.ts
+│   │   ├── .env.example
+│   │   ├── .gitignore
+│   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── vitest.config.ts
 │   └── web/
-│       ├── .env.example
 │       ├── app/
 │       │   ├── globals.css
 │       │   ├── layout.tsx
 │       │   └── page.tsx
 │       ├── components/
+│       │   ├── ui/
+│       │   │   ├── button.tsx
+│       │   │   └── card.tsx
 │       │   ├── account-actions.tsx
-│       │   ├── item-list.tsx
-│       │   └── ui/
-│       │       ├── button.tsx
-│       │       └── card.tsx
-│       ├── components.json
+│       │   └── item-list.tsx
 │       ├── hooks/
 │       │   └── use-api-client.ts
 │       ├── lib/
 │       │   ├── api.ts
 │       │   └── utils.ts
+│       ├── .env.example
+│       ├── components.json
 │       ├── next-env.d.ts
 │       ├── next.config.ts
 │       ├── package.json
@@ -300,39 +308,47 @@ web-api-minimal/
 ├── docs/
 │   ├── DEVELOPMENT.md
 │   └── STACK.md
-├── package.json
 ├── packages/
 │   ├── api-client/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── contracts/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── db/
-│       ├── .env.example
-│       ├── drizzle.config.ts
 │       ├── migrations/
 │       │   └── .gitkeep
-│       ├── package.json
 │       ├── src/
 │       │   ├── app-schema.ts
 │       │   ├── generated-schema.ts
 │       │   ├── index.ts
 │       │   ├── migrate.ts
 │       │   └── schema.ts
+│       ├── .env.example
+│       ├── drizzle.config.ts
+│       ├── package.json
 │       └── tsconfig.json
-├── pnpm-workspace.yaml
 ├── scripts/
 │   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
+├── .env.example
+├── .gitignore
+├── .vercelignore
+├── ANHEDRAL.md
+├── PRODUCTION.md
+├── README.md
+├── SKILL.md
+├── anhedral.json
+├── package.json
+├── pnpm-workspace.yaml
 ├── turbo.json
 └── vercel.json
 ```
@@ -343,10 +359,40 @@ Minimal Fastify API without database or auth
 
 ```text
 api-only/
-├── .env.example
 ├── .github/
 │   └── workflows/
 │       └── anhedral-ci.yml
+├── apps/
+│   └── api/
+│       ├── src/
+│       │   ├── routes/
+│       │   │   └── app.ts
+│       │   ├── application.ts
+│       │   ├── env.ts
+│       │   ├── index.ts
+│       │   └── routes.ts
+│       ├── tests/
+│       │   ├── env.test.ts
+│       │   └── health.test.ts
+│       ├── .env.example
+│       ├── .gitignore
+│       ├── package.json
+│       ├── tsconfig.json
+│       └── vitest.config.ts
+├── docs/
+│   ├── DEVELOPMENT.md
+│   └── STACK.md
+├── packages/
+│   └── contracts/
+│       ├── src/
+│       │   ├── app.ts
+│       │   ├── generated.ts
+│       │   └── index.ts
+│       ├── package.json
+│       └── tsconfig.json
+├── scripts/
+│   └── first-run.mjs
+├── .env.example
 ├── .gitignore
 ├── .vercelignore
 ├── ANHEDRAL.md
@@ -354,38 +400,8 @@ api-only/
 ├── README.md
 ├── SKILL.md
 ├── anhedral.json
-├── apps/
-│   └── api/
-│       ├── .env.example
-│       ├── .gitignore
-│       ├── package.json
-│       ├── src/
-│       │   ├── application.ts
-│       │   ├── env.ts
-│       │   ├── index.ts
-│       │   ├── routes/
-│       │   │   └── app.ts
-│       │   └── routes.ts
-│       ├── tests/
-│       │   ├── env.test.ts
-│       │   └── health.test.ts
-│       ├── tsconfig.json
-│       └── vitest.config.ts
-├── docs/
-│   ├── DEVELOPMENT.md
-│   └── STACK.md
 ├── package.json
-├── packages/
-│   └── contracts/
-│       ├── package.json
-│       ├── src/
-│       │   ├── app.ts
-│       │   ├── generated.ts
-│       │   └── index.ts
-│       └── tsconfig.json
 ├── pnpm-workspace.yaml
-├── scripts/
-│   └── first-run.mjs
 ├── turbo.json
 └── vercel.json
 ```
@@ -396,41 +412,28 @@ API-first project with desktop added afterward
 
 ```text
 add-desktop-flow/
-├── .env.example
 ├── .github/
 │   └── workflows/
 │       └── anhedral-ci.yml
-├── .gitignore
-├── .vercelignore
-├── ANHEDRAL.md
-├── PRODUCTION.md
-├── README.md
-├── SKILL.md
-├── anhedral.json
 ├── apps/
 │   ├── api/
-│   │   ├── .env.example
-│   │   ├── .gitignore
-│   │   ├── package.json
 │   │   ├── src/
+│   │   │   ├── routes/
+│   │   │   │   └── app.ts
 │   │   │   ├── application.ts
 │   │   │   ├── auth.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
-│   │   │   ├── routes/
-│   │   │   │   └── app.ts
 │   │   │   └── routes.ts
 │   │   ├── tests/
 │   │   │   ├── env.test.ts
 │   │   │   └── health.test.ts
+│   │   ├── .env.example
+│   │   ├── .gitignore
+│   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── vitest.config.ts
 │   └── desktop/
-│       ├── .env.example
-│       ├── components.json
-│       ├── index.html
-│       ├── package.json
-│       ├── postcss.config.mjs
 │       ├── scripts/
 │       │   └── dev.mjs
 │       ├── src/
@@ -440,54 +443,67 @@ add-desktop-flow/
 │       │   │   └── preload.cts
 │       │   └── renderer/
 │       │       ├── components/
-│       │       │   ├── item-list.tsx
-│       │       │   └── ui/
-│       │       │       └── button.tsx
+│       │       │   ├── ui/
+│       │       │   │   └── button.tsx
+│       │       │   └── item-list.tsx
 │       │       ├── lib/
 │       │       │   ├── api.ts
 │       │       │   ├── auth.ts
 │       │       │   └── utils.ts
 │       │       ├── main.tsx
 │       │       └── styles.css
+│       ├── .env.example
+│       ├── components.json
+│       ├── index.html
+│       ├── package.json
+│       ├── postcss.config.mjs
 │       ├── tsconfig.json
 │       ├── tsconfig.main.json
 │       └── vite.config.ts
 ├── docs/
 │   ├── DEVELOPMENT.md
 │   └── STACK.md
-├── package.json
 ├── packages/
 │   ├── api-client/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── contracts/
-│   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── app.ts
 │   │   │   ├── generated.ts
 │   │   │   └── index.ts
+│   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── db/
-│       ├── .env.example
-│       ├── drizzle.config.ts
 │       ├── migrations/
 │       │   └── .gitkeep
-│       ├── package.json
 │       ├── src/
 │       │   ├── app-schema.ts
 │       │   ├── generated-schema.ts
 │       │   ├── index.ts
 │       │   ├── migrate.ts
 │       │   └── schema.ts
+│       ├── .env.example
+│       ├── drizzle.config.ts
+│       ├── package.json
 │       └── tsconfig.json
-├── pnpm-workspace.yaml
 ├── scripts/
 │   ├── first-run.mjs
 │   └── verify-db-migrations.mjs
+├── .env.example
+├── .gitignore
+├── .vercelignore
+├── ANHEDRAL.md
+├── PRODUCTION.md
+├── README.md
+├── SKILL.md
+├── anhedral.json
+├── package.json
+├── pnpm-workspace.yaml
 ├── turbo.json
 └── vercel.json
 ```

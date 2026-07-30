@@ -1,5 +1,7 @@
 import path from 'node:path';
+import { SELF_HOSTED_DATABASE_URL_PLACEHOLDER } from '../database.js';
 import { writeFile } from '../util.js';
+
 import type { ProjectOptions } from '../project.js';
 import {
   API_CLIENT_DEPENDENCIES,
@@ -27,6 +29,10 @@ function writeTsConfig(root: string): void {
 function writeSharedDatabase(root: string, options: ProjectOptions): void {
   if (!options.features.database) return;
   const dir = path.join(root, 'packages/db');
+  const dependencies = { ...SHARED_DB_DEPENDENCIES.dependencies };
+  if (options.features.auth && options.authProvider === 'authjs') dependencies['bcrypt-ts'] = '7.1.0';
+  if (options.infrastructure?.postgres) delete dependencies['@neondatabase/serverless'];
+  else delete dependencies.postgres;
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: '@shared/db',
     version: '0.1.0',
@@ -44,11 +50,19 @@ function writeSharedDatabase(root: string, options: ProjectOptions): void {
       'db:migrate': 'tsx --env-file=.env src/migrate.ts',
       'db:check': 'drizzle-kit check',
       'db:studio': 'drizzle-kit studio',
+      ...(options.features.auth && options.authProvider === 'authjs'
+        ? { 'auth:create-user': 'tsx --env-file=.env src/create-user.ts' }
+        : {}),
     },
-    dependencies: SHARED_DB_DEPENDENCIES.dependencies,
+    dependencies,
     devDependencies: SHARED_DB_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
-  writeFile(path.join(dir, '.env.example'), 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n');
+  writeFile(
+    path.join(dir, '.env.example'),
+    options.infrastructure?.postgres
+      ? `DATABASE_URL=${SELF_HOSTED_DATABASE_URL_PLACEHOLDER}\n`
+      : 'DATABASE_URL=YOUR_NEON_POSTGRES_URL\n',
+  );
   writeFile(path.join(dir, 'drizzle.config.ts'), `import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
@@ -115,8 +129,27 @@ export const realtimeOutbox = pgTable('realtime_outbox', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ` : '';
-  writeFile(path.join(dir, 'src/generated-schema.ts'), `import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-${storageTables}${billingTables}`);
+  const authTables = options.features.auth && options.authProvider === 'authjs' ? `
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  status: text('status').notNull().default('active'),
+  isPlatformAdmin: boolean('is_platform_admin').notNull().default(false),
+  disabledAt: timestamp('disabled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const authRateLimits = pgTable('auth_rate_limits', {
+  key: text('key').primaryKey(),
+  windowStartedAt: timestamp('window_started_at').defaultNow().notNull(),
+  attempts: integer('attempts').notNull().default(0),
+});
+` : '';
+  writeFile(path.join(dir, 'src/generated-schema.ts'), `import { boolean, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+${authTables}${storageTables}${billingTables}`);
   const itemOwnerColumn = options.features.auth ? "  userId: text('user_id').notNull(),\n" : '';
   const itemIndexes = options.features.auth
     ? "}, (table) => [\n  index('items_user_created_at_idx').on(table.userId, table.createdAt),\n]"
@@ -133,7 +166,20 @@ ${itemIndexes});
   writeFile(path.join(dir, 'src/schema.ts'), `export * from './generated-schema';
 export * from './app-schema';
 `);
-  writeFile(path.join(dir, 'src/index.ts'), `import { neon } from '@neondatabase/serverless';
+  writeFile(path.join(dir, 'src/index.ts'), options.infrastructure?.postgres
+    ? `import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import * as schema from './schema';
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required when the db module is enabled');
+
+export const sqlClient = postgres(databaseUrl);
+export const db = drizzle(sqlClient, { schema });
+export type Database = typeof db;
+export * from './schema';
+`
+    : `import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
@@ -145,12 +191,41 @@ export const db = drizzle(sqlClient, { schema });
 export type Database = typeof db;
 export * from './schema';
 `);
-  writeFile(path.join(dir, 'src/migrate.ts'), `import { migrate } from 'drizzle-orm/neon-http/migrator';
+  writeFile(
+    path.join(dir, 'src/migrate.ts'),
+    `import { migrate } from 'drizzle-orm/${options.infrastructure?.postgres ? 'postgres-js' : 'neon-http'}/migrator';
 import { db } from './index';
 
 await migrate(db, { migrationsFolder: './migrations' });
 console.log('Database migrations complete.');
+    `,
+  );
+  if (options.features.auth && options.authProvider === 'authjs') {
+    writeFile(path.join(dir, 'src/create-user.ts'), `import { randomUUID } from 'node:crypto';
+import { hash } from 'bcrypt-ts';
+import { db, users } from './index';
+
+const args = process.argv.slice(2);
+const isAdmin = args.includes('--admin');
+const values = args.filter((arg) => arg !== '--admin');
+const [emailInput, password, ...nameParts] = values;
+const email = emailInput?.trim().toLowerCase();
+const name = nameParts.join(' ').trim() || email?.split('@')[0];
+
+if (!email || !email.includes('@') || !password || password.length < 8 || !name) {
+  throw new Error('Usage: pnpm auth:create-user -- <email> <password-8+-chars> [name] [--admin]');
+}
+
+await db.insert(users).values({
+  id: randomUUID(),
+  email,
+  name,
+  passwordHash: await hash(password, 12),
+  isPlatformAdmin: isAdmin,
+});
+console.log(isAdmin ? 'Platform administrator created.' : 'User created.');
 `);
+  }
   writeFile(path.join(dir, 'migrations/.gitkeep'), '');
 }
 
@@ -181,9 +256,8 @@ export const SubscriptionChangedEventSchema = z.object({
   type: z.literal('subscription.changed'),
   revision: z.number().int().nonnegative(),
 });
-export type SubscriptionChangedEvent = z.infer<typeof SubscriptionChangedEventSchema>;
-
-export const RealtimeTokenRequestSchema = z.object({
+export type SubscriptionChangedEvent = z.infer<typeof SubscriptionChangedEventSchema>;` : null,
+    options.features.realtime ? `export const RealtimeTokenRequestSchema = z.object({
   keyName: z.string().min(1),
   ttl: z.number().int().positive(),
   timestamp: z.number().int().nonnegative(),
@@ -244,7 +318,7 @@ function apiClientSource(options: ProjectOptions): string {
     'ReadinessResponseSchema',
     options.features.auth ? 'AuthMeResponseSchema' : null,
     options.features.billing ? 'EntitlementResponseSchema' : null,
-    options.features.billing ? 'RealtimeTokenRequestSchema' : null,
+    options.features.realtime ? 'RealtimeTokenRequestSchema' : null,
     options.features.storage ? 'CreateUploadResponseSchema' : null,
     options.features.storage ? 'ConfirmUploadResponseSchema' : null,
     options.features.storage ? 'GetUploadResponseSchema' : null,
@@ -261,9 +335,8 @@ function apiClientSource(options: ProjectOptions): string {
 
   refreshEntitlement(init: RequestInit = {}) {
     return this.request('/subscriptions/refresh', { ...init, method: 'POST' }, EntitlementResponseSchema);
-  }
-
-  getRealtimeToken(init: RequestInit = {}) {
+  }` : null,
+    options.features.realtime ? `getRealtimeToken(init: RequestInit = {}) {
     return this.request('/realtime/token', { ...init, method: 'POST' }, RealtimeTokenRequestSchema);
   }` : null,
   options.features.storage ? `createUpload(input: CreateUploadRequest, init: RequestInit = {}) {
@@ -530,34 +603,43 @@ export * from './app';
 
 function writeRealtimePackage(root: string, options: ProjectOptions): void {
   const hasClientConsumer = options.apps.web || options.apps.mobile || options.apps.desktop || options.apps.extension;
-  if (!options.features.billing || !hasClientConsumer) return;
+  if (!options.features.realtime || !hasClientConsumer) return;
   const dir = path.join(root, 'packages/realtime');
   writeFile(path.join(dir, 'package.json'), JSON.stringify({
     name: '@shared/realtime',
     version: '0.1.0',
     private: true,
     type: 'module',
-    exports: { '.': './src/index.ts' },
+    exports: { '.': './src/index.ts', './app': './src/app.ts' },
     scripts: { build: 'pnpm typecheck', typecheck: 'tsc --noEmit' },
     dependencies: REALTIME_DEPENDENCIES.dependencies,
     devDependencies: REALTIME_DEPENDENCIES.devDependencies,
   }, null, 2) + '\n');
   writeTsConfig(dir);
-  writeFile(path.join(dir, 'src/index.ts'), `import * as Ably from 'ably';
-import { SubscriptionChangedEventSchema, type RealtimeTokenRequest } from '@shared/contracts';
+  writeFile(path.join(dir, 'src/generated.ts'), `import * as Ably from 'ably';
+import ${options.features.billing
+    ? '{ SubscriptionChangedEventSchema, type RealtimeTokenRequest }'
+    : '{ type RealtimeTokenRequest }'} from '@shared/contracts';
 
-export type SubscriptionRealtimeOptions = {
+export type RealtimePayloadParser<T> = {
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
+};
+
+export type RealtimeSubscriptionOptions<T> = {
   userId: string;
   getTokenRequest: () => Promise<RealtimeTokenRequest>;
-  onChange: (revision: number) => void;
+  channelName: string;
+  eventName: string;
+  schema: RealtimePayloadParser<T>;
+  onMessage: (payload: T) => void;
   onError?: (error: Error) => void;
 };
 
-export function subscriptionChannelName(userId: string): string {
-  return 'private:users:' + userId + ':subscriptions';
+export function userChannelName(userId: string): string {
+  return 'private:users:' + userId;
 }
 
-export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOptions): () => void {
+export function subscribeToRealtimeEvent<T>(options: RealtimeSubscriptionOptions<T>): () => void {
   const client = new Ably.Realtime({
     clientId: options.userId,
     authCallback: (_params, callback) => {
@@ -567,24 +649,51 @@ export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOpti
       );
     },
   });
-  const channel = client.channels.get(subscriptionChannelName(options.userId));
+  const channel = client.channels.get(options.channelName);
   const listener = (message: Ably.Message) => {
-    const parsed = SubscriptionChangedEventSchema.safeParse(message.data);
-    if (parsed.success) options.onChange(parsed.data.revision);
+    const parsed = options.schema.safeParse(message.data);
+    if (parsed.success) options.onMessage(parsed.data);
   };
   const stateListener = (change: Ably.ConnectionStateChange) => {
     if (change.current === 'failed' && change.reason) options.onError?.(change.reason);
   };
   client.connection.on(stateListener);
-  void channel.subscribe('subscription.changed', listener).catch((error: unknown) => {
+  void channel.subscribe(options.eventName, listener).catch((error: unknown) => {
     options.onError?.(error instanceof Error ? error : new Error('Realtime subscription failed'));
   });
   return () => {
-    channel.unsubscribe('subscription.changed', listener);
+    channel.unsubscribe(options.eventName, listener);
     client.connection.off(stateListener);
     client.close();
   };
 }
+${options.features.billing ? `
+export type SubscriptionRealtimeOptions = {
+  userId: string;
+  getTokenRequest: () => Promise<RealtimeTokenRequest>;
+  onChange: (revision: number) => void;
+  onError?: (error: Error) => void;
+};
+
+export function subscribeToSubscriptionChanges(options: SubscriptionRealtimeOptions): () => void {
+  return subscribeToRealtimeEvent({
+    userId: options.userId,
+    getTokenRequest: options.getTokenRequest,
+    channelName: userChannelName(options.userId),
+    eventName: 'subscription.changed',
+    schema: SubscriptionChangedEventSchema,
+    onMessage: (event) => options.onChange(event.revision),
+    onError: options.onError,
+  });
+}
+` : ''}
+`);
+  writeFile(
+    path.join(dir, 'src/app.ts'),
+    '// Add product-specific, schema-validated realtime subscriptions here.\nexport {};\n',
+  );
+  writeFile(path.join(dir, 'src/index.ts'), `export * from './generated';
+export * from './app';
 `);
 }
 

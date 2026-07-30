@@ -30,13 +30,16 @@ function compareText(left, right) {
   return 0;
 }
 
-function renderPathTree(entries, rootLabel) {
+export function renderPathTree(entries, rootLabel) {
   const root = buildPathTree(entries);
   const lines = [`${rootLabel}/`];
 
   function renderChildren(node, prefix) {
     const children = [...node.children.entries()]
-      .sort(([left], [right]) => compareText(left, right));
+      .sort(([leftName, left], [rightName, right]) => (
+        Number(right.type === 'directory') - Number(left.type === 'directory')
+        || compareText(leftName, rightName)
+      ));
 
     children.forEach(([name, child], index) => {
       const last = index === children.length - 1;
@@ -78,6 +81,7 @@ export function renderOutputTreeContract(scenarios, manifests) {
     'Each contract records every file or symlink path, Unix mode, byte length, and SHA-256 digest.',
     'Installed dependencies, compiler output, and framework caches are forbidden.',
     'Deterministic provider-placeholder `.env.example` files are hashed by the contract; generated real `.env` files are forbidden.',
+    'Trees use IDE-style ordering: folders appear before files at every level, with each group sorted by name.',
     '',
     'Runtime E2E builds use disposable operating-system temp directories and are not part of these golden trees.',
     'A generated project may contain only the root `pnpm-workspace.yaml` and root `pnpm-lock.yaml`; nested pnpm workspace islands are rejected.',
@@ -108,7 +112,7 @@ export function renderOutputTreeContract(scenarios, manifests) {
     if (!manifest) continue;
     lines.push(
       '',
-      `## ${scenario.id}`,
+      `## ${scenario.treeTitle ?? scenario.id}`,
       '',
       scenario.description,
       '',

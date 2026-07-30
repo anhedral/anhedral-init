@@ -8,7 +8,7 @@ import { childPackageName, htmlText, identifierSegment, jsString } from '../rend
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(DESKTOP_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
-  if (!options.features.billing) delete dependencies['@shared/realtime'];
+  if (!options.features.realtime) delete dependencies['@shared/realtime'];
   if (!options.features.auth) {
     delete dependencies['@clerk/clerk-js'];
     delete dependencies['@clerk/ui'];
@@ -127,6 +127,9 @@ export default defineConfig({
   build: {
     outDir: 'dist/renderer',
     emptyOutDir: true,
+    // Clerk is already loaded behind a dynamic import. Its optional account-management
+    // surface is intentionally a large async chunk and does not inflate initial rendering.
+    chunkSizeWarningLimit: 1600,
   },
 });
 `);

@@ -28,15 +28,15 @@
       "path": ".vercelignore",
       "type": "file",
       "mode": "0644",
-      "bytes": 115,
-      "sha256": "b005f41bc55f8de85c7343d454e9f0717676940095ac85d686df1a7bbc88ba5a"
+      "bytes": 130,
+      "sha256": "1135ea965d857af3f458627d691aa1f07b643a3bfeacc08e914c584e63f8f75f"
     },
     {
       "path": "ANHEDRAL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 514,
-      "sha256": "ccd8efa06a43721867d5ffa225e1e154a982b709f9ac7502fe035199322ec536"
+      "bytes": 515,
+      "sha256": "441cb06649387686f12c9c5c685a620268e93c4925ed6cb2b9dd416929a395bd"
     },
     {
       "path": "PRODUCTION.md",
@@ -49,22 +49,22 @@
       "path": "README.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3778,
-      "sha256": "9b8dd7d54a40b3211af6509b3cbfd2e7964084d7cf9f6b8cefd1a1d9447e04ea"
+      "bytes": 3779,
+      "sha256": "670e145b68a6bd87682b3bf9b7f7b596574c2a3dc83c92fe162f0ff1d47df6e4"
     },
     {
       "path": "SKILL.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 7657,
-      "sha256": "36c7c09055b5aa78319733f9d32d4d1c522d3bec30d0bae0e54a6f6caa11ea8e"
+      "bytes": 7659,
+      "sha256": "0114ba5b56ad89d89b1dcdcca0ba06767704063bdb76c6f6a0fc4e28aac27250"
     },
     {
       "path": "anhedral.json",
       "type": "file",
       "mode": "0644",
-      "bytes": 13788,
-      "sha256": "d01bc72acdc4c5d96eda701766de5f9658afb9735d16afd80049ec00cffe4a50"
+      "bytes": 13859,
+      "sha256": "4b5aa129f512c5eaa54a098b79019818f50bc5c7af7643d5a30237eb318091e1"
     },
     {
       "path": "apps/api/.env.example",
@@ -105,8 +105,8 @@
       "path": "apps/api/src/env.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 4748,
-      "sha256": "7960c53cdb24cf10b4afca0c9d511d7a9559a053b8382dc9ea8b76b485733e79"
+      "bytes": 4755,
+      "sha256": "61d3240f0b0d240d72501afece20f42b08870eb29a5154ec948a90aa2f1c4cee"
     },
     {
       "path": "apps/api/src/index.ts",
@@ -280,22 +280,22 @@
       "path": "docs/DEVELOPMENT.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 3713,
-      "sha256": "bf6d5b954a61df408343d0a44ae36c14798ef7c2e23f9d18601fbc6b282d63ab"
+      "bytes": 3709,
+      "sha256": "650e1e0a28a9e363b3c99bd3ddbec56401cc2f3f89d6a59ef550bda59e0cae4a"
     },
     {
       "path": "docs/STACK.md",
       "type": "file",
       "mode": "0644",
-      "bytes": 1620,
-      "sha256": "d1371082708db51bf91971fe3ba03b3e46f1e68d65b58b24d5368b99a01d509a"
+      "bytes": 1628,
+      "sha256": "0b0cd24ef585ecee088a7bb5a4ef276a090ad0f7c596b722dfae262f793f2216"
     },
     {
       "path": "package.json",
       "type": "file",
       "mode": "0644",
       "bytes": 1838,
-      "sha256": "ca91185197b82e16c7c0ed0aeb6b50eca002f56b30dc37c2e3935d7525cc8908"
+      "sha256": "c29d8a73de06eb54858015e66bc81f731092fc2a2c6753aff0825c17b48fffa0"
     },
     {
       "path": "packages/api-client/package.json",
@@ -406,8 +406,8 @@
       "path": "packages/db/src/generated-schema.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 80,
-      "sha256": "380c3bb16a5e59f3f28f5ac6c5c84cf222e36205b0e09e9056f709a40a5a7965"
+      "bytes": 89,
+      "sha256": "f0f417fc28f243d83fbaf8af6a1328c1035495a7b8da3000eff8f6967dc5a721"
     },
     {
       "path": "packages/db/src/index.ts",
@@ -420,8 +420,8 @@
       "path": "packages/db/src/migrate.ts",
       "type": "file",
       "mode": "0644",
-      "bytes": 192,
-      "sha256": "a208dbf5e3584f8d529552ccf3e1378dbbb2122b8b2d17ec169478a19ddbb6d6"
+      "bytes": 196,
+      "sha256": "7f76385e745f92989ab6752df91ade914d65bb65c7a158046f0760423525f175"
     },
     {
       "path": "packages/db/src/schema.ts",
@@ -441,8 +441,8 @@
       "path": "pnpm-workspace.yaml",
       "type": "file",
       "mode": "0644",
-      "bytes": 725,
-      "sha256": "30009e810b9a822d06632dfe06bb867c2edb23c685eefc6bf1d293826568211a"
+      "bytes": 762,
+      "sha256": "a38d7361ca1a1158e621b7ea4767722a7541f8bfdb4bdb0f2cecd67869618a9f"
     },
     {
       "path": "scripts/first-run.mjs",
@@ -473,5 +473,5 @@
       "sha256": "4cec4d8157939ec4311d35621cd27d541abcac48cea17b8ec9bfbe402ebd4e5c"
     }
   ],
-  "digest": "512f2af0a3ef250d43c24400df730488dee50bc81616dd9f58c4f4e3125aed3a"
+  "digest": "166e57c5fc6b25511f0406a33826d954d59079535bb9452bb62cc0bba59b757c"
 }

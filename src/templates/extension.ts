@@ -9,7 +9,7 @@ import { childPackageName, htmlText, jsString, markdownHeading } from '../render
 function selectedDependencies(options: ProjectOptions): Record<string, string> {
   const dependencies = { ...(EXTENSION_DEPENDENCIES.dependencies ?? {}) };
   if (!options.apps.api) delete dependencies['@shared/api-client'];
-  if (!options.features.billing) delete dependencies['@shared/realtime'];
+  if (!options.features.realtime) delete dependencies['@shared/realtime'];
   if (!options.features.auth) delete dependencies['@clerk/chrome-extension'];
   return dependencies;
 }

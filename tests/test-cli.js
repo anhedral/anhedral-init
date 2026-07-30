@@ -21,13 +21,18 @@ function runScript(scriptName) {
 }
 
 runScript('test-cli-validation.js');
+runScript('test-cli-documentation.js');
 runScript('test-json-stream-flush.js');
 runScript('test-util-exec.js');
 runScript('test-command-builders.js');
 runScript('test-architecture-foundation.js');
 runScript('test-ui.js');
 runScript('test-template-source.js');
+runScript('test-infrastructure-template.js');
 runScript('test-conditional-app-templates.js');
+runScript('test-authjs-admin-template.js');
+runScript('test-realtime-template.js');
+runScript('test-workflows-template.js');
 runScript('test-billing-template.js');
 runScript('test-operational-api-template.js');
 runScript('test-api-production-env.js');

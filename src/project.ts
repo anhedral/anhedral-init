@@ -1,7 +1,21 @@
 import type { NativeStylingLibrary } from './ui.js';
 
+export type AuthProvider = 'clerk' | 'authjs';
+export type AdminMode = 'none' | 'page' | 'app';
+export const AUTHJS_UNSUPPORTED_MODULES = [
+  'mobile',
+  'desktop',
+  'extension',
+  'realtime',
+  'billing',
+  'storage',
+  'native-subscriptions',
+  'electron-updater',
+] as const;
+
 export type AppSelections = {
   web: boolean;
+  admin: boolean;
   mobile: boolean;
   api: boolean;
   desktop: boolean;
@@ -11,10 +25,20 @@ export type AppSelections = {
 export type FeatureSelections = {
   database: boolean;
   auth: boolean;
+  realtime: boolean;
   billing: boolean;
   storage: boolean;
+  workflows: boolean;
   nativeSubscriptions: boolean;
   electronUpdater: boolean;
+};
+
+export type InfrastructureSelections = {
+  ubuntu: boolean;
+  docker: boolean;
+  postgres: boolean;
+  nginx: boolean;
+  certbot: boolean;
 };
 
 /**
@@ -28,6 +52,9 @@ export interface ProjectOptions {
   displayName: string;
   apps: AppSelections;
   features: FeatureSelections;
+  infrastructure?: InfrastructureSelections;
   skipInstall?: boolean;
   nativeStyling?: NativeStylingLibrary;
+  authProvider: AuthProvider;
+  adminMode: AdminMode;
 }

@@ -3,9 +3,11 @@ export {
   DEFAULT_MODULE_DEFINITIONS,
   DEFAULT_MODULE_REGISTRY,
   FEATURE_MODULES,
+  INFRASTRUCTURE_MODULES,
   MODULE_IDS,
   ModuleRegistryError,
   ModuleResolutionError,
+  PRE_REALTIME_MODULE_REGISTRY,
   createModuleRegistry,
   isModuleId,
   resolveModules,
@@ -14,6 +16,7 @@ export type {
   AppModule,
   DependencyEdge,
   FeatureModule,
+  InfrastructureModule,
   ModuleDefinition,
   ModuleId,
   ModuleKind,
@@ -22,6 +25,26 @@ export type {
   ModuleResolution,
   ModuleResolutionErrorCode,
 } from './modules.js';
+
+export {
+  APP_PRODUCTS,
+  DEFAULT_STACK_PRODUCTS,
+  FEATURE_PRODUCTS,
+  INFRASTRUCTURE_PRODUCTS,
+  STACK_PRODUCTS,
+  isStackProductId,
+  moduleIdForStackSelection,
+  productIdForModule,
+  productIdsForModules,
+} from './products.js';
+export type {
+  AppProductId,
+  FeatureProductId,
+  InfrastructureProductId,
+  StackCategory,
+  StackProduct,
+  StackProductId,
+} from './products.js';
 
 export {
   FILE_OWNERSHIP_CLASSES,

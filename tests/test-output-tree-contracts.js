@@ -17,7 +17,7 @@ import {
   findGoldenTreeViolations,
   findNestedWorkspaceIslands,
 } from './support/output-tree.js';
-import { renderOutputTreeContract } from './support/output-tree-docs.js';
+import { renderOutputTreeContract, renderPathTree } from './support/output-tree-docs.js';
 import { runScenario } from './support/scenario-runner.js';
 import { GOLDEN_TREE_SCENARIOS, OUTPUT_TREE_SCENARIOS } from './support/scenarios.js';
 
@@ -62,6 +62,34 @@ function testManifestUtility() {
   }
 }
 
+function testTreeRendering() {
+  const entries = [
+    { path: '.env.example', type: 'file', mode: '0644' },
+    { path: 'README.md', type: 'file', mode: '0644' },
+    { path: 'apps/web/package.json', type: 'file', mode: '0644' },
+    { path: 'apps/web/src/index.ts', type: 'file', mode: '0644' },
+    { path: 'packages/config/package.json', type: 'file', mode: '0644' },
+  ];
+
+  assert.equal(
+    renderPathTree(entries, 'full-stack'),
+    [
+      'full-stack/',
+      '├── apps/',
+      '│   └── web/',
+      '│       ├── src/',
+      '│       │   └── index.ts',
+      '│       └── package.json',
+      '├── packages/',
+      '│   └── config/',
+      '│       └── package.json',
+      '├── .env.example',
+      '└── README.md',
+    ].join('\n'),
+    'rendered trees should group folders above files like an IDE explorer',
+  );
+}
+
 function generateManifest(scenario, label) {
   const workspaceRoot = mkdtempSync(path.join(tmpdir(), `anhedral-contract-${scenario.id}-${label}-`));
 
@@ -99,6 +127,7 @@ assert.deepEqual(
 );
 
 testManifestUtility();
+testTreeRendering();
 
 const expectedManifests = [];
 for (const scenario of GOLDEN_TREE_SCENARIOS) {

@@ -11,7 +11,7 @@ const project = path.join(workspace, 'large-doctor-report');
 mkdirSync(project);
 
 try {
-  const initialized = spawnSync('node', [cliEntry, 'init', '--api', '--skip-install'], {
+  const initialized = spawnSync('node', [cliEntry, 'init', '--fastify', '--skip-install'], {
     cwd: project,
     encoding: 'utf8',
   });

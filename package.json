@@ -1,7 +1,7 @@
 {
   "name": "anhedral",
-  "version": "0.4.2",
-  "description": "Generate a complete, readable TypeScript product stack with Next.js, Expo, Fastify, Neon, Drizzle, Clerk, R2, Electron updates, WXT, and Vercel.",
+  "version": "0.5.0",
+  "description": "Generate a complete, readable product stack across TypeScript apps, managed services, and opt-in self-hosted infrastructure.",
   "type": "module",
   "exports": {
     ".": {
@@ -18,15 +18,19 @@
     "bin",
     "dist",
     "docs/conventions.md",
-    "docs/engineering-principles.md",
+    "docs/build-for-what-comes-next.md",
+    "docs/cli-reference.md",
     "assets/anhedral-cli-init.svg",
+    "assets/anhedral-cli-init-technical.svg",
     "assets/images/svg/ably-symbol-color.svg",
     "assets/images/svg/logo-white-subtract.svg",
     "docs/master-stack-map.md",
     "docs/NORTHSTAR.md",
     "docs/output-tree-contract.md",
+    "docs/stack-tool-options.md",
     "docs/references",
     "scripts/render-master-stack-map.mjs",
+    "scripts/render-technical-stack-map.mjs",
     "templates",
     "SKILL.md",
     "CHANGELOG.md",
@@ -91,7 +95,9 @@
     "release:artifact:verify": "node scripts/verify-release-artifact.mjs release-artifact/metadata.json && node scripts/check-release-secrets.mjs release-artifact/metadata.json",
     "release:artifact:smoke": "node tests/test-packed-cli.js release-artifact/metadata.json",
     "demo:refresh": "pnpm build && node tests/refresh-demo.js",
-    "docs:stack-map": "node scripts/render-master-stack-map.mjs"
+    "docs:stack-map": "node scripts/render-master-stack-map.mjs",
+    "docs:technical-stack-map": "node scripts/render-technical-stack-map.mjs",
+    "docs:stack-maps": "pnpm docs:stack-map && pnpm docs:technical-stack-map"
   },
   "keywords": [
     "cli",
@@ -102,14 +108,27 @@
     "expo",
     "electron",
     "clerk",
+    "authjs",
+    "next-auth",
     "drizzle",
     "neondb",
     "revenuecat",
     "wxt",
-    "vercel"
+    "vercel",
+    "cloudflare-workflows",
+    "postgresql",
+    "ubuntu",
+    "docker",
+    "nginx",
+    "certbot"
   ],
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@<=5.0.7": "5.0.8"
+    }
+  },
   "devDependencies": {
     "@types/node": "20.19.43",
     "c8": "11.0.0",

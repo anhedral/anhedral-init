@@ -14,9 +14,11 @@ function options(database) {
     features: {
       database,
       auth: false,
+      realtime: false,
       billing: false,
       storage: false,
       nativeSubscriptions: false,
+      electronUpdater: false,
     },
     skipInstall: true,
   };

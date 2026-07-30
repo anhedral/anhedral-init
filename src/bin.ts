@@ -3,8 +3,9 @@
 import { createInterface } from 'node:readline/promises';
 import { argv, stdin, stdout } from 'node:process';
 import {
-  APP_MODULES,
-  FEATURE_MODULES,
+  APP_PRODUCTS,
+  FEATURE_PRODUCTS,
+  INFRASTRUCTURE_PRODUCTS,
   buildAddOptions,
   buildOptions,
   buildOptionsForRoot,
@@ -17,6 +18,7 @@ import { doctorProject, scaffoldAddModules, scaffoldProject, scaffoldUiComponent
 import {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
   hasUiSelection,
   parsePromptConfirmation,
   parsePromptModuleSelection,
@@ -25,16 +27,22 @@ import {
 import { GENERATOR_VERSION } from './version.js';
 import { PostCommitError } from './transaction.js';
 import { resolveModules } from './architecture/modules.js';
+import {
+  moduleIdForStackSelection,
+  productIdsForModules,
+} from './architecture/products.js';
 import { UI_TARGETS } from './ui.js';
+import { setupVpsProject } from './vps.js';
 
 type CliErrorCode =
   | 'UNKNOWN_COMMAND'
   | 'INVALID_ARGUMENT'
   | 'DOCTOR_FAILED'
+  | 'VPS_SETUP_FAILED'
   | 'GENERATION_FAILED'
   | 'POST_COMMIT_FAILED';
 
-const COMMANDS = ['new', 'init', 'add', 'ui', 'upgrade', 'doctor'] as const;
+const COMMANDS = ['new', 'init', 'add', 'ui', 'upgrade', 'doctor', 'setup-vps'] as const;
 type Command = (typeof COMMANDS)[number];
 const COMMAND_SET = new Set<string>(COMMANDS);
 const UI_TARGET_SET = new Set<string>(UI_TARGETS);
@@ -54,16 +62,28 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
 
   const rl = createInterface({ input: stdin, output: stdout });
   try {
-    console.log('Select app surfaces: web, mobile, api, desktop, extension (or "all"/"none")');
+    console.log(`Select application products: ${APP_PRODUCTS.join(', ')} (or "all"/"none")`);
     const appAnswer = await rl.question(`App surfaces [${DEFAULT_PROMPT_APP_MODULES.join(', ')}]: `);
-    console.log('Select capabilities: db, auth, billing, storage, native-subscriptions, electron-updater (or "all"/"none")');
+    console.log(`Select service products: ${FEATURE_PRODUCTS.join(', ')} (or "all"/"none")`);
     const featureAnswer = await rl.question('Capabilities [none]: ');
+    console.log(`Select infrastructure products: ${INFRASTRUCTURE_PRODUCTS.join(', ')} (or "all"/"none")`);
+    const infrastructureAnswer = await rl.question('Infrastructure [none]: ');
     const selected = [
-      ...parsePromptModuleSelection(appAnswer, DEFAULT_PROMPT_APP_MODULES, APP_MODULES),
-      ...parsePromptModuleSelection(featureAnswer, DEFAULT_PROMPT_FEATURE_MODULES, FEATURE_MODULES),
+      ...parsePromptModuleSelection(appAnswer, DEFAULT_PROMPT_APP_MODULES, APP_PRODUCTS),
+      ...parsePromptModuleSelection(featureAnswer, DEFAULT_PROMPT_FEATURE_MODULES, FEATURE_PRODUCTS),
+      ...parsePromptModuleSelection(
+        infrastructureAnswer,
+        DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
+        INFRASTRUCTURE_PRODUCTS,
+      ),
     ];
     if (selected.length === 0) throw new Error('Select at least one app surface or capability.');
-    const resolution = resolveModules(selected);
+    const requestedModules = selected.map((productId) => {
+      const moduleId = moduleIdForStackSelection(productId);
+      if (!moduleId) throw new Error(`Unknown product: ${productId}`);
+      return moduleId;
+    });
+    const resolution = resolveModules(requestedModules);
     const result = [...args, ...selected.map((moduleName) => `--${moduleName}`)];
     const hasUiClient = resolution.resolvedModules.some((moduleName) => UI_TARGET_SET.has(moduleName));
     if (hasUiClient && !hasUiSelection(args)) {
@@ -75,11 +95,11 @@ async function promptForInitModules(args: string[]): Promise<string[]> {
       const stylingAnswer = (await rl.question('Expo styling [nativewind]: ')).trim();
       result.push(`--native-styling=${stylingAnswer || 'nativewind'}`);
     }
-    console.log(`Requested: ${resolution.requestedModules.join(', ')}`);
+    console.log(`Requested: ${selected.join(', ')}`);
     if (resolution.dependencyAddedModules.length > 0) {
-      console.log(`Added by dependencies: ${resolution.dependencyAddedModules.join(', ')}`);
+      console.log(`Added by dependencies: ${productIdsForModules(resolution.dependencyAddedModules).join(', ')}`);
     }
-    console.log(`Resolved stack: ${resolution.resolvedModules.join(', ')}`);
+    console.log(`Resolved stack: ${productIdsForModules(resolution.resolvedModules).join(', ')}`);
     const confirmation = await rl.question('Generate this stack? [Y/n]: ');
     if (!parsePromptConfirmation(confirmation)) throw new Error('Generation cancelled.');
     return result;
@@ -172,6 +192,13 @@ async function main(): Promise<void> {
         if (!report.ok) process.exitCode = 1;
         break;
       }
+      case 'setup-vps': {
+        const unknown = rawArgs.filter((arg) => !['--check', '--verbose'].includes(arg));
+        if (unknown.length) throw new Error(`Unknown setup-vps option: ${unknown[0]}`);
+        phase = 'execute';
+        setupVpsProject({ check: rawArgs.includes('--check') });
+        break;
+      }
       case 'add': {
         const options = buildAddOptions([], parseCli(rawArgs));
         phase = 'execute';
@@ -214,6 +241,8 @@ async function main(): Promise<void> {
         ? 'INVALID_ARGUMENT'
         : command === 'doctor'
           ? 'DOCTOR_FAILED'
+          : command === 'setup-vps'
+            ? 'VPS_SETUP_FAILED'
           : 'GENERATION_FAILED';
     writeCliError(error, code, json);
     process.exitCode = 1;

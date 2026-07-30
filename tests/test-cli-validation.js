@@ -25,6 +25,7 @@ const { assertPackageName, childPackageName } = await import(
 const {
   DEFAULT_PROMPT_APP_MODULES,
   DEFAULT_PROMPT_FEATURE_MODULES,
+  DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
   parsePromptConfirmation,
   parsePromptModuleSelection,
   shouldPromptForInitModules,
@@ -61,7 +62,7 @@ const cases = [
     name: 'requires a destination for new',
     args: ['new'],
     expectedExit: 1,
-    stderrIncludes: 'anhedral new requires a destination directory before module flags',
+    stderrIncludes: 'anhedral new requires a destination directory before product flags',
   },
   {
     name: 'fails unknown command',
@@ -70,10 +71,22 @@ const cases = [
     stderrIncludes: 'Unknown command: whoops',
   },
   {
+    name: 'requires an Anhedral project for VPS setup',
+    args: ['setup-vps', '--check'],
+    expectedExit: 1,
+    stderrIncludes: 'anhedral.json was not found',
+  },
+  {
+    name: 'rejects unknown VPS setup options',
+    args: ['setup-vps', '--wat'],
+    expectedExit: 1,
+    stderrIncludes: 'Unknown setup-vps option: --wat',
+  },
+  {
     name: 'rejects unexpected positional arguments',
     args: ['init', 'demo'],
     expectedExit: 1,
-    stderrIncludes: 'Unexpected argument: demo. Use module names, module flags, --toolchain, or --skip-install',
+    stderrIncludes: 'Unexpected argument: demo. Use product names, product flags, --toolchain, or --skip-install',
   },
   {
     name: 'defaults stack before validating toolchain',
@@ -82,62 +95,62 @@ const cases = [
     stderrIncludes: '--toolchain must be one of: latest, stable',
   },
   {
-    name: 'accepts desktop module flag',
-    args: ['init', '--desktop', '--skip-install'],
+    name: 'accepts Electron product flag',
+    args: ['init', '--electron', '--skip-install'],
     expectedExit: 1,
     stderrIncludes: 'Current directory is not empty.',
   },
   {
-    name: 'accepts extension module flag',
-    args: ['init', '--extension', '--skip-install'],
+    name: 'accepts WXT product flag',
+    args: ['init', '--wxt', '--skip-install'],
     expectedExit: 1,
     stderrIncludes: 'Current directory is not empty.',
   },
   {
-    name: 'rejects unknown module flags',
-    args: ['init', '--next'],
+    name: 'rejects unknown product flags',
+    args: ['init', '--nuxt'],
     expectedExit: 1,
-    stderrIncludes: 'Unknown flag: --next',
+    stderrIncludes: 'Unknown flag: --nuxt',
   },
   {
     name: 'rejects ignored Git options on add',
-    args: ['add', 'desktop', '--no-git'],
+    args: ['add', 'electron', '--no-git'],
     expectedExit: 1,
     stderrIncludes: 'Git initialization options are only supported by anhedral new and anhedral init',
   },
   {
     name: 'routes UI additions to the UI command',
-    args: ['add', 'desktop', '--ui=dialog'],
+    args: ['add', 'electron', '--ui=dialog'],
     expectedExit: 1,
     stderrIncludes: 'Use anhedral ui add <component...> to add UI components',
   },
   {
     name: 'routes separated UI additions to the UI command',
-    args: ['add', 'desktop', '--ui', 'dialog'],
+    args: ['add', 'electron', '--ui', 'dialog'],
     expectedExit: 1,
     stderrIncludes: 'Use anhedral ui add <component...> to add UI components',
   },
   {
     name: 'rejects native styling changes on add',
-    args: ['add', 'mobile', '--native-styling=uniwind'],
+    args: ['add', 'expo', '--native-styling=uniwind'],
     expectedExit: 1,
     stderrIncludes: '--native-styling is only supported while creating a project',
   },
   {
     name: 'rejects separated native styling changes on add',
-    args: ['add', 'mobile', '--native-styling', 'uniwind'],
+    args: ['add', 'expo', '--native-styling', 'uniwind'],
     expectedExit: 1,
     stderrIncludes: '--native-styling is only supported while creating a project',
   },
   {
     name: 'rejects contradictory Git options',
-    args: ['init', '--web', '--git', '--no-git'],
+    args: ['init', '--next', '--git', '--no-git'],
     expectedExit: 1,
     stderrIncludes: 'Conflicting values for --git/--no-git',
   },
   {
     name: 'rejects contradictory toolchain options',
-    args: ['init', '--web', '--toolchain=stable', '--toolchain=latest'],
+    args: ['init', '--next', '--toolchain=stable', '--toolchain=latest'],
     expectedExit: 1,
     stderrIncludes: 'Conflicting values for --toolchain',
   },
@@ -195,7 +208,7 @@ assert.equal(versionJson.stderr, '');
 const newRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-new-command-'));
 const newProject = path.join(newRoot, 'readable-stack');
 try {
-  const created = runCli(['new', newProject, '--web', '--api', '--db', '--auth', '--skip-install', '--json']);
+  const created = runCli(['new', newProject, '--next', '--fastify', '--neon', '--clerk', '--skip-install', '--json']);
   assert.equal(created.status, 0, `${created.stdout}\n${created.stderr}`);
   assert.equal(created.stderr, '');
   const createdPlan = JSON.parse(created.stdout);
@@ -259,7 +272,7 @@ try {
     'readiness must report required variables that were deleted from an existing environment file',
   );
   const humanProject = path.join(newRoot, 'human-readable-next-step');
-  const humanCreated = runCli(['new', humanProject, '--web', '--skip-install']);
+  const humanCreated = runCli(['new', humanProject, '--next', '--skip-install']);
   assert.equal(humanCreated.status, 0, `${humanCreated.stdout}\n${humanCreated.stderr}`);
   assert.match(humanCreated.stdout, /pnpm first-run/);
   assert.match(humanCreated.stdout, /pnpm ready/);
@@ -277,7 +290,7 @@ try {
   const extensionCreated = runCli([
     'new',
     extensionProject,
-    '--extension',
+    '--wxt',
     '--skip-install',
     '--no-git',
     '--json',
@@ -304,7 +317,7 @@ if (process.platform !== 'win32') {
     const linkedDestination = path.join(unsafeRoot, 'linked-destination');
     mkdirSync(realDestination);
     symlinkSync(realDestination, linkedDestination, 'dir');
-    const rejected = runCli(['new', linkedDestination, '--api', '--skip-install']);
+    const rejected = runCli(['new', linkedDestination, '--fastify', '--skip-install']);
     assert.equal(rejected.status, 1);
     assert.match(rejected.stderr, /Refusing transaction root that is a symbolic link/);
     assert.deepEqual(readdirSync(realDestination), [], 'a rejected symbolic-link destination must remain untouched');
@@ -321,7 +334,7 @@ if (process.platform !== 'win32') {
     const fakePnpm = path.join(fakeBin, 'pnpm');
     writeFileSync(fakePnpm, '#!/bin/sh\necho fake-child-stdout\necho fake-child-stderr >&2\nexit 7\n');
     chmodSync(fakePnpm, 0o755);
-    const failed = spawnSync('node', [cliEntry, 'init', '--api', '--json'], {
+    const failed = spawnSync('node', [cliEntry, 'init', '--fastify', '--json'], {
       cwd: project,
       encoding: 'utf8',
       env: {
@@ -357,10 +370,20 @@ assert.equal(
   'stable',
   'toolchain assignment flags should be accepted',
 );
-assert.deepEqual([...parseCli(['web', 'api']).modules], ['web', 'api'], 'init should accept positional modules');
-assert.equal(parseCli(['--all']).modules.size, 11, '--all should explicitly select every supported module');
-assert.deepEqual(parseNewProjectRequest(['my-app', '--web']), { directory: 'my-app', moduleArgs: ['--web'] });
-assert.equal(buildOptionsForRoot(parseCli(['--web']), '/tmp/My Product').projectName, 'my-product');
+assert.deepEqual([...parseCli(['next', 'fastify']).modules], ['web', 'api'], 'init should accept positional products');
+assert.deepEqual(
+  [...parseCli(['web', '--api']).modules],
+  ['web', 'api'],
+  'legacy role selectors should remain accepted for pre-1.0 compatibility',
+);
+assert.equal(parseCli(['--all']).modules.size, 13, '--all should explicitly select every supported module');
+assert.equal(
+  [...parseCli(['--all']).modules].some((moduleId) => ['ubuntu', 'docker', 'postgres', 'nginx', 'certbot'].includes(moduleId)),
+  false,
+  '--all should keep self-hosted infrastructure opt-in',
+);
+assert.deepEqual(parseNewProjectRequest(['my-app', '--next']), { directory: 'my-app', moduleArgs: ['--next'] });
+assert.equal(buildOptionsForRoot(parseCli(['--next']), '/tmp/My Product').projectName, 'my-product');
 
 for (const [directoryName, expected] of [
   ['...Hidden Project', 'hidden-project'],
@@ -381,26 +404,72 @@ assert.ok(longChildName.length <= 214);
 assert.equal(assertPackageName(longChildName), longChildName);
 assert.throws(() => assertPackageName('node_modules'), /Invalid package name/);
 
-const minimalOptions = buildOptions(parseCli(['--web', '--api', '--db', '--auth']));
+const minimalOptions = buildOptions(parseCli(['--next', '--fastify', '--neon', '--clerk']));
 assert.deepEqual(minimalOptions.modules, ['web', 'api', 'db', 'auth']);
+assert.equal(minimalOptions.authProvider, 'clerk');
+assert.equal(minimalOptions.adminMode, 'none');
+const authJsAdminPage = buildOptions(parseCli(['--next', '--fastify', '--neon', '--authjs', '--admin-page']));
+assert.equal(authJsAdminPage.authProvider, 'authjs');
+assert.equal(authJsAdminPage.adminMode, 'page');
+assert.deepEqual(authJsAdminPage.modules, ['web', 'admin', 'api', 'db', 'auth']);
+const authJsAdminApp = buildOptions(parseCli(['--next', '--fastify', '--neon', '--authjs', '--admin-app']));
+assert.equal(authJsAdminApp.adminMode, 'app');
+assert.throws(
+  () => buildOptions(parseCli(['--fastify', '--neon', '--authjs'])),
+  /Auth\.js requires the Next\.js web application/,
+);
+assert.throws(
+  () => buildOptions(parseCli(['--next', '--expo', '--authjs'])),
+  /Auth\.js does not yet support.*mobile/,
+);
+assert.throws(
+  () => parseCli(['--clerk', '--authjs']),
+  /Conflicting values/,
+);
+assert.throws(
+  () => parseCli(['--admin-page', '--admin-app']),
+  /Conflicting values/,
+);
+const infrastructureOptions = buildOptions(parseCli([
+  '--next',
+  '--fastify',
+  '--postgres',
+  '--ubuntu',
+  '--docker',
+  '--nginx',
+  '--certbot',
+]));
+assert.deepEqual(infrastructureOptions.modules, [
+  'web',
+  'api',
+  'ubuntu',
+  'docker',
+  'postgres',
+  'nginx',
+  'certbot',
+]);
 
 assert.deepEqual(
-  buildAddOptions(['mobile', 'extension', 'mobile'], parseCli(['--skip-install'])).modules,
+  buildAddOptions(['expo', 'wxt', 'expo'], parseCli(['--skip-install'])).modules,
   ['mobile', 'extension'],
 );
-assert.deepEqual([...DEFAULT_PROMPT_APP_MODULES, ...DEFAULT_PROMPT_FEATURE_MODULES], [
-  'web',
+assert.deepEqual([
+  ...DEFAULT_PROMPT_APP_MODULES,
+  ...DEFAULT_PROMPT_FEATURE_MODULES,
+  ...DEFAULT_PROMPT_INFRASTRUCTURE_MODULES,
+], [
+  'next',
 ]);
-assert.deepEqual(parsePromptModuleSelection('none', ['web'], ['web', 'api']), []);
-assert.deepEqual(parsePromptModuleSelection('all', ['web'], ['web', 'api']), ['web', 'api']);
-assert.deepEqual(parsePromptModuleSelection('WEB, web', ['web'], ['web', 'api']), ['web']);
+assert.deepEqual(parsePromptModuleSelection('none', ['next'], ['next', 'fastify']), []);
+assert.deepEqual(parsePromptModuleSelection('all', ['next'], ['next', 'fastify']), ['next', 'fastify']);
+assert.deepEqual(parsePromptModuleSelection('NEXT, next', ['next'], ['next', 'fastify']), ['next']);
 assert.throws(
-  () => parsePromptModuleSelection('none,web', ['web'], ['web', 'api']),
+  () => parsePromptModuleSelection('none,next', ['next'], ['next', 'fastify']),
   /"none" must be used by itself/,
 );
 assert.throws(
-  () => parsePromptModuleSelection('auth', ['web'], ['web', 'api']),
-  /Unknown selection: auth/,
+  () => parsePromptModuleSelection('nuxt', ['next'], ['next', 'fastify']),
+  /Unknown selection: nuxt/,
 );
 assert.equal(parsePromptConfirmation(''), true);
 assert.equal(parsePromptConfirmation('YES'), true);
@@ -414,13 +483,17 @@ assert.deepEqual(
   buildAddOptions(['electron-updater'], parseCli(['--skip-install'])).modules,
   ['electron-updater'],
 );
+assert.deepEqual(
+  buildAddOptions(['cloudflare-workflows'], parseCli(['--skip-install'])).modules,
+  ['workflows'],
+);
 assert.equal(shouldPromptForInitModules([], true), true);
 assert.equal(shouldPromptForInitModules(['--json'], true), false, '--json must never open interactive prompts');
-assert.equal(shouldPromptForInitModules(['--web'], true), false);
+assert.equal(shouldPromptForInitModules(['--next'], true), false);
 assert.equal(shouldPromptForInitModules(['--all'], true), false);
 assert.equal(shouldPromptForInitModules([], false), false);
 assert.deepEqual(
-  buildAddOptions(['billing'], parseCli(['--skip-install'])).modules,
+  buildAddOptions(['revenuecat'], parseCli(['--skip-install'])).modules,
   ['billing'],
   'add should preserve explicit intent instead of storing the dependency closure',
 );

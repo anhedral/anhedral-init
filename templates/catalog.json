@@ -1,6 +1,9 @@
 {
   "version": 1,
   "templates": {
+    "admin-next": {
+      "sha256": "13d3d796d3d94cd4d7f3d20eef50bc9d0cd3a53d4c63594329acb5a3521f3a02"
+    },
     "api-fastify": {
       "sha256": "7ec1b5fffa1a53405fc55238d09c013ace048986afcefe3a653322f060688e51"
     },

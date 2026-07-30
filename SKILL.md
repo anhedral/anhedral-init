@@ -73,8 +73,14 @@ Native tools are conditional:
 - Extension development requires a Chromium browser; store publication does
   not require another build CLI beyond the generated WXT scripts.
 
-Anhedral intentionally requires neither Docker nor local Postgres. Database
-modules use managed Neon.
+The default application/service stack requires neither Docker nor local
+Postgres and uses managed Neon. Self-hosted infrastructure is opt-in through
+the independent `postgres`, `ubuntu`, `docker`, `nginx`, and `certbot`
+products. The infrastructure plan never mutates a host. Generated projects also
+include an explicit `pnpm dlx anhedral@latest setup-vps` command that runs on
+the intended Ubuntu VPS, validates the generated project manifest, applies the
+selected idempotent host baseline, and refuses SSH hardening unless it can
+install a validated existing public key for a non-root operator.
 
 ## Choose the construction path
 
@@ -89,22 +95,33 @@ The manual path must leave a complete working workspace, not merely a directory 
 
 Choose app surfaces from `web`, `mobile`, `api`, `desktop`, and `extension`.
 
-Choose features from `db`, `auth`, `billing`, `storage`, `native-subscriptions`, and `electron-updater`.
+Choose features from `db`, `auth`, `realtime`, `billing`, `storage`,
+`workflows`, `native-subscriptions`, and `electron-updater`.
+
+Choose infrastructure from `ubuntu`, `docker`, `postgres`, `nginx`, and
+`certbot`. Do not replace these selectors with a deployment-profile flag.
 
 Apply these dependency rules automatically:
 
 ```text
 auth                 -> api + db
-billing              -> auth
+realtime             -> auth
+billing              -> realtime
 storage              -> auth
+workflows            -> standalone Cloudflare Worker
 native-subscriptions -> mobile + billing
 electron-updater     -> desktop
+docker               -> ubuntu
+postgres             -> db + docker
+nginx                -> docker
+certbot              -> nginx
 ```
 
-With no module flags in an interactive terminal, Anhedral prompts and suggests
+With no product flags in an interactive terminal, Anhedral prompts and suggests
 a focused web app. In a noninteractive environment, no flags retain the full
-stack for compatibility. Use `--all` when the complete stack is intentional,
-or pass explicit modules for reproducible automation.
+application/service stack for compatibility. `--all` intentionally excludes
+self-hosted infrastructure; pass its explicit product names for reproducible
+automation.
 
 ## Master stack map
 
@@ -172,9 +189,10 @@ starting affected services.
 Prefer explicit modules when the user requests a smaller stack:
 
 ```sh
-pnpm dlx anhedral@latest new my-product --web --api --db --auth
-pnpm dlx anhedral@latest new my-product --web --mobile --ui button,dialog --native-styling nativewind
-pnpm dlx anhedral@latest new my-api --api --skip-install
+pnpm dlx anhedral@latest new my-product --next --fastify --neon --clerk
+pnpm dlx anhedral@latest new my-product --next --expo --ui button,dialog --native-styling nativewind
+pnpm dlx anhedral@latest new my-api --fastify --skip-install
+pnpm dlx anhedral@latest new my-vps-app --next --fastify --postgres --ubuntu --docker --nginx --certbot
 ```
 
 Use the stable toolchain for normal generation. The `latest` value is retained only as a metadata compatibility channel for maintainer investigations:
@@ -206,17 +224,17 @@ Use the native source conventions:
 - Product client-safe HTTP methods belong in `packages/api-client/src/app.ts`.
 - Product Drizzle tables belong in `packages/db/src/app-schema.ts`; generate and review SQL migrations.
 
-Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. The generated `items` feature demonstrates that same path on every selected client—Next.js, Expo, Electron, and WXT—using one contract and API client with platform-native UI. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. This stack uses managed Neon and intentionally has no local Postgres service.
+Implement an end-to-end feature as `contracts -> database/service -> route -> API client -> frontend`. The generated `items` feature demonstrates that same path on every selected client—Next.js, Expo, Electron, and WXT—using one contract and API client with platform-native UI. Frontends may import contracts and client-safe packages, never API services, database connections, or server environments. Database runtime guidance is selection-aware: managed Neon by default, or private self-hosted PostgreSQL when `--postgres` is selected.
 
 ## Add modules safely
 
-Run `add` only from a project containing `anhedral.json` schema v5 at the current generator version. If `doctor` identifies a supported older generator, preview and apply its transactional upgrade first:
+Run `add` only from a project containing `anhedral.json` schema v6 at the current generator version. If `doctor` identifies a supported older generator, preview and apply its transactional upgrade first:
 
 ```sh
 pnpm dlx anhedral@latest upgrade --dry-run
 pnpm dlx anhedral@latest upgrade
-pnpm dlx anhedral@latest add desktop extension
-pnpm dlx anhedral@latest add storage --dry-run
+pnpm dlx anhedral@latest add electron wxt
+pnpm dlx anhedral@latest add r2 --dry-run
 ```
 
 Use `--dry-run` before a consequential add. Use `--json` when another program needs the plan; JSON failures include a stable `code` and a human-readable `error`. Use `--verbose` for interactive child-command diagnostics. Anhedral preserves recorded user-owned extension files and intentionally refuses modified managed files, symlinks, and unowned collisions; do not bypass those conflicts.
@@ -234,7 +252,7 @@ new provider set. Reconcile them against `anhedral.json`, the managed project
 then update the user-owned documentation explicitly with the developer's
 approval.
 
-For manual projects without a trustworthy schema-v5 `anhedral.json`, add modules with the manual reference instead. Never fabricate manifest ownership records, template provenance, UI installation records, or hashes. A manually authored workspace is valid as an application workspace but is not CLI-managed until it has been regenerated by a matching Anhedral version.
+For manual projects without a trustworthy schema-v6 `anhedral.json`, add modules with the manual reference instead. Never fabricate manifest ownership records, template provenance, UI installation records, or hashes. A manually authored workspace is valid as an application workspace but is not CLI-managed until it has been regenerated by a matching Anhedral version.
 
 ## Add UI components
 
@@ -284,9 +302,11 @@ Common selected keys are:
 - Clerk server: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 - Clerk clients: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - RevenueCat: `RC_WEBHOOK_SECRET`, `RC_SECRET_API_KEY`, `RC_ENTITLEMENT_ID`, `EXPO_PUBLIC_RC_*`
-- Ably billing synchronization: server-only `ABLY_API_KEY`; clients obtain scoped tokens from the API
+- Ably realtime: server-only `ABLY_API_KEY`; clients obtain scoped user-channel tokens from the API
 - R2: `BASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PREFIX=storage`, `R2_PROXY_READ_URL_TTL_SECONDS=600`; keep `CLOUDFLARE_API_TOKEN` operations/CI-only
 - Internal billing/storage jobs: high-entropy server-only `CRON_SECRET`
+- Workflows: high-entropy `WORKFLOW_API_TOKEN` stored with Wrangler secrets in
+  production and ignored `.dev.vars` locally
 - Electron updates: `DESKTOP_UPDATE_BASE_URL` in `apps/desktop/electron-builder.env`; the private R2 binding needs no credential in the packaged application
 
 Never commit real `.env` files. Keep `ANHEDRAL_DEMO=false` in production.
@@ -321,6 +341,13 @@ For `electron-updater`, provision the generated private R2 bucket and
 platform and publish artifacts before mutable channel metadata.
 
 For storage, generate `apps/assets-private-proxy` plus `cloudflare/r2-cors.template.json` and keep the R2 bucket private. The Worker must be named `assets-private-proxy`, bind the normalized `<project>-assets` bucket as `ASSETS`, disable `workers.dev`, and own `assets.<domain>` as a Worker Custom Domain. Presigned uploads continue on the R2 S3 API hostname. Root every key below `R2_PREFIX=storage`; expose only `storage/confirmed/` through the Worker and reject staging plus `generation-inputs`. Authenticated private reads must verify upload ownership and return a presigned GET URL bounded by `R2_PROXY_READ_URL_TTL_SECONDS`.
+
+For `workflows`, generate `apps/workflows` with a Cloudflare Workflows binding,
+user-owned `src/workflow.ts`, managed instance/status/event control routes, and
+observability enabled. Require a 32+ character server-only control token.
+Workflow steps must have deterministic names, serializable results, explicit
+retry/timeout policy, and idempotent external side effects keyed by the instance
+ID. Do not expose the control token or routes directly to a client.
 
 When explaining domains, distinguish DNS delegation from registrar transfer. A domain can use Cloudflare authoritative nameservers while remaining with its current registrar; transferring registration/billing to Cloudflare Registrar is optional and subject to eligibility locks. Keep Vercel app/API A or CNAME records DNS-only in Cloudflare, while Worker Custom Domains stay Cloudflare-managed and proxied.
 

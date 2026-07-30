@@ -24,16 +24,20 @@ const requiredFiles = new Set([
   'favicon.ico',
   'package.json',
   'docs/conventions.md',
-  'docs/engineering-principles.md',
+  'docs/build-for-what-comes-next.md',
+  'docs/cli-reference.md',
   'docs/master-stack-map.md',
   'docs/NORTHSTAR.md',
   'assets/anhedral-cli-init.svg',
+  'assets/anhedral-cli-init-technical.svg',
   'assets/images/svg/ably-symbol-color.svg',
   'assets/images/svg/logo-white-subtract.svg',
   'docs/output-tree-contract.md',
+  'docs/stack-tool-options.md',
   'docs/references/manual-scaffolding.md',
   'docs/references/provisioning.md',
   'scripts/render-master-stack-map.mjs',
+  'scripts/render-technical-stack-map.mjs',
   'templates/catalog.json',
   'templates/web-next/apps/web/next-env.d.ts',
 ]);
@@ -156,6 +160,7 @@ try {
     'electron-updater -> desktop',
     'apps/desktop-updater-worker',
     'desktop:updates:worker:{check,dev,deploy,types}',
+    'WORKFLOWS workflows:{login,dev,deploy,types,secret:put,instances:list,instances:describe}',
     'SUBAGENTS Lead owns mutations',
     'SECRET HANDOFF Stop before Generate/Reveal/Create',
     'app.<domain> points from Cloudflare DNS to Vercel and stays DNS-only',
@@ -178,14 +183,67 @@ try {
     'Fastify Backend',
     'RevenueCat + Stripe',
     'Ably Realtime',
-    'Assets Worker',
-    'Updater Worker',
-    'updates.example.com → electron-updater',
+    'Cloudflare Workflows',
+    'Cloudflare Workers',
+    '2 generated edge gateways',
+    'assets-private-proxy · electron-updater',
+    'Cloudflare R2',
+    'assets + signed desktop updates',
     'Cloudflare DNS + Vercel',
     'Desktop Releases',
     'electron-updater enabled',
     'backend service connection',
   ]) assert.match(checkedInSvg, new RegExp(requiredSvgText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(
+    checkedInSvg,
+    /data-connection="fastify-to-cloudflare-r2"/,
+    'Fastify backend must connect to the Cloudflare R2 service card',
+  );
+
+  const renderedTechnicalMapPath = path.join(npmCache, 'anhedral-cli-init-technical.svg');
+  const technicalRenderResult = spawnSyncPortable(
+    process.execPath,
+    [path.join(repoRoot, 'scripts/render-technical-stack-map.mjs'), '--output', renderedTechnicalMapPath],
+    { cwd: repoRoot, encoding: 'utf8' },
+  );
+  assert.equal(
+    technicalRenderResult.status,
+    0,
+    `technical stack map render failed: ${technicalRenderResult.stderr ?? ''}`,
+  );
+  const checkedInTechnicalSvg = readFileSync(
+    path.join(repoRoot, 'assets/anhedral-cli-init-technical.svg'),
+    'utf8',
+  );
+  assert.equal(
+    readFileSync(renderedTechnicalMapPath, 'utf8'),
+    checkedInTechnicalSvg,
+    'generated technical stack map SVG must be current',
+  );
+  for (const requiredTechnicalText of [
+    'Anhedral Init — Technical Communication Map',
+    'AUTHENTICATED APPLICATION API',
+    'BILLING RECONCILIATION + REALTIME INVALIDATION',
+    'PRIVATE R2 ASSET STORAGE',
+    'CLOUDFLARE DURABLE WORKFLOWS',
+    'SIGNED DESKTOP UPDATE CHANNEL',
+    'DEPLOYMENT, DNS + OPTIONAL SELF-HOSTED TOPOLOGY',
+    'COMPLETE SERVICE CONTRACT CATALOG',
+    'assets-private-proxy',
+    'desktop-updater Worker',
+    'APPLICATION_WORKFLOW',
+    'WORKFLOW_API_TOKEN',
+    'R2 S3 keys',
+    'private:users:',
+    'Stripe Checkout: product integration',
+    'DNS-only → Vercel',
+    'Dashed card = opt-in or explicit product integration',
+  ]) {
+    assert.match(
+      checkedInTechnicalSvg,
+      new RegExp(requiredTechnicalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    );
+  }
 
   for (const file of packed.files) {
     const allowedBin = file.path === 'bin/anhedral.js';
@@ -193,16 +251,20 @@ try {
     const allowedTemplate = file.path.startsWith('templates/')
       && /(?:\.json|\.d\.ts)$/.test(file.path);
     const allowedDocumentation = file.path === 'assets/anhedral-cli-init.svg'
+      || file.path === 'assets/anhedral-cli-init-technical.svg'
       || file.path === 'assets/images/svg/ably-symbol-color.svg'
       || file.path === 'assets/images/svg/logo-white-subtract.svg'
       || file.path === 'docs/conventions.md'
-      || file.path === 'docs/engineering-principles.md'
+      || file.path === 'docs/build-for-what-comes-next.md'
+      || file.path === 'docs/cli-reference.md'
       || file.path === 'docs/master-stack-map.md'
       || file.path === 'docs/NORTHSTAR.md'
       || file.path === 'docs/output-tree-contract.md'
+      || file.path === 'docs/stack-tool-options.md'
       || file.path === 'docs/references/manual-scaffolding.md'
       || file.path === 'docs/references/provisioning.md';
-    const allowedDiagramSource = file.path === 'scripts/render-master-stack-map.mjs';
+    const allowedDiagramSource = file.path === 'scripts/render-master-stack-map.mjs'
+      || file.path === 'scripts/render-technical-stack-map.mjs';
     const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate || allowedDocumentation || allowedDiagramSource;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
     if (!allowedDocumentation && !allowedDiagramSource) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);

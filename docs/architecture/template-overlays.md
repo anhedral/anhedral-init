@@ -27,7 +27,7 @@ The generation pipeline is:
 - Shared files are composed from typed data rather than sequential text patches.
 - `add` retains managed, mergeable, and user-owned conflict rules.
 - Template catalog version and digest are part of the `anhedral.json` trust boundary.
-- UI provider, target, source address, native styling variant, and installed file hashes are part of manifest schema v5.
+- UI provider, target, source address, native styling variant, and installed file hashes are part of manifest schema v6.
 - The published npm artifact contains everything needed for stable generation.
 
 ## Template maintenance

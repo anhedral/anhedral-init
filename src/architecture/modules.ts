@@ -1,5 +1,6 @@
 export const APP_MODULES = [
   'web',
+  'admin',
   'mobile',
   'api',
   'desktop',
@@ -9,18 +10,33 @@ export const APP_MODULES = [
 export const FEATURE_MODULES = [
   'db',
   'auth',
+  'realtime',
   'billing',
   'storage',
+  'workflows',
   'native-subscriptions',
   'electron-updater',
 ] as const;
 
-export const MODULE_IDS = [...APP_MODULES, ...FEATURE_MODULES] as const;
+export const INFRASTRUCTURE_MODULES = [
+  'ubuntu',
+  'docker',
+  'postgres',
+  'nginx',
+  'certbot',
+] as const;
+
+export const MODULE_IDS = [
+  ...APP_MODULES,
+  ...FEATURE_MODULES,
+  ...INFRASTRUCTURE_MODULES,
+] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
 export type FeatureModule = (typeof FEATURE_MODULES)[number];
+export type InfrastructureModule = (typeof INFRASTRUCTURE_MODULES)[number];
 export type ModuleId = (typeof MODULE_IDS)[number];
-export type ModuleKind = 'app' | 'feature';
+export type ModuleKind = 'app' | 'feature' | 'infrastructure';
 
 export type ModuleDefinition = {
   readonly id: ModuleId;
@@ -202,16 +218,24 @@ export function createModuleRegistry(definitions: readonly ModuleDefinition[]): 
 
 const DEFAULT_MODULE_DEFINITION_INPUTS: readonly ModuleDefinition[] = [
   { id: 'web', kind: 'app', requires: [], conflicts: [] },
+  { id: 'admin', kind: 'app', requires: ['web', 'auth', 'db'], conflicts: [] },
   { id: 'mobile', kind: 'app', requires: [], conflicts: [] },
   { id: 'api', kind: 'app', requires: [], conflicts: [] },
   { id: 'desktop', kind: 'app', requires: [], conflicts: [] },
   { id: 'extension', kind: 'app', requires: [], conflicts: [] },
   { id: 'db', kind: 'feature', requires: [], conflicts: [] },
   { id: 'auth', kind: 'feature', requires: ['api', 'db'], conflicts: [] },
-  { id: 'billing', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'realtime', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'billing', kind: 'feature', requires: ['realtime'], conflicts: [] },
   { id: 'storage', kind: 'feature', requires: ['auth'], conflicts: [] },
+  { id: 'workflows', kind: 'feature', requires: [], conflicts: [] },
   { id: 'native-subscriptions', kind: 'feature', requires: ['mobile', 'billing'], conflicts: [] },
   { id: 'electron-updater', kind: 'feature', requires: ['desktop'], conflicts: [] },
+  { id: 'ubuntu', kind: 'infrastructure', requires: [], conflicts: [] },
+  { id: 'docker', kind: 'infrastructure', requires: ['ubuntu'], conflicts: [] },
+  { id: 'postgres', kind: 'infrastructure', requires: ['db', 'docker'], conflicts: [] },
+  { id: 'nginx', kind: 'infrastructure', requires: ['docker'], conflicts: [] },
+  { id: 'certbot', kind: 'infrastructure', requires: ['nginx'], conflicts: [] },
 ];
 
 export const DEFAULT_MODULE_DEFINITIONS: readonly ModuleDefinition[] = Object.freeze(
@@ -219,6 +243,19 @@ export const DEFAULT_MODULE_DEFINITIONS: readonly ModuleDefinition[] = Object.fr
 );
 
 export const DEFAULT_MODULE_REGISTRY = createModuleRegistry(DEFAULT_MODULE_DEFINITIONS);
+
+/**
+ * Compatibility registry for manifests generated before realtime became a
+ * first-class module. Those manifests recorded Ably as an implementation detail
+ * of billing, so billing closed directly over auth.
+ */
+export const PRE_REALTIME_MODULE_REGISTRY = createModuleRegistry(
+  DEFAULT_MODULE_DEFINITION_INPUTS.map((definition) => (
+    definition.id === 'billing'
+      ? { ...definition, requires: ['auth'] }
+      : definition
+  )),
+);
 
 export function resolveModules(
   requested: readonly string[],

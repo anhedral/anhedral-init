@@ -5,7 +5,6 @@ import {
   siAppstore,
   siClerk,
   siCloudflare,
-  siCloudflareworkers,
   siDrizzle,
   siElectron,
   siExpo,
@@ -40,7 +39,7 @@ const [, , markWidth = '1820', markHeight = '2199'] = markViewBox.split(/\s+/).m
 const markPaths = [...anhedralMarkSource.matchAll(/<path\b[^>]*\bd="([^"]+)"[^>]*>/g)].map((match) => match[1]);
 
 const W = 1920;
-const H = 1180;
+const H = 1240;
 const palette = {
   background: '#0c1117',
   panel: '#0a1724',
@@ -187,6 +186,24 @@ function customChrome(x, y, size) {
   svg.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.36}" fill="#4285f4"/>`);
 }
 
+function customR2(x, y, size) {
+  const cloudSize = Math.round(size * 0.42);
+  logo(
+    siCloudflare,
+    x + 2,
+    y + (size - cloudSize) / 2,
+    cloudSize,
+    palette.orange,
+  );
+  text(x + size * 0.72, y + size * 0.62, 'R2', {
+    size: Math.max(11, Math.round(size * 0.34)),
+    fill: palette.text,
+    weight: 700,
+    anchor: 'middle',
+    spacing: -0.4,
+  });
+}
+
 function card(x, y, width, height, {
   title,
   subtitle,
@@ -201,33 +218,50 @@ function card(x, y, width, height, {
   cornerIconColor = palette.text,
   iconScale = 52,
   compact = false,
+  wideIcon = false,
 }) {
   rect(x, y, width, height);
   const boxSize = height - 24;
+  const boxWidth = wideIcon ? 96 : boxSize;
   const boxX = x + 16;
   const boxY = y + 12;
-  iconBox(boxX, boxY, boxSize);
+  if (wideIcon) {
+    rect(boxX, boxY, boxWidth, boxSize, {
+      fill: '#07121d',
+      stroke: palette.divider,
+      radius: 11,
+    });
+  } else {
+    iconBox(boxX, boxY, boxSize);
+  }
 
   if (customIcon === 'globe') customGlobe(boxX, boxY, boxSize, iconColor);
   else if (customIcon === 'desktop') customDesktop(boxX, boxY, boxSize, iconColor);
   else if (customIcon === 'app-store') customAppStore(boxX, boxY, boxSize);
   else if (customIcon === 'google-play') customGooglePlay(boxX, boxY, boxSize);
   else if (customIcon === 'chrome') customChrome(boxX, boxY, boxSize);
+  else if (customIcon === 'r2') customR2(boxX, boxY, boxSize);
   else if (customIcon === 'ably') {
     const ablyWidth = boxSize - 12;
     ablySymbol(boxX + 6, boxY + (boxSize - ablyWidth * 64 / 78) / 2, ablyWidth);
   }
   else if (icon) {
     if (secondIcon || secondEmbeddedIcon) {
-      const pairedSize = compact ? 26 : 38;
+      const pairedSize = wideIcon ? 36 : compact ? 26 : 38;
       const pairedInset = compact ? 5 : 6;
       logo(icon, boxX + pairedInset, boxY + (boxSize - pairedSize) / 2, pairedSize, iconColor);
       if (secondEmbeddedIcon === 'ably') {
-        ablySymbol(boxX + boxSize - pairedSize - 4, boxY + (boxSize - pairedSize * 64 / 78) / 2, pairedSize);
+        ablySymbol(boxX + boxWidth - pairedSize - 4, boxY + (boxSize - pairedSize * 64 / 78) / 2, pairedSize);
+      } else if (secondEmbeddedIcon === 'r2') {
+        customR2(
+          boxX + boxWidth - pairedSize - pairedInset,
+          boxY + (boxSize - pairedSize) / 2,
+          pairedSize,
+        );
       } else {
         logo(
           secondIcon,
-          boxX + boxSize - pairedSize - pairedInset,
+          boxX + boxWidth - pairedSize - pairedInset,
           boxY + (boxSize - pairedSize) / 2,
           pairedSize,
           secondIconColor,
@@ -245,7 +279,7 @@ function card(x, y, width, height, {
     }
   }
 
-  const dividerX = boxX + boxSize + (compact ? 12 : 10);
+  const dividerX = boxX + boxWidth + (compact ? 12 : 10);
   const textX = dividerX + (compact ? 20 : 24);
   line(dividerX, y + 14, dividerX, y + height - 14);
   text(textX, y + (compact ? 31 : 42), title, { size: compact ? 18 : 22, weight: 500 });
@@ -289,7 +323,7 @@ function dxTool(x, y, {
 
 svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="title description">`);
 svg.push('<title id="title">Anhedral Init Stack</title>');
-svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, RevenueCat and Stripe billing, Ably realtime, backend services, and a dedicated private R2 updater Worker.</desc>');
+svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, billing, realtime, durable Cloudflare Workflows, private R2 assets, and desktop updates.</desc>');
 svg.push(`<defs>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
@@ -321,7 +355,7 @@ text(brandRuleX + 22, 80, 'ANHEDRAL', { size: 27, weight: 500, spacing: 1.3 });
   line(x + 1, 195, underlineEnd, 195, { stroke: palette.yellow, width: 6 });
 });
 text(34, 240, 'One init flow for web, native apps, extensions, backend,', { size: 24 });
-text(34, 274, 'storage, auth, subscriptions, and seamless desktop updates.', { size: 24 });
+text(34, 274, 'storage, auth, subscriptions, durable work, and desktop updates.', { size: 24 });
 
 const dxToolStartX = 1187;
 const dxToolY = 76;
@@ -345,12 +379,14 @@ const apiX = 1130;
 const apiW = 208;
 const serviceX = 1435;
 const serviceW = 430;
+const architectureHeadingY = 318;
+const architectureCardTop = 354;
 
-heading(deployX, 318, deployW, 'DEPLOY & DISTRIBUTE');
-heading(clientX, 318, clientW, 'CLIENT SURFACES');
-heading(apiX, 318, serviceX + serviceW - apiX, 'BACKEND + SERVICES');
+heading(deployX, architectureHeadingY, deployW, 'DEPLOY & DISTRIBUTE');
+heading(clientX, architectureHeadingY, clientW, 'CLIENT SURFACES');
+heading(apiX, architectureHeadingY, serviceX + serviceW - apiX, 'BACKEND + SERVICES');
 
-const deployRows = [342, 456, 570, 684, 798];
+const deployRows = Array.from({ length: 5 }, (_, index) => architectureCardTop + index * 114);
 [
   { title: 'Web', subtitle: 'Vercel preview + production', detail: 'hosts web + API', customIcon: 'globe' },
   { title: 'App Store', subtitle: 'iOS distribution', detail: 'EAS signed release', customIcon: 'app-store' },
@@ -359,7 +395,7 @@ const deployRows = [342, 456, 570, 684, 798];
   { title: 'Desktop Releases', subtitle: 'macOS · Windows · Linux', detail: 'signed installers + seamless updates', customIcon: 'desktop', iconColor: palette.text },
 ].forEach((item, index) => card(deployX, deployRows[index], deployW, 102, item));
 
-const clientRows = [342, 494, 646, 798];
+const clientRows = Array.from({ length: 4 }, (_, index) => architectureCardTop + index * 152);
 [
   {
     title: 'Next.js',
@@ -376,19 +412,20 @@ const clientRows = [342, 494, 646, 798];
 ].forEach((item, index) => card(clientX, clientRows[index], clientW, 112, item));
 
 // One central API, matching the supplied simplified architecture.
-rect(apiX, 474, apiW, 296, { radius: 14 });
+const apiY = architectureCardTop + 132;
+rect(apiX, apiY, apiW, 296, { radius: 14 });
 const apiIconBoxSize = 88;
 const apiIconBoxX = apiX + (apiW - apiIconBoxSize) / 2;
-const apiIconBoxY = 490;
+const apiIconBoxY = apiY + 16;
 iconBox(apiIconBoxX, apiIconBoxY, apiIconBoxSize);
 logo(siFastify, apiIconBoxX + 10, apiIconBoxY + 10, 68, palette.text);
-logo(siVercel, apiX + apiW - 32, 490, 17, palette.text);
-line(apiX + 18, 602, apiX + apiW - 18, 602, { stroke: palette.divider });
-text(apiX + apiW / 2, 643, 'Fastify Backend', { size: 25, weight: 500, anchor: 'middle' });
-text(apiX + apiW / 2, 675, 'API + business logic', { size: 17, fill: palette.muted, anchor: 'middle' });
+logo(siVercel, apiX + apiW - 32, apiY + 16, 17, palette.text);
+line(apiX + 18, apiY + 128, apiX + apiW - 18, apiY + 128, { stroke: palette.divider });
+text(apiX + apiW / 2, apiY + 169, 'Fastify Backend', { size: 25, weight: 500, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 201, 'API + business logic', { size: 17, fill: palette.muted, anchor: 'middle' });
 
-const serviceRows = [342, 438, 534, 630, 726, 822, 918];
-const serviceCardHeight = 88;
+const serviceRows = Array.from({ length: 8 }, (_, index) => architectureCardTop + index * 88);
+const serviceCardHeight = 80;
 [
   {
     title: 'Neon + Drizzle',
@@ -423,20 +460,25 @@ const serviceCardHeight = 88;
     customIcon: 'ably',
   },
   {
-    title: 'Assets Worker',
-    subtitle: 'PRIVATE R2 assets binding',
-    detail: 'assets.example.com · authorized reads',
-    icon: siCloudflareworkers,
+    title: 'Cloudflare Workflows',
+    subtitle: 'durable multi-step jobs',
+    detail: 'retry · sleep · wait for event',
+    icon: siCloudflare,
+    iconColor: palette.orange,
+    iconScale: 46,
+  },
+  {
+    title: 'Cloudflare Workers',
+    subtitle: '2 generated edge gateways',
+    detail: 'assets-private-proxy · electron-updater',
+    icon: siCloudflare,
     iconColor: palette.orange,
   },
   {
-    title: 'Updater Worker',
-    subtitle: 'PRIVATE R2 updates binding',
-    detail: 'updates.example.com → electron-updater',
-    icon: siCloudflareworkers,
-    iconColor: palette.orange,
-    secondIcon: siElectron,
-    secondIconColor: palette.cyan,
+    title: 'Cloudflare R2',
+    subtitle: 'PRIVATE object storage',
+    detail: 'assets + signed desktop updates',
+    customIcon: 'r2',
   },
   {
     title: 'Cloudflare DNS + Vercel',
@@ -475,25 +517,27 @@ publishConnections.forEach(({ clientIndex, deployIndex }) => {
 });
 
 // Client-to-API runtime lines.
-const apiTargets = [520, 590, 660, 730];
+const apiTargets = [46, 116, 186, 256].map((offset) => apiY + offset);
 clientRows.forEach((row, index) => {
   const sourceY = row + 56;
   const targetY = apiTargets[index];
   smoothConnector(clientX + clientW, sourceY, apiX, targetY);
 });
 
-// API-to-service lines. Billing and realtime remain separate downstream
-// services, and the assets API keeps its own fifth connection.
-const serviceApiSources = [500, 555, 610, 665, 720];
-serviceRows.slice(0, 5).forEach((row, index) => {
+// API-to-service lines. Fastify talks directly to the application providers,
+// including the Workers control plane and private R2 object storage.
+const serviceApiSources = [12, 58, 104, 150, 196, 242, 284].map((offset) => apiY + offset);
+serviceRows.slice(0, 7).forEach((row, index) => {
   const sourceY = serviceApiSources[index];
   const targetY = row + serviceCardHeight / 2;
+  if (index === 6) svg.push('<g data-connection="fastify-to-cloudflare-r2">');
   smoothConnector(apiX + apiW, sourceY, serviceX, targetY, { marker: '' });
   endpoint(serviceX, targetY);
+  if (index === 6) svg.push('</g>');
 });
 
 // One compact legend; no command, agent, or updater panels below the architecture.
-const legendY = 1050;
+const legendY = 1100;
 const legendLineY = legendY + 43;
 rect(126, legendY, 1668, 86, { radius: 12 });
 line(246, legendLineY, 350, legendLineY, { stroke: palette.text, width: 3, marker: 'arrow-white' });

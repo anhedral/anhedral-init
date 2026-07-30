@@ -6,6 +6,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.5.0 - 2026-07-27
+
+### Added
+
+- Add Auth.js as a database-backed alternative to Clerk for Next.js and
+  Fastify, including credentials, bounded login-rate limits, short-lived signed
+  API bridge tokens, active-user revalidation, and user-creation tooling.
+- Add `admin-page` and `admin-app` products with independent route or
+  deployment boundaries, separate admin sessions, and database-backed
+  platform-administrator authorization.
+- Add a separately generated technical communication map covering authenticated
+  API traffic, billing and realtime reconciliation, R2 object lifecycles,
+  durable Workflows, signed desktop updates, deployment control planes, and the
+  opt-in self-hosted topology.
+- Add the `cloudflare-workflows` product: a standalone durable Workflow Worker
+  with retryable user-owned steps, persisted progress, external events,
+  secret-authenticated instance control, generated operations commands,
+  production guidance, and verification coverage.
+- Add independent, opt-in `--postgres`, `--ubuntu`, `--docker`, `--nginx`, and
+  `--certbot` infrastructure products with explicit dependency resolution and a
+  non-mutating provisioning plan.
+- Add a single idempotent `pnpm dlx anhedral@latest setup-vps` Ubuntu-host
+  command with project-manifest validation and a generated bootstrap providing a
+  non-mutating preflight, key-preserving SSH hardening, UFW, Fail2ban,
+  unattended security updates, selected Docker/Nginx/Certbot installation, and
+  an atomic Compose release service under `/opt/<project>`.
+- Generate a Postgres.js Drizzle runtime for self-hosted PostgreSQL selections,
+  while preserving the managed Neon adapter for the default database product.
+
+### Changed
+
+- Use product-oriented selectors such as `next`, `fastify`, `neon`, and `ably`
+  while retaining pre-1.0 module names as compatibility aliases.
+- Keep the large optional Clerk account surface in a lazy Electron renderer
+  chunk and tune Vite's warning boundary to reflect that intentional split.
+- Support transactional upgrades from generated 0.4.x workspaces to 0.5.x.
+
+### Fixed
+
+- Align generated mobile apps with the stable Expo SDK 57 / React Native 0.86
+  compatibility matrix so Android native builds do not combine Gradle 9 with
+  the obsolete Foojay toolchain resolver.
+- Make extension runtime acceptance assign a deterministic CRX identity,
+  activate the side panel, and wake the Manifest V3 worker before inspecting
+  it.
+- Create and validate the separate admin application's `.env.local` during
+  `pnpm first-run` and `pnpm ready`.
+- Defer Auth.js database imports until an authenticated operation needs them so
+  unconfigured Next.js production compilation does not initialize a database
+  client during route discovery.
+- Generate focused API bridge authentication tests so Auth.js projects satisfy
+  their own `pnpm verify` coverage policy.
+- Recognize explicit long-form replacement values as placeholders in release
+  secret scanning without weakening detection of secret-shaped credentials.
+- Exercise installed Auth.js plus separate-admin workspaces in the stable E2E
+  matrix, including first-run environment creation and production builds.
+
+### Security
+
+- Require explicit approval gates around SSH, firewall, DNS, certificate, and
+  database operations in generated infrastructure plans; prohibit command
+  history replay. The host-local executor refuses to harden SSH without a
+  validated public-key recovery path and keeps root key login available until
+  a second administrator session is verified.
+
 ## 0.4.2 - 2026-07-23
 
 ### Added
