@@ -8,6 +8,8 @@ Anhedral guides the development lifecycle through a ChatGPT/Codex plugin: planni
 
 The plugin source lives in `plugins/anhedral`. It guides recommended plugins, CLI tooling, client-owned accounts, infrastructure and scoped permissions for the selected stack. It uses available integrations and documented alternatives; installation does not grant provider access. Install the repository plugin with `codex plugin marketplace add anhedral/anhedral-init`, then `codex plugin add anhedral@anhedral`. Releases include a self-contained plugin ZIP with the same version as the CLI. A public ChatGPT directory listing requires separate submission.
 
+The plugin includes a native control panel with Overview, Infrastructure, Readiness, Delivery, and Settings. Open Anhedral from the plugin menu or ask it to open the control panel, then register an existing project folder. The self-contained Node MCP server reads configuration and checks supported Cloudflare resources, Neon project access, and GitHub Actions on refresh. Provider credentials stay server-side; selected environment identifiers are saved locally. Resource availability, local readiness, and released product behavior remain separate states. Local desktop plugins support this panel; a public ChatGPT directory app requires a separately hosted HTTPS MCP service and submission.
+
 Every new project starts from the official **shadcn pnpm/Turborepo monorepo**. The default creates **Next.js + React + TypeScript + Tailwind + shadcn/ui**, hosted on **Cloudflare Workers through OpenNext**. Select additional apps and services only when needed.
 
 ![Anhedral CLI init stack](assets/anhedral-cli-init.svg)
@@ -54,6 +56,8 @@ demo/
 ├── anhedral-factory/        Factory application and service workspaces
 └── default-stack-demo/      Default stack snapshot with security maintenance
 
+apps/control-panel/         Embedded plugin UI and MCP status server
+plugins/anhedral/           Self-contained installable plugin
 src/                        Current initializer implementation
 dist/                       Generated JavaScript + declarations
 .artifacts/release/         Generated npm tarball + integrity metadata
@@ -63,6 +67,7 @@ scripts/, tests/, docs/      Tooling, verification, and the stack standard
 Each demo retains its own pnpm workspace and lockfile; the root package remains the initializer. Dependencies, caches, generated artifacts, and local credentials are ignored.
 
 ```sh
+pnpm dev:panel                        # Local UI preview after pnpm build
 pnpm test:integration                 # Real web, API/auth, and packaged desktop paths
 pnpm --dir demo/anhedral-factory dev
 pnpm --dir demo/anhedral-factory check

@@ -1,5 +1,20 @@
 {
-  "entry": ["src/bin.ts", "src/index.ts", "scripts/*.mjs", "tests/*"],
-  "publicPackages": ["anhedral"],
-  "ignorePatterns": ["demo/**", "dist/**", ".artifacts/**"]
+  "entry": [
+    "src/bin.ts",
+    "src/index.ts",
+    "scripts/*.mjs",
+    "tests/*",
+    "apps/control-panel/src/App.tsx",
+    "apps/control-panel/server/mcp.ts",
+    "apps/control-panel/server/preview.ts"
+  ],
+  "publicPackages": [
+    "anhedral"
+  ],
+  "ignorePatterns": [
+    "demo/**",
+    "dist/**",
+    ".artifacts/**",
+    "plugins/anhedral/server.mjs"
+  ]
 }

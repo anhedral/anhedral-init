@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Initialize client-owned applications with shadcn, pnpm, Turborepo, and Cloudflare-first services.",
   "type": "module",
   "exports": {
@@ -43,9 +43,9 @@
   "scripts": {
     "scaffold": "node dist/bin.js init",
     "clean": "node scripts/clean.mjs",
-    "build": "pnpm clean && tsc && node scripts/prepare-cli.mjs",
+    "build": "pnpm clean && tsc && node scripts/prepare-cli.mjs && node scripts/build-control-panel.mjs",
     "prepare": "pnpm build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p apps/control-panel/tsconfig.json",
     "check:hygiene": "node scripts/check-source-hygiene.mjs",
     "check:security": "node scripts/check-security-policy.mjs",
     "check:release-policy": "node scripts/check-release-policy.mjs",
@@ -70,7 +70,8 @@
     "docs:stack-maps": "pnpm docs:stack-map && pnpm docs:technical-stack-map",
     "test:standard": "pnpm build && node --test tests/test-standard.test.mjs",
     "test:unit": "node --test --test-concurrency=4 --test-reporter=spec tests/*.test.mjs",
-    "test:integration": "pnpm build && node tests/test-generated-apps.mjs"
+    "test:integration": "pnpm build && node tests/test-generated-apps.mjs",
+    "dev:panel": "node .artifacts/control-panel/preview.js"
   },
   "keywords": [
     "cli",
@@ -91,8 +92,18 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@openai/mcp-extensions": "0.1.0",
     "@types/node": "20.19.43",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "esbuild": "0.28.2",
+    "jsonc-parser": "3.3.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "simple-icons": "16.27.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "zod": "4.4.3"
   }
 }
