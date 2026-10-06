@@ -1,4 +1,3 @@
-import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { writeFile } from '../util.js';
 import type { ProjectOptions } from '../project.js';
@@ -8,7 +7,6 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
     const { projectName, displayName } = options;
     const dir = path.join(root, 'apps/extension');
     writePackageJson(dir, projectName);
-    cleanWxtStarterFiles(dir);
     writeWxtConfig(dir, displayName);
     writeEnvExample(dir);
     writePostcssConfig(dir);
@@ -22,16 +20,6 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
     writeSidepanelHtml(dir, displayName);
     writeSidepanelApp(dir);
     writeStyles(dir);
-}
-function cleanWxtStarterFiles(dir: string): void {
-    for (const relativePath of [
-        '.git',
-        'entrypoints',
-        'assets/react.svg',
-        'public/wxt.svg',
-    ]) {
-        rmSync(path.join(dir, relativePath), { recursive: true, force: true });
-    }
 }
 function writePackageJson(dir: string, projectName: string): void {
     writeFile(path.join(dir, 'package.json'), JSON.stringify({

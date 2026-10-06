@@ -25,7 +25,7 @@ export function markdownHeading(value: string): string {
   return normalized.replace(/([\\`*_{}\[\]()<>#+.!|~-])/g, '\\$1');
 }
 
-export function assertPackageName(value: string): string {
+function assertPackageName(value: string): string {
   const leafName = value.slice(value.lastIndexOf('/') + 1);
   if (
     value.length > MAX_PACKAGE_NAME_LENGTH

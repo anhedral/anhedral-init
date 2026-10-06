@@ -10,7 +10,6 @@ import {
   siExpo,
   siHono,
   siTurborepo,
-  siResend,
   siSqlite,
   siGithub,
   siNeon,
@@ -199,6 +198,54 @@ function customR2(x, y, size) {
   });
 }
 
+const customCardIcons = {
+  globe: customGlobe, desktop: customDesktop, 'app-store': customAppStore,
+  'google-play': customGooglePlay, chrome: customChrome, r2: customR2,
+  ai: (x, y, size) => text(x + size / 2, y + size * 0.66, 'AI', { size: 27, weight: 600, anchor: 'middle' }),
+};
+
+function drawPairedCardIcons(boxX, boxY, boxSize, boxWidth, options) {
+  const { icon, iconColor, secondIcon, secondEmbeddedIcon, secondIconColor, wideIcon, compact } = options;
+  const pairedSize = wideIcon ? 36 : compact ? 23 : 38;
+  const pairedInset = compact ? 5 : 6;
+  logo(icon, boxX + pairedInset, boxY + (boxSize - pairedSize) / 2, pairedSize, iconColor);
+  if (secondEmbeddedIcon === 'r2') {
+    customR2(
+      boxX + boxWidth - pairedSize - pairedInset,
+      boxY + (boxSize - pairedSize) / 2,
+      pairedSize,
+    );
+  } else {
+    logo(
+      secondIcon,
+      boxX + boxWidth - pairedSize - pairedInset,
+      boxY + (boxSize - pairedSize) / 2,
+      pairedSize,
+      secondIconColor,
+    );
+  }
+}
+
+function drawCardIcon(boxX, boxY, boxSize, boxWidth, options) {
+  const { customIcon, icon, iconColor, secondIcon, secondEmbeddedIcon, secondIconColor, wideIcon, compact, iconScale } = options;
+  const custom = customCardIcons[customIcon];
+  if (custom) { custom(boxX, boxY, boxSize, iconColor); return; }
+  if (!icon) return;
+  if (secondIcon || secondEmbeddedIcon) {
+    drawPairedCardIcons(boxX, boxY, boxSize, boxWidth, options);
+  } else {
+    const renderedIconScale = compact ? Math.min(iconScale, boxSize - 8) : iconScale;
+    logo(
+      icon,
+      boxX + (boxSize - renderedIconScale) / 2,
+      boxY + (boxSize - renderedIconScale) / 2,
+      renderedIconScale,
+      iconColor,
+    );
+  }
+
+}
+
 function card(x, y, width, height, {
   title,
   subtitle,
@@ -230,44 +277,7 @@ function card(x, y, width, height, {
     iconBox(boxX, boxY, boxSize);
   }
 
-  if (customIcon === 'globe') customGlobe(boxX, boxY, boxSize, iconColor);
-  else if (customIcon === 'desktop') customDesktop(boxX, boxY, boxSize, iconColor);
-  else if (customIcon === 'app-store') customAppStore(boxX, boxY, boxSize);
-  else if (customIcon === 'google-play') customGooglePlay(boxX, boxY, boxSize);
-  else if (customIcon === 'chrome') customChrome(boxX, boxY, boxSize);
-  else if (customIcon === 'ai') text(boxX + boxSize / 2, boxY + boxSize * 0.66, 'AI', { size: 27, weight: 600, anchor: 'middle' });
-  else if (customIcon === 'r2') customR2(boxX, boxY, boxSize);
-  else if (icon) {
-    if (secondIcon || secondEmbeddedIcon) {
-      const pairedSize = wideIcon ? 36 : compact ? 23 : 38;
-      const pairedInset = compact ? 5 : 6;
-      logo(icon, boxX + pairedInset, boxY + (boxSize - pairedSize) / 2, pairedSize, iconColor);
-      if (secondEmbeddedIcon === 'r2') {
-        customR2(
-          boxX + boxWidth - pairedSize - pairedInset,
-          boxY + (boxSize - pairedSize) / 2,
-          pairedSize,
-        );
-      } else {
-        logo(
-          secondIcon,
-          boxX + boxWidth - pairedSize - pairedInset,
-          boxY + (boxSize - pairedSize) / 2,
-          pairedSize,
-          secondIconColor,
-        );
-      }
-    } else {
-      const renderedIconScale = compact ? Math.min(iconScale, boxSize - 8) : iconScale;
-      logo(
-        icon,
-        boxX + (boxSize - renderedIconScale) / 2,
-        boxY + (boxSize - renderedIconScale) / 2,
-        renderedIconScale,
-        iconColor,
-      );
-    }
-  }
+  drawCardIcon(boxX, boxY, boxSize, boxWidth, { customIcon, icon, iconColor, secondIcon, secondEmbeddedIcon, secondIconColor, wideIcon, compact, iconScale });
 
   const dividerX = boxX + boxWidth + (compact ? 12 : 10);
   const textX = dividerX + (compact ? 20 : 24);
@@ -434,7 +444,7 @@ const services = [
   { title: 'Queues + Cron Triggers', subtitle: 'Async jobs + scheduled work', detail: 'Retries · idempotency · failure handling', icon: siCloudflare, iconColor: palette.orange },
   { title: 'Cloudflare Workflows', subtitle: 'Durable multi-step processes', detail: 'Resumable steps · retries · recovery', icon: siCloudflare, iconColor: palette.orange },
   { title: 'OpenAI SDK / AI SDK', subtitle: 'AI integrations · streaming · tools', detail: 'Workers AI when advantageous', customIcon: 'ai' },
-  { title: 'Resend + Email Routing', subtitle: 'Outbound app email + inbound forwarding', detail: 'Business mailbox stays with existing provider', icon: siResend },
+  { title: 'Domain + Mail', subtitle: 'GoDaddy broker · Cloudflare nameservers', detail: 'Cloudflare Routing + Sending / Resend alternative', icon: siCloudflare, iconColor: palette.orange },
   { title: 'Cloudflare Observability', subtitle: 'Logs · errors · traces · latency', detail: 'Sentry for additional runtime diagnostics', icon: siCloudflare, iconColor: palette.orange },
   { title: 'Basin Analytics', subtitle: 'Product events · datasets · queries', detail: 'Pipelines → R2 / PostHog when required', icon: siCloudflare, iconColor: palette.orange },
 ];

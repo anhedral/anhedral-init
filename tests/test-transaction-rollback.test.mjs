@@ -3,9 +3,58 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { PostCommitError, recoverInterruptedTransaction, runStagedTransaction } from '../dist/transaction.js';
 
 const JOURNAL_TOKEN = ['2147483647', '22222222', '2222', '4222', '8222', '222222222222'].join('-');
+
+// Unsupported directory durability must be tolerated; real I/O errors must abort.
+for (const [operation, code, succeeds] of [
+  ['open', 'ENOTSUP', true], ['fsync', 'EOPNOTSUPP', true],
+  ['fsync', 'EINVAL', true], ['fsync', 'EIO', false], ['open', 'EACCES', false],
+]) {
+  const root = mkdtempSync(path.join(tmpdir(), 'anhedral-directory-sync-'));
+  const original = operation === 'open' ? fs.openSync : fs.fsyncSync;
+  const method = operation === 'open' ? 'openSync' : 'fsyncSync';
+  writeFileSync(path.join(root, 'value.txt'), 'original\n');
+  fs[method] = (target, ...args) => {
+    const directory = operation === 'open' ? existsSync(target) && fs.statSync(target).isDirectory() : fs.fstatSync(target).isDirectory();
+    if (directory) throw Object.assign(new Error(`Injected ${code}`), { code });
+    return original(target, ...args);
+  };
+  syncBuiltinESMExports();
+  try {
+    const run = runStagedTransaction(root, {
+      commitPaths: ['value.txt'],
+      build: async (stageRoot) => writeFileSync(path.join(stageRoot, 'value.txt'), 'replacement\n'),
+    });
+    if (succeeds) await run;
+    else await assert.rejects(run, new RegExp(code));
+    assert.equal(readFileSync(path.join(root, 'value.txt'), 'utf8'), succeeds ? 'replacement\n' : 'original\n');
+    assert.equal(existsSync(path.join(root, '.anhedral.lock')), false);
+  } finally {
+    fs[method] = original;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+for (const reservedPath of ['.anhedral-txn', `.anhedral-txn/stage-${JOURNAL_TOKEN}`, '.anhedral-txn/unknown']) {
+  const root = mkdtempSync(path.join(tmpdir(), 'anhedral-reserved-artifact-'));
+  const artifact = path.join(root, reservedPath);
+  mkdirSync(path.dirname(artifact), { recursive: true });
+  writeFileSync(artifact, 'preserve for inspection\n');
+  try {
+    await assert.rejects(runStagedTransaction(root, {
+      dryRun: true, commitPaths: ['value.txt'], build: async () => assert.fail('Unsafe namespace must prevent staging'),
+    }), /(?:Unsafe reserved transaction namespace|Unknown or unsafe artifact)/);
+    assert.equal(readFileSync(artifact, 'utf8'), 'preserve for inspection\n');
+    assert.equal(existsSync(path.join(root, '.anhedral.lock')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 function transactionFileFingerprint(filePath) {
   const contents = readFileSync(filePath);

@@ -11,6 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { resolveCommand } from './command.js';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -69,11 +70,12 @@ function dumpFailure(
 }
 
 export function execFile(executable: string, args: readonly string[], cwd: string): void {
+  const invocation = resolveCommand(executable, args);
   const quiet = process.env.ANHEDRAL_QUIET === '1';
   const display = [executable, ...args].join(' ');
   if (process.env.ANHEDRAL_VERBOSE === '1' && !quiet) {
     console.log(`  $ ${display}`);
-    const result = spawnSync(executable, [...args], { cwd, stdio: 'inherit', shell: false });
+    const result = spawnSync(invocation.command, invocation.args, { cwd, stdio: 'inherit', shell: false });
     if (result.error || result.status !== 0) {
       throw new Error(`Command failed (exit ${result.status ?? '?'}): ${display}`, result.error ? { cause: result.error } : undefined);
     }
@@ -86,7 +88,7 @@ export function execFile(executable: string, args: readonly string[], cwd: strin
   const stdout = openSync(stdoutPath, 'w');
   const stderr = openSync(stderrPath, 'w');
   try {
-    const result = spawnSync(executable, [...args], {
+    const result = spawnSync(invocation.command, invocation.args, {
       cwd,
       shell: false,
       stdio: ['ignore', stdout, stderr],

@@ -30,8 +30,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     "electron": '43.7.8',
     // renovate: datasource=npm depName=electron-builder
     "electron-builder": '26.15.3',
-    // renovate: datasource=npm depName=electron-builder-squirrel-windows
-    "electron-builder-squirrel-windows": '26.15.3',
+    "eslint": '10.0.3',
     // renovate: datasource=npm depName=tailwindcss
     "tailwindcss": '4.1.18',
     // renovate: datasource=npm depName=postcss

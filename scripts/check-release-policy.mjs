@@ -85,36 +85,8 @@ export function validateRenovateExtraction(root, renovate) {
   return failures;
 }
 
-export function validateWorkflowPolicy(root) {
+function validateTrustedRelease(releaseWorkflow) {
   const failures = [];
-  const workflowsRoot = path.join(root, '.github', 'workflows');
-  const names = new Map();
-  for (const filename of readdirSync(workflowsRoot).filter((name) => /\.ya?ml$/.test(name))) {
-    const relative = `.github/workflows/${filename}`;
-    const source = readFileSync(path.join(root, relative), 'utf8');
-    if (source.includes('\t')) failures.push(`${relative}: YAML must not contain tab indentation`);
-    if (!/^name:\s*\S+/m.test(source)) failures.push(`${relative}: missing workflow name`);
-    if (!/^on:\s*(?:$|\S+)/m.test(source)) failures.push(`${relative}: missing on trigger`);
-    if (!/^jobs:\s*$/m.test(source)) failures.push(`${relative}: missing jobs mapping`);
-    if (!/^permissions:\s*$/m.test(source)) failures.push(`${relative}: missing top-level least-privilege permissions`);
-    if (/^\s*pull_request_target:/m.test(source)) failures.push(`${relative}: pull_request_target is not permitted`);
-    if (/\b(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b/.test(source)) failures.push(`${relative}: remote shell pipelines are not permitted`);
-    for (const match of source.matchAll(/^\s{2}([a-zA-Z0-9_-]+):\s*$/gm)) {
-      if (['contents', 'actions', 'id-token', 'packages', 'pull-requests'].includes(match[1])) continue;
-      const jobStart = match.index;
-      const nextJob = source.slice(jobStart + 1).search(/^  [a-zA-Z0-9_-]+:\s*$/m);
-      const jobSource = nextJob < 0 ? source.slice(jobStart) : source.slice(jobStart, jobStart + 1 + nextJob);
-      if (/\b(?:runs-on|uses):/.test(jobSource) && !/timeout-minutes:/.test(jobSource) && !/^\s{4}uses:/m.test(jobSource)) {
-        failures.push(`${relative}: job ${match[1]} must set timeout-minutes`);
-      }
-    }
-    const name = source.match(/^name:\s*(.+)$/m)?.[1]?.trim();
-    if (name) {
-      if (names.has(name)) failures.push(`${relative}: duplicates workflow name ${name} from ${names.get(name)}`);
-      names.set(name, relative);
-    }
-  }
-  const releaseWorkflow = readFileSync(path.join(workflowsRoot, 'release.yml'), 'utf8');
   if (/ref:\s*\$\{\{\s*inputs\./.test(releaseWorkflow)
     || (releaseWorkflow.match(/ref: main/g) ?? []).length !== 4
     || (releaseWorkflow.match(/name: Require the prepared main commit/g) ?? []).length !== 4) {
@@ -131,6 +103,11 @@ export function validateWorkflowPolicy(root) {
   if (/\bFORCE_JAVASCRIPT_ACTIONS_TO_NODE24\b/.test(releaseWorkflow)) {
     failures.push('.github/workflows/release.yml: release actions must declare Node.js 24 instead of relying on the temporary force override');
   }
+  return failures;
+}
+
+function validateReleaseArtifacts(releaseWorkflow) {
+  const failures = [];
   const artifactActionCounts = { upload: 0, download: 0 };
   for (const match of releaseWorkflow.matchAll(/actions\/(upload|download)-artifact@([^#\s]+)/g)) {
     const kind = match[1];
@@ -146,6 +123,11 @@ export function validateWorkflowPolicy(root) {
   if (!/npm publish "\.\/\.artifacts\/release\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
     failures.push('.github/workflows/release.yml: npm publish must use an explicit local .artifacts/release tarball path');
   }
+  return failures;
+}
+
+function validateGitHubReleaseAssets(releaseWorkflow) {
+  const failures = [];
   const tagJob = releaseWorkflow.match(/^  tag:[\s\S]*$/m)?.[0] ?? '';
   const releasePublishCount = [...tagJob.matchAll(/gh release edit "\$TAG" --draft=false/g)].length;
   if (!/METADATA="\.artifacts\/release\/metadata\.json"/.test(tagJob)
@@ -157,15 +139,11 @@ export function validateWorkflowPolicy(root) {
     || !/cmp "\$METADATA" "\$DOWNLOAD_DIR\/metadata\.json"/.test(tagJob)) {
     failures.push('.github/workflows/release.yml: GitHub releases must attach .artifacts/release/metadata.json with the tarball');
   }
-  const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
-  const ciWorkflow = readFileSync(path.join(workflowsRoot, 'ci.yml'), 'utf8');
-  const reusableReleaseJob = releaseOnMainWorkflow.match(/^  release:[\s\S]*$/m)?.[0] ?? '';
-  const releasePreparationJob = releaseOnMainWorkflow.match(
-    /^  prepare:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
-  )?.[0] ?? '';
-  const publishJob = releaseWorkflow.match(
-    /^  publish:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
-  )?.[0] ?? '';
+  return failures;
+}
+
+function validateAutomaticRelease(releasePreparationJob, releaseOnMainWorkflow, ciWorkflow) {
+  const failures = [];
   const releasePrCreateCount = [...releasePreparationJob.matchAll(/gh pr create/g)].length;
   const releaseCiDispatchCount = [
     ...releasePreparationJob.matchAll(/gh workflow run ci\.yml --ref "\$RELEASE_BRANCH"/g),
@@ -191,6 +169,11 @@ export function validateWorkflowPolicy(root) {
   if (!/^\s{2}workflow_dispatch:\s*$/m.test(ciWorkflow)) {
     failures.push('.github/workflows/ci.yml: CI must support explicit dispatch for automated release PR branches');
   }
+  return failures;
+}
+
+function validateTrustedPublishing(reusableReleaseJob, publishJob, releaseWorkflow, releaseOnMainWorkflow) {
+  const failures = [];
   if (!/release_sha:\s*\$\{\{ needs\.prepare\.outputs\.release_sha \}\}/.test(reusableReleaseJob)
     || !/inputs\.release_sha/.test(releaseWorkflow)) {
     failures.push('release workflows must publish the exact prepared release commit');
@@ -217,11 +200,78 @@ export function validateWorkflowPolicy(root) {
   return failures;
 }
 
+function validateWorkflowSource(relative, source) {
+  const failures = [];
+  if (source.includes('\t')) failures.push(`${relative}: YAML must not contain tab indentation`);
+  if (!/^name:\s*\S+/m.test(source)) failures.push(`${relative}: missing workflow name`);
+  if (!/^on:\s*(?:$|\S+)/m.test(source)) failures.push(`${relative}: missing on trigger`);
+  if (!/^jobs:\s*$/m.test(source)) failures.push(`${relative}: missing jobs mapping`);
+  if (!/^permissions:\s*$/m.test(source)) failures.push(`${relative}: missing top-level least-privilege permissions`);
+  if (/^\s*pull_request_target:/m.test(source)) failures.push(`${relative}: pull_request_target is not permitted`);
+  if (/\b(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b/.test(source)) failures.push(`${relative}: remote shell pipelines are not permitted`);
+  return [...failures, ...validateJobTimeouts(relative, source)];
+}
+
+function validateJobTimeouts(relative, source) {
+  const failures = [];
+  for (const match of source.matchAll(/^\s{2}([a-zA-Z0-9_-]+):\s*$/gm)) {
+    if (['contents', 'actions', 'id-token', 'packages', 'pull-requests'].includes(match[1])) continue;
+    const jobStart = match.index;
+    const nextJob = source.slice(jobStart + 1).search(/^  [a-zA-Z0-9_-]+:\s*$/m);
+    const jobSource = nextJob < 0 ? source.slice(jobStart) : source.slice(jobStart, jobStart + 1 + nextJob);
+    if (/\b(?:runs-on|uses):/.test(jobSource) && !/timeout-minutes:/.test(jobSource) && !/^\s{4}uses:/m.test(jobSource)) {
+      failures.push(`${relative}: job ${match[1]} must set timeout-minutes`);
+    }
+  }
+  return failures;
+}
+
+export function validateWorkflowPolicy(root) {
+  const failures = [];
+  const workflowsRoot = path.join(root, '.github', 'workflows');
+  const names = new Map();
+  for (const filename of readdirSync(workflowsRoot).filter((name) => /\.ya?ml$/.test(name))) {
+    const relative = `.github/workflows/${filename}`;
+    const source = readFileSync(path.join(root, relative), 'utf8');
+    failures.push(...validateWorkflowSource(relative, source));
+    const name = source.match(/^name:\s*(.+)$/m)?.[1]?.trim();
+    if (name) {
+      if (names.has(name)) failures.push(`${relative}: duplicates workflow name ${name} from ${names.get(name)}`);
+      names.set(name, relative);
+    }
+  }
+  const releaseWorkflow = readFileSync(path.join(workflowsRoot, 'release.yml'), 'utf8');
+  failures.push(...validateTrustedRelease(releaseWorkflow));
+  failures.push(...validateReleaseArtifacts(releaseWorkflow), ...validateGitHubReleaseAssets(releaseWorkflow));
+  const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
+  const ciWorkflow = readFileSync(path.join(workflowsRoot, 'ci.yml'), 'utf8');
+  const reusableReleaseJob = releaseOnMainWorkflow.match(/^  release:[\s\S]*$/m)?.[0] ?? '';
+  const releasePreparationJob = releaseOnMainWorkflow.match(
+    /^  prepare:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
+  )?.[0] ?? '';
+  const publishJob = releaseWorkflow.match(
+    /^  publish:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
+  )?.[0] ?? '';
+  failures.push(...validateAutomaticRelease(releasePreparationJob, releaseOnMainWorkflow, ciWorkflow));
+  failures.push(...validateTrustedPublishing(reusableReleaseJob, publishJob, releaseWorkflow, releaseOnMainWorkflow));
+  return failures;
+}
+
+function validatePluginRelease(root, version) {
+  const manifest = JSON.parse(readFileSync(path.join(root, 'plugins/anhedral/plugin.json'), 'utf8'));
+  const registry = JSON.parse(readFileSync(path.join(root, 'plugins/anhedral/skills/anhedral/references/capabilities.json'), 'utf8'));
+  const failures = [];
+  if (manifest.version !== version || registry.cliVersion !== version) failures.push('Plugin, registry and CLI versions must match');
+  if (manifest.extensions['com.openai'].interface.shortDescription.length > 30) failures.push('Plugin subtitle must fit the public directory limit');
+  return failures;
+}
+
 export function checkReleasePolicy(root) {
   const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
   const versionSource = readFileSync(path.join(root, 'src', 'version.ts'), 'utf8');
   const renovate = JSON.parse(readFileSync(path.join(root, 'renovate.json'), 'utf8'));
   return [
+    ...validatePluginRelease(root, packageJson.version),
     ...validateReleaseDeclaration(packageJson),
     ...validateGeneratorVersion(packageJson, versionSource),
     ...validateWorkflowPolicy(root),

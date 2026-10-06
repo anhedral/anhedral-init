@@ -36,24 +36,28 @@ async function wait(milliseconds) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+async function requestOsvJson(operation, url, init) {
+  const response = await fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(45_000),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 500);
+    const error = new Error(`OSV ${operation} request failed with HTTP ${response.status}: ${detail}`);
+    if (response.status < 500 && response.status !== 429) throw new NonRetryableOsvError(error.message);
+    throw error;
+  } else {
+    return await response.json();
+  }
+}
+
 async function fetchOsvJson(operation, url, init = undefined) {
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(url, {
-        ...init,
-        signal: AbortSignal.timeout(45_000),
-      });
-
-      if (!response.ok) {
-        const detail = (await response.text()).slice(0, 500);
-        const error = new Error(`OSV ${operation} request failed with HTTP ${response.status}: ${detail}`);
-        if (response.status < 500 && response.status !== 429) throw new NonRetryableOsvError(error.message);
-        lastError = error;
-      } else {
-        return await response.json();
-      }
+      return await requestOsvJson(operation, url, init);
     } catch (error) {
       if (error instanceof NonRetryableOsvError) throw error;
       lastError = error;

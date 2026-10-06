@@ -34,6 +34,17 @@ function parseSemver(version) {
   };
 }
 
+function comparePrereleasePart(leftPart, rightPart) {
+  if (leftPart === undefined) return -1;
+  if (rightPart === undefined) return 1;
+  if (leftPart === rightPart) return 0;
+  const leftNumeric = /^\d+$/.test(leftPart);
+  const rightNumeric = /^\d+$/.test(rightPart);
+  if (leftNumeric && rightNumeric) return Number(leftPart) < Number(rightPart) ? -1 : 1;
+  if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+  return leftPart < rightPart ? -1 : 1;
+}
+
 function comparePrerelease(left, right) {
   if (left.length === 0 || right.length === 0) {
     if (left.length === right.length) return 0;
@@ -44,14 +55,8 @@ function comparePrerelease(left, right) {
   for (let index = 0; index < length; index += 1) {
     const leftPart = left[index];
     const rightPart = right[index];
-    if (leftPart === undefined) return -1;
-    if (rightPart === undefined) return 1;
-    if (leftPart === rightPart) continue;
-    const leftNumeric = /^\d+$/.test(leftPart);
-    const rightNumeric = /^\d+$/.test(rightPart);
-    if (leftNumeric && rightNumeric) return Number(leftPart) < Number(rightPart) ? -1 : 1;
-    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
-    return leftPart < rightPart ? -1 : 1;
+    const comparison = comparePrereleasePart(leftPart, rightPart);
+    if (comparison !== 0) return comparison;
   }
   return 0;
 }
@@ -103,53 +108,53 @@ export function versionMatchesComparatorRange(version, range) {
   return sawValidSet ? false : null;
 }
 
-function versionMatchesOsvEvents(version, events) {
-  let affected = false;
-  for (const event of events ?? []) {
-    if (event.introduced !== undefined) {
-      const comparison = compareSemver(version, event.introduced);
-      if (comparison === null) return null;
-      if (comparison >= 0) affected = true;
-    }
-    if (event.fixed !== undefined) {
-      const comparison = compareSemver(version, event.fixed);
-      if (comparison === null) return null;
-      if (comparison >= 0) affected = false;
-    }
-    if (event.last_affected !== undefined) {
-      const comparison = compareSemver(version, event.last_affected);
-      if (comparison === null) return null;
-      if (comparison > 0) affected = false;
-    }
-    if (event.limit !== undefined) {
-      const comparison = compareSemver(version, event.limit);
-      if (comparison === null) return null;
-      if (comparison >= 0) affected = false;
-    }
+function applyOsvEvent(version, event, affected) {
+  for (const [field, state, inclusive] of [
+    ['introduced', true, true], ['fixed', false, true],
+    ['last_affected', false, false], ['limit', false, true],
+  ]) {
+    if (event[field] === undefined) continue;
+    const comparison = compareSemver(version, event[field]);
+    if (comparison === null) return null;
+    if (comparison > 0 || (inclusive && comparison === 0)) affected = state;
   }
   return affected;
 }
 
-export function osvAdvisoryAffectsPackageVersion(advisory, name, version) {
-  let evaluatedMatchingPackage = false;
-  for (const affected of advisory?.affected ?? []) {
-    if (affected?.package?.ecosystem !== 'npm' || affected.package.name !== name) continue;
-    evaluatedMatchingPackage = true;
-    if (affected.versions?.includes(version)) return true;
-
-    const reviewedRange = affected.database_specific?.last_known_affected_version_range;
-    if (reviewedRange) {
-      const reviewedMatch = versionMatchesComparatorRange(version, reviewedRange);
-      if (reviewedMatch === true) return true;
-      if (reviewedMatch === false) continue;
-    }
-
-    for (const range of affected.ranges ?? []) {
-      if (range.type !== 'SEMVER') continue;
-      const matches = versionMatchesOsvEvents(version, range.events);
-      if (matches === true) return true;
-      if (matches === null) return null;
-    }
+function versionMatchesOsvEvents(version, events) {
+  let affected = false;
+  for (const event of events ?? []) {
+    affected = applyOsvEvent(version, event, affected);
+    if (affected === null) return null;
   }
-  return evaluatedMatchingPackage ? false : null;
+  return affected;
+}
+
+function affectedPackageMatchesVersion(affected, version) {
+  if (affected.versions?.includes(version)) return true;
+
+  const reviewedRange = affected.database_specific?.last_known_affected_version_range;
+  if (reviewedRange) {
+    const reviewedMatch = versionMatchesComparatorRange(version, reviewedRange);
+    if (reviewedMatch === true) return true;
+    if (reviewedMatch === false) return false;
+  }
+
+  for (const range of affected.ranges ?? []) {
+    if (range.type !== 'SEMVER') continue;
+    const matches = versionMatchesOsvEvents(version, range.events);
+    if (matches === true) return true;
+    if (matches === null) return null;
+  }
+  return false;
+}
+
+export function osvAdvisoryAffectsPackageVersion(advisory, name, version) {
+  const matching = (advisory?.affected ?? []).filter((item) => item?.package?.ecosystem === 'npm' && item.package.name === name);
+  if (matching.length === 0) return null;
+  for (const affected of matching) {
+    const result = affectedPackageMatchesVersion(affected, version);
+    if (result !== false) return result;
+  }
+  return false;
 }

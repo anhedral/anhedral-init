@@ -9,6 +9,7 @@ import { scaffoldDesktop } from './platforms/desktop.js';
 import { scaffoldMobile } from './platforms/mobile.js';
 import { scaffoldExtension } from './platforms/extension.js';
 import type { ProjectOptions } from './project.js';
+import { createSetupPlan, resolveStandardProducts } from './capabilities.js';
 
 import { STANDARD_PRODUCTS, type StandardProduct } from './standard-products.js';
 export { STANDARD_PRODUCTS } from './standard-products.js';
@@ -37,6 +38,7 @@ Examples:
   anhedral new product --next --expo --hono --neon --clerk --r2
   anhedral new website --next --stripe --resend
   anhedral init --wxt
+  anhedral doctor [directory] --json
 
 --skip-install skips the final workspace install; the official shadcn bootstrap
 still requires network access and may install its own dependencies.
@@ -44,11 +46,19 @@ still requires network access and may install its own dependencies.
 Vercel is an explicit architecture exception requiring project approval.
 `;
 
-export function parseStandardOptions(command: 'new' | 'init', args: readonly string[]): StandardOptions {
-  const remaining = [...args];
-  const directory = command === 'new' ? remaining.shift() : process.cwd();
-  if (!directory || directory.startsWith('-')) throw new Error('new requires a destination directory.');
-  const root = path.resolve(directory);
+function readGitFlag(token: string, previous: boolean | undefined): boolean {
+  const value = token === '--git';
+  if (previous !== undefined && value !== previous) throw new Error('Conflicting Git options.');
+  return value;
+}
+
+function readHostingFlag(value: string | undefined, previous: StandardOptions['hosting'], specified: boolean): StandardOptions['hosting'] {
+  if (value !== 'cloudflare' && value !== 'vercel') throw new Error('hosting must be cloudflare or vercel.');
+  if (specified && previous !== value) throw new Error('Conflicting hosting options.');
+  return value;
+}
+
+function parseStandardFlags(remaining: readonly string[]) {
   const products = new Set<StandardProduct>();
   let hosting: StandardOptions['hosting'] = 'cloudflare';
   let hostingSpecified = false;
@@ -57,16 +67,12 @@ export function parseStandardOptions(command: 'new' | 'init', args: readonly str
     const token = remaining[index];
     if (['--skip-install', '--dry-run', '--json', '--verbose'].includes(token)) continue;
     if (token === '--git' || token === '--no-git') {
-      const value = token === '--git';
-      if (gitSpecified !== undefined && value !== gitSpecified) throw new Error('Conflicting Git options.');
-      gitSpecified = value;
+      gitSpecified = readGitFlag(token, gitSpecified);
       continue;
     }
     if (token === '--hosting' || token.startsWith('--hosting=')) {
       const value = token === '--hosting' ? remaining[++index] : token.slice('--hosting='.length);
-      if (value !== 'cloudflare' && value !== 'vercel') throw new Error('hosting must be cloudflare or vercel.');
-      if (hostingSpecified && hosting !== value) throw new Error('Conflicting hosting options.');
-      hosting = value;
+      hosting = readHostingFlag(value, hosting, hostingSpecified);
       hostingSpecified = true;
       continue;
     }
@@ -76,18 +82,16 @@ export function parseStandardOptions(command: 'new' | 'init', args: readonly str
     }
     products.add(value as StandardProduct);
   }
-  if (![...products].some((value) => ['next', 'expo', 'electron', 'wxt', 'hono'].includes(value))) products.add('next');
-  for (const pair of [['neon', 'd1'], ['clerk', 'better-auth'], ['openai', 'ai-sdk']] as const) {
-    if (pair.every((value) => products.has(value))) throw new Error(`Choose one of ${pair.join(' / ')}.`);
-  }
-  if (products.has('better-auth') && !products.has('neon') && !products.has('d1')) throw new Error('Better Auth requires an explicitly selected neon or d1 database.');
-  if (products.has('revenuecat') && !products.has('stripe')) throw new Error('RevenueCat is an addition to Stripe; select stripe explicitly.');
-  const needsRuntime = ['neon', 'd1', 'better-auth', 'r2', 'kv', 'workers-ai', 'basin'].some((value) => products.has(value as StandardProduct));
-  if (needsRuntime && !products.has('hono') && (!products.has('next') || hosting !== 'cloudflare')) {
-    throw new Error('Selected server bindings need a Cloudflare Next.js app or an explicitly selected Hono Worker.');
-  }
-  if (products.has('clerk') && !products.has('next') && !products.has('hono')) throw new Error('Select next or hono for the Clerk server integration. Native client sign-in must be configured for the project.');
-  if (hostingSpecified && !products.has('next')) throw new Error('--hosting applies to the Next.js app.');
+  return { products, hosting, hostingSpecified, gitSpecified };
+}
+
+export function parseStandardOptions(command: 'new' | 'init', args: readonly string[]): StandardOptions {
+  const remaining = [...args];
+  const directory = command === 'new' ? remaining.shift() : process.cwd();
+  if (!directory || directory.startsWith('-')) throw new Error('new requires a destination directory.');
+  const root = path.resolve(directory);
+  const { products, hosting, hostingSpecified, gitSpecified } = parseStandardFlags(remaining);
+  resolveStandardProducts(products, hosting, hostingSpecified);
   return { root, name: packageNameFromText(path.basename(root)), products: [...products].sort(), hosting,
     skipInstall: remaining.includes('--skip-install'), dryRun: remaining.includes('--dry-run'), json: remaining.includes('--json'),
     initializeGit: gitSpecified ?? command === 'new' };
@@ -127,34 +131,36 @@ function sharedPackage(root: string, name: string, source: string, dependencies:
   put(root, `packages/${name}/src/index.ts`, source);
 }
 
-function cleanShadcnStarter(root: string): void {
-  for (const directory of ['apps/web', 'packages/ui']) {
-    const manifestPath = `${directory}/package.json`;
-    if (!existsSync(path.join(root, manifestPath))) continue;
-    const manifest = readJson(root, manifestPath);
-    const sources: string[] = [];
-    const collect = (folder: string): void => {
-      for (const entry of readdirSync(folder, { withFileTypes: true })) {
-        if (['node_modules', '.next', '.open-next', '.git'].includes(entry.name)) continue;
-        const file = path.join(folder, entry.name);
-        if (entry.isDirectory()) collect(file);
-        else if (/\.(tsx?|m?js|css)$/.test(entry.name)) sources.push(readFileSync(file, 'utf8'));
-      }
-    };
-    collect(path.join(root, directory));
-    for (const name of ['lucide-react', 'zod', 'next-themes']) {
-      if (!sources.some((source) => source.includes(`"${name}`) || source.includes(`'${name}`))) delete manifest.dependencies?.[name];
+function cleanWorkspaceManifest(root: string, directory: string): void {
+  const manifestPath = `${directory}/package.json`;
+  if (!existsSync(path.join(root, manifestPath))) return;
+  const manifest = readJson(root, manifestPath);
+  const sources: string[] = [];
+  const collect = (folder: string): void => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      if (['node_modules', '.next', '.open-next', '.git'].includes(entry.name)) continue;
+      const file = path.join(folder, entry.name);
+      if (entry.isDirectory()) collect(file);
+      else if (/\.(tsx?|m?js|css)$/.test(entry.name)) sources.push(readFileSync(file, 'utf8'));
     }
-    if (directory === 'packages/ui') {
-      if (!sources.some((source) => source.includes('@turbo/gen')) && !Object.values(manifest.scripts ?? {}).some((script) => String(script).includes('turbo gen'))) delete manifest.devDependencies?.['@turbo/gen'];
-      manifest.devDependencies = { ...manifest.devDependencies, 'postcss-load-config': '^6.0.1' };
-      if (manifest.dependencies?.shadcn) {
-        manifest.devDependencies.shadcn = manifest.dependencies.shadcn;
-        delete manifest.dependencies.shadcn;
-      }
-    }
-    json(root, manifestPath, manifest);
+  };
+  collect(path.join(root, directory));
+  for (const name of ['lucide-react', 'zod', 'next-themes']) {
+    if (!sources.some((source) => source.includes(`"${name}`) || source.includes(`'${name}`))) delete manifest.dependencies?.[name];
   }
+  if (directory === 'packages/ui') {
+    if (!sources.some((source) => source.includes('@turbo/gen')) && !Object.values(manifest.scripts ?? {}).some((script) => String(script).includes('turbo gen'))) delete manifest.devDependencies?.['@turbo/gen'];
+    manifest.devDependencies = { ...manifest.devDependencies, 'postcss-load-config': '^6.0.1' };
+    if (manifest.dependencies?.shadcn) {
+      manifest.devDependencies.shadcn = manifest.dependencies.shadcn;
+      delete manifest.dependencies.shadcn;
+    }
+  }
+  json(root, manifestPath, manifest);
+}
+
+function cleanShadcnStarter(root: string): void {
+  for (const directory of ['apps/web', 'packages/ui']) cleanWorkspaceManifest(root, directory);
   const themePath = 'apps/web/components/theme-provider.tsx';
   if (existsSync(path.join(root, themePath))) {
     const source = readFileSync(path.join(root, themePath), 'utf8');
@@ -182,6 +188,21 @@ export async function applyStandardOverlays(root: string, options: StandardOptio
   if (has('queues')) bindings.queues = { producers: [{ binding: 'JOBS', queue: `${options.name}-jobs` }] };
   if (has('basin')) bindings.pipelines = [{ binding: 'ANALYTICS', stream: 'REPLACE_WITH_BASIN_STREAM_ID' }];
   const runtimeApp = has('hono') ? 'api' : 'web';
+  addWebApplication(root, options, bindings, runtimeApp);
+  addApiApplication(root, options, bindings);
+  addDatabase(root, options, runtimeApp);
+  addBetterAuth(root, options, runtimeApp);
+  addClerk(root, options);
+  if (has('r2')) {
+    put(root, `apps/${runtimeApp}/private-files.md`, '# Private files\n\nFILES is a private R2 Worker binding. Authenticate the request and enforce file-level product authorization before calling get/put/delete. No public buckets, R2 keys, generic download endpoints, or client credentials are generated. Use the binding directly in Hono or getCloudflareContext in Next.js.\n');
+  }
+  addServiceWorkers(root, options);
+  addProviderPackages(root, options);
+  writeStandardRoot(root, options);
+}
+
+function addWebApplication(root: string, options: StandardOptions, bindings: Json, runtimeApp: string): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
   if (has('next')) {
     cleanShadcnStarter(root);
     put(root, 'apps/web/eslint.config.js', 'import { nextJsConfig } from "@workspace/eslint-config/next-js";\nexport default [...nextJsConfig, { ignores: [".open-next/**", ".wrangler/**", "cloudflare-env.d.ts"] }];\n');
@@ -201,6 +222,10 @@ export async function applyStandardOverlays(root: string, options: StandardOptio
       json(root, 'apps/web/vercel.json', { framework: 'nextjs' });
     }
   }
+}
+
+function addApiApplication(root: string, options: StandardOptions, bindings: Json): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
   if (has('hono')) {
     worker(root, 'api', { ...workerConfig(`${options.name}-api`), ...bindings }, `import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 const app = new OpenAPIHono<{ Bindings: Env }>();
@@ -209,6 +234,10 @@ app.doc('/openapi.json', { openapi: '3.0.0', info: { title: '${options.name}', v
 export default app;
 `, { hono: '^4.0.0', '@hono/zod-openapi': '^1.0.0' });
   }
+}
+
+function addDatabase(root: string, options: StandardOptions, runtimeApp: string): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
   if (has('neon') || has('d1')) {
     sharedPackage(root, 'db', has('neon') ? `import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -231,24 +260,28 @@ export default defineConfig({ dialect: 'sqlite', schema: './src/schema.ts', out:
     patchPackage(root, 'packages/db/package.json', { devDependencies: { 'drizzle-kit': '^0.31.0' }, scripts: { 'db:generate': 'drizzle-kit generate' } });
     patchPackage(root, `apps/${runtimeApp}/package.json`, { dependencies: { '@workspace/db': 'workspace:*' } });
   }
-  if (has('better-auth')) {
-    sharedPackage(root, 'auth', `import { betterAuth } from 'better-auth';
+}
+
+function addBetterAuth(root: string, options: StandardOptions, runtimeApp: string): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
+  if (!has('better-auth')) return;
+  sharedPackage(root, 'auth', `import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import type { createDatabase } from '@workspace/db';
 export function createAuth(db: ReturnType<typeof createDatabase>${has('neon') ? "['db']" : ''}, secret: string, baseURL: string) {
   return betterAuth({ database: drizzleAdapter(db, { provider: '${has('neon') ? 'pg' : 'sqlite'}' }), secret, baseURL, emailAndPassword: { enabled: true } });
 }
 `, { 'better-auth': '^1.0.0', '@workspace/db': 'workspace:*' });
-    patchPackage(root, `apps/${runtimeApp}/package.json`, { dependencies: { '@workspace/auth': 'workspace:*' } });
-    const dbInit = has('neon') ? 'database.db' : 'database';
-    const connection = has('neon') ? 'createDatabase(env.HYPERDRIVE.connectionString)' : 'createDatabase(env.DB)';
-    if (has('hono')) {
-      const source = readFileSync(path.join(root, 'apps/api/src/index.ts'), 'utf8');
-      put(root, 'apps/api/src/index.ts', `import { createAuth } from '@workspace/auth';\nimport { createDatabase } from '@workspace/db';\n` + source.replace('export default app;', `app.on(['GET', 'POST'], '/api/auth/*', async (c) => {\n  const env = c.env;\n  const database = ${connection};\n  try { return await createAuth(${dbInit}, env.BETTER_AUTH_SECRET, env.BETTER_AUTH_URL).handler(c.req.raw); } finally { ${has('neon') ? 'await database.close();' : '/* D1 bindings need no connection cleanup. */'} }\n});\nexport default app;`));
-      const config = readJson(root, 'apps/api/wrangler.jsonc');
-      json(root, 'apps/api/wrangler.jsonc', { ...config, vars: { BETTER_AUTH_URL: 'http://localhost:8787' } });
-    } else {
-      put(root, 'apps/web/app/api/auth/[...all]/route.ts', `import { getCloudflareContext } from '@opennextjs/cloudflare';
+  patchPackage(root, `apps/${runtimeApp}/package.json`, { dependencies: { '@workspace/auth': 'workspace:*' } });
+  const dbInit = has('neon') ? 'database.db' : 'database';
+  const connection = has('neon') ? 'createDatabase(env.HYPERDRIVE.connectionString)' : 'createDatabase(env.DB)';
+  if (has('hono')) {
+    const source = readFileSync(path.join(root, 'apps/api/src/index.ts'), 'utf8');
+    put(root, 'apps/api/src/index.ts', `import { createAuth } from '@workspace/auth';\nimport { createDatabase } from '@workspace/db';\n` + source.replace('export default app;', `app.on(['GET', 'POST'], '/api/auth/*', async (c) => {\n  const env = c.env;\n  const database = ${connection};\n  try { return await createAuth(${dbInit}, env.BETTER_AUTH_SECRET, env.BETTER_AUTH_URL).handler(c.req.raw); } finally { ${has('neon') ? 'await database.close();' : '/* D1 bindings need no connection cleanup. */'} }\n});\nexport default app;`));
+    const config = readJson(root, 'apps/api/wrangler.jsonc');
+    json(root, 'apps/api/wrangler.jsonc', { ...config, vars: { BETTER_AUTH_URL: 'http://localhost:8787' } });
+  } else {
+    put(root, 'apps/web/app/api/auth/[...all]/route.ts', `import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { createAuth } from '@workspace/auth';
 import { createDatabase } from '@workspace/db';
 async function handler(request: Request) {
@@ -259,46 +292,46 @@ async function handler(request: Request) {
 }
 export { handler as GET, handler as POST };
 `);
-      put(root, 'apps/web/cloudflare-env.d.ts', `interface CloudflareEnv { ${has('neon') ? 'HYPERDRIVE: { connectionString: string };' : "DB: Parameters<typeof import('drizzle-orm/d1').drizzle>[0];"} }\n`);
-      patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '^0.45.3' } });
-    }
-    put(root, `apps/${runtimeApp}/.dev.vars.example`, 'BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:8787\n');
-    if (has('hono')) put(root, 'apps/api/src/secrets.d.ts', 'interface Env { BETTER_AUTH_SECRET: string }\n');
+    put(root, 'apps/web/cloudflare-env.d.ts', `interface CloudflareEnv { ${has('neon') ? 'HYPERDRIVE: { connectionString: string };' : "DB: Parameters<typeof import('drizzle-orm/d1').drizzle>[0];"} }\n`);
+    patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '^0.45.3' } });
   }
-  if (has('clerk')) {
-    if (has('next')) {
-      patchPackage(root, 'apps/web/package.json', { dependencies: { '@clerk/nextjs': '^7.0.0' } });
-      const layoutPath = path.join(root, 'apps/web/app/layout.tsx');
-      if (existsSync(layoutPath)) {
-        const layout = readFileSync(layoutPath, 'utf8');
-        if (!layout.includes('ClerkProvider')) put(root, 'apps/web/app/layout.tsx', 'import { ClerkProvider } from "@clerk/nextjs";\n' + layout.replace('<body>', '<body><ClerkProvider>').replace('</body>', '</ClerkProvider></body>'));
+  put(root, `apps/${runtimeApp}/.dev.vars.example`, 'BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:8787\n');
+  if (has('hono')) put(root, 'apps/api/src/secrets.d.ts', 'interface Env { BETTER_AUTH_SECRET: string }\n');
+}
+
+function addClerk(root: string, options: StandardOptions): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
+  if (!has('clerk')) return;
+  if (has('next')) {
+    patchPackage(root, 'apps/web/package.json', { dependencies: { '@clerk/nextjs': '^7.0.0' } });
+    const layoutPath = path.join(root, 'apps/web/app/layout.tsx');
+    if (existsSync(layoutPath)) {
+      const layout = readFileSync(layoutPath, 'utf8');
+      if (!layout.includes('ClerkProvider')) {
+        const wrapped = layout.replace(/(<body\b[^>]*>)([\s\S]*?)(<\/body>)/, '$1<ClerkProvider>$2</ClerkProvider>$3');
+        if (wrapped === layout) throw new Error('Cannot configure ClerkProvider: the web layout must contain a body element.');
+        put(root, 'apps/web/app/layout.tsx', 'import { ClerkProvider } from "@clerk/nextjs";\n' + wrapped);
       }
-      put(root, 'apps/web/app/sign-in/[[...sign-in]]/page.tsx', 'import { SignIn } from "@clerk/nextjs";\nexport default function SignInPage() { return <SignIn />; }\n');
-      put(root, 'apps/web/app/sign-up/[[...sign-up]]/page.tsx', 'import { SignUp } from "@clerk/nextjs";\nexport default function SignUpPage() { return <SignUp />; }\n');
-      put(root, 'apps/web/proxy.ts', `import { clerkMiddleware } from '@clerk/nextjs/server';
+    }
+    put(root, 'apps/web/app/sign-in/[[...sign-in]]/page.tsx', 'import { SignIn } from "@clerk/nextjs";\nexport default function SignInPage() { return <SignIn />; }\n');
+    put(root, 'apps/web/app/sign-up/[[...sign-up]]/page.tsx', 'import { SignUp } from "@clerk/nextjs";\nexport default function SignUpPage() { return <SignUp />; }\n');
+    put(root, 'apps/web/proxy.ts', `import { clerkMiddleware } from '@clerk/nextjs/server';
 export default clerkMiddleware();
 export const config = { matcher: ['/((?!_next|[^?]*\\\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico)).*)', '/(api|trpc)(.*)'] };
 `);
-      // Middleware makes auth available; product routes must explicitly require identity and authorization.
-    }
-    if (has('hono')) {
-      patchPackage(root, 'apps/api/package.json', { dependencies: { '@clerk/backend': '^3.0.0' } });
-      put(root, 'apps/api/src/identity.ts', `import { createClerkClient } from '@clerk/backend';
+    // Middleware makes auth available; product routes must explicitly require identity and authorization.
+  }
+  if (has('hono')) {
+    patchPackage(root, 'apps/api/package.json', { dependencies: { '@clerk/backend': '^3.0.0' } });
+    put(root, 'apps/api/src/identity.ts', `import { createClerkClient } from '@clerk/backend';
 export async function authenticate(request: Request, secretKey: string, authorizedParties: string[]) {
   return createClerkClient({ secretKey }).authenticateRequest(request, { authorizedParties });
 }
 `);
-    }
   }
-  if (has('r2')) {
-    put(root, `apps/${runtimeApp}/private-files.md`, '# Private files\n\nFILES is a private R2 Worker binding. Authenticate the request and enforce file-level product authorization before calling get/put/delete. No public buckets, R2 keys, generic download endpoints, or client credentials are generated. Use the binding directly in Hono or getCloudflareContext in Next.js.\n');
-  }
-  await addServiceWorkers(root, options);
-  addProviderPackages(root, options);
-  writeStandardRoot(root, options);
 }
 
-async function addServiceWorkers(root: string, options: StandardOptions): Promise<void> {
+function addServiceWorkers(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   if (has('realtime')) {
     worker(root, 'realtime', { ...workerConfig(`${options.name}-realtime`), durable_objects: { bindings: [{ name: 'ROOMS', class_name: 'Room' }] },
@@ -393,7 +426,7 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   const existing = readJson(root, 'package.json');
   const securityOverrides = {
-    "sharp@<0.35.5": "0.35.5",
+    ...(has('next') || has('expo') ? { "sharp@<0.35.5": "0.35.5" } : {}),
     "source-map-js@<1.2.2": "1.2.2",
     "baseline-browser-mapping@<2.11.0": "2.11.27",
     "browserslist@<4.28.7": "4.29.3",
@@ -404,8 +437,8 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
     "brace-expansion@>=4 <5.0.12": "5.0.12"
   };
   patchPackage(root, 'package.json', { name: options.name, packageManager: PACKAGE_MANAGER, engines: { node: '>=22.13.0' },
-    scripts: { dev: 'turbo dev', build: 'turbo build', lint: 'turbo lint', typecheck: 'turbo typecheck',
-      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'pnpm audit --prod --audit-level high', check: 'pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build' },
+    scripts: { dev: 'turbo dev', build: 'turbo build', ...(has('next') && options.hosting === 'cloudflare' ? { 'build:worker': 'pnpm --dir apps/web run build:worker' } : {}), lint: 'turbo lint', typecheck: 'turbo typecheck',
+      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'pnpm audit --prod --audit-level high', check: `pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build${workerBuildSuffix(options)}` },
     devDependencies: { fallow: '^3.31.0' },
     // Upstream starter lockfiles can retain vulnerable transitive versions. Keep fixes within compatible majors.
     pnpm: { ...existing.pnpm, overrides: { ...existing.pnpm?.overrides, ...securityOverrides } } });
@@ -413,11 +446,13 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
 const base = process.env.AUDIT_BASE;
 const hasBase = base || ['origin/main', 'main'].find((ref) => spawnSync('git', ['rev-parse', '--verify', ref], { stdio: 'ignore' }).status === 0);
 const args = hasBase ? ['exec', 'fallow', 'audit', '--base', hasBase] : ['exec', 'fallow', '--fail-on-issues'];
-const result = spawnSync('pnpm', args, { stdio: 'inherit', shell: false });
+const entry = process.env.npm_execpath;
+if (!entry) throw new Error('Run this check through pnpm run audit.');
+const result = spawnSync(process.execPath, [entry, ...args], { stdio: 'inherit', shell: false });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
 `);
-  json(root, '.fallowrc.json', { ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
+  json(root, '.fallowrc.json', { ...(has('electron') ? { entry: ['apps/desktop/src/main/preload.cts'] } : {}), ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
   const turbo = readJson(root, 'turbo.json');
   turbo.globalEnv = ['DATABASE_URL', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'OPENAI_API_KEY', 'RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTHOG_API_KEY', 'POSTHOG_HOST', 'SENTRY_DSN'];
   turbo.tasks = { ...turbo.tasks, test: { dependsOn: ['^build'], outputs: ['coverage/**'] },
@@ -430,6 +465,16 @@ process.exitCode = result.status ?? 1;
   const section = /(?:allowBuilds|onlyBuiltDependencies):\n(?:[ \t]+[^\n]*\n|[ \t]*\n)*/;
   put(root, 'pnpm-workspace.yaml', section.test(workspace) ? workspace.replace(section, policy) : workspace + '\n' + policy);
   appendGitignore(root, ['node_modules/', '.open-next/', '.wrangler/', '.dev.vars', '.dev.vars.*', '!.dev.vars.example', '.env', '.env.*', '!.env.example', '.fallow/']);
+  writeEnvironmentExample(root, options);
+  json(root, 'anhedral.standard.json', { schemaVersion: 1, standard: 'anhedral-application-stack', products: options.products,
+    hosting: has('next') ? options.hosting : null, bootstrap: { command: 'pnpm dlx shadcn@latest init --monorepo --template next', upstreamPackageManager: existing.packageManager },
+    status: 'starter', resourcesProvisioned: false });
+  json(root, 'anhedral.setup.json', createSetupPlan({ ...options, dryRun: false }));
+  writeSetupDocumentation(root, options);
+}
+
+function writeEnvironmentExample(root: string, options: StandardOptions): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
   const environment = [
     has('neon') ? 'DATABASE_URL=' : '', has('clerk') ? 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=\nCLERK_SECRET_KEY=' : '',
     has('better-auth') ? 'BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=' : '',
@@ -438,9 +483,14 @@ process.exitCode = result.status ?? 1;
     has('posthog') ? 'POSTHOG_API_KEY=\nPOSTHOG_HOST=' : '', has('sentry') ? 'SENTRY_DSN=' : '',
   ].filter(Boolean).join('\n');
   put(root, '.env.example', environment + '\n');
-  json(root, 'anhedral.standard.json', { schemaVersion: 1, standard: 'anhedral-application-stack', products: options.products,
-    hosting: has('next') ? options.hosting : null, bootstrap: { command: 'pnpm dlx shadcn@latest init --monorepo --template next', upstreamPackageManager: existing.packageManager },
-    status: 'starter', resourcesProvisioned: false });
+}
+
+function workerBuildSuffix(options: StandardOptions): string {
+  return options.products.includes('next') && options.hosting === 'cloudflare' ? ' && pnpm build:worker' : '';
+}
+
+function writeSetupDocumentation(root: string, options: StandardOptions): void {
+  const has = (product: StandardProduct) => options.products.includes(product);
   const agentsFile = path.join(root, 'AGENTS.md');
   const existingAgents = existsSync(agentsFile) && has('next') ? readFileSync(agentsFile, 'utf8') + '\n' : '';
   put(root, 'AGENTS.md', existingAgents + `# Anhedral delivery standard
@@ -477,7 +527,7 @@ ${has('queues') ? 'Queue processing retries unimplemented jobs and uses a dead-l
 ${has('basin') ? 'Basin uses a Pipelines stream binding. Configure its stream, sink, R2/catalog and SQL in client-owned infrastructure; it is distinct from operational logs.\n' : ''}
 Provider packages are SDK factories or integration boundaries, not finished business features. Connect only needed packages to server entrypoints. Billing needs verified webhooks and idempotent consumption; RevenueCat adds cross-store entitlement configuration. Local data needs a platform-specific SQLite/filesystem adapter. Sentry needs a platform SDK and runtime initialization. Native auth and subscriptions need platform-specific setup.
 
-Outbound application mail uses Resend. Inbound forwarding uses Cloudflare Email Routing. Keep the existing business mailbox provider. GitHub Actions runs PR checks and never deploys automatically. Human approval is required for paid activation, material spending, architecture exceptions and production releases.
+Purchase the domain in the client's GoDaddy account, then add its zone to the client's Cloudflare account and configure Cloudflare nameservers. The client retains registration, renewal, billing and recovery ownership. Verify DNS records and zone activation before connecting application domains and mail. Inbound mail uses Cloudflare Email Routing. Outbound business and application mail defaults to Cloudflare Email Sending; Resend is an alternative when selected. Configure the selected mail provider before use; init does not provision domains or mail services. GitHub Actions runs PR checks and never deploys automatically. Human approval is required for paid activation, material spending, architecture exceptions and production releases.
 `);
   put(root, '.github/workflows/check.yml', `name: Check
 on:
@@ -489,10 +539,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -508,22 +560,21 @@ jobs:
       - name: Audit branch
         if: github.event_name != 'pull_request'
         run: pnpm audit:full
-      - run: pnpm test && pnpm build
+      - run: pnpm test && pnpm build${workerBuildSuffix(options)}
 `);
 }
 
 export type StandardRunner = (command: string, args: string[], cwd: string) => void;
 const defaultRunner: StandardRunner = (command, args, cwd) => execFile(command, args, cwd);
 export async function scaffoldStandardProject(options: StandardOptions, run: StandardRunner = defaultRunner): Promise<void> {
-  const plan = { standard: 'anhedral-application-stack', root: options.root, products: options.products, hosting: options.hosting,
-    bootstrap: ['pnpm', 'dlx', 'shadcn@latest', 'init', '--monorepo', '--template', 'next'], dryRun: options.dryRun };
+  const plan = createSetupPlan(options);
   if (options.dryRun) { console.log(options.json ? JSON.stringify(plan, null, 2) : JSON.stringify(plan)); return; }
   const root = options.root;
   const previousQuiet = process.env.ANHEDRAL_QUIET;
   if (options.json) process.env.ANHEDRAL_QUIET = '1';
   let created = false;
-  if (!existsSync(root)) { mkdirSync(root, { recursive: true }); created = true; }
   try {
+    if (!existsSync(root)) { mkdirSync(root, { recursive: true }); created = true; }
     if (lstatSync(root).isSymbolicLink() || !lstatSync(root).isDirectory()) throw new Error('Destination must be a real directory.');
     const unexpected = readdirSync(root).filter((name) => !['.git', '.gitignore'].includes(name));
     if (unexpected.length) throw new Error(`Destination must be empty (apart from .git/.gitignore): ${unexpected[0]}`);

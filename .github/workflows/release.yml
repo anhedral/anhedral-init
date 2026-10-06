@@ -315,12 +315,16 @@ jobs:
           TAG="v$VERSION"
           ASSET=".artifacts/release/$TARBALL"
           METADATA=".artifacts/release/metadata.json"
+          PLUGIN=".artifacts/release/anhedral-plugin-$VERSION.zip"
+          PLUGIN_METADATA=".artifacts/release/plugin-metadata.json"
           if gh release view "$TAG" >/dev/null 2>&1; then
             IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
             if [ "$IS_DRAFT" = "true" ]; then
               gh release upload "$TAG" \
                 "$ASSET#npm package tarball" \
                 "$METADATA#release integrity metadata" \
+                "$PLUGIN#Anhedral plugin" \
+                "$PLUGIN_METADATA#plugin integrity metadata" \
                 --clobber
               gh release edit "$TAG" --draft=false
             fi
@@ -332,7 +336,9 @@ jobs:
               --title "$TAG"
             gh release upload "$TAG" \
               "$ASSET#npm package tarball" \
-              "$METADATA#release integrity metadata"
+              "$METADATA#release integrity metadata" \
+              "$PLUGIN#Anhedral plugin" \
+              "$PLUGIN_METADATA#plugin integrity metadata"
             gh release edit "$TAG" --draft=false
           fi
 
@@ -341,7 +347,11 @@ jobs:
           gh release download "$TAG" \
             --dir "$DOWNLOAD_DIR" \
             --pattern "$TARBALL" \
-            --pattern metadata.json
+            --pattern metadata.json \
+            --pattern "anhedral-plugin-$VERSION.zip" \
+            --pattern plugin-metadata.json
           cmp "$ASSET" "$DOWNLOAD_DIR/$TARBALL"
           cmp "$METADATA" "$DOWNLOAD_DIR/metadata.json"
+          cmp "$PLUGIN" "$DOWNLOAD_DIR/anhedral-plugin-$VERSION.zip"
+          cmp "$PLUGIN_METADATA" "$DOWNLOAD_DIR/plugin-metadata.json"
           node scripts/verify-release-artifact.mjs "$DOWNLOAD_DIR/metadata.json"

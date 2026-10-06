@@ -7,6 +7,7 @@ export async function scaffoldDesktop(root: string, options: ProjectOptions): Pr
     const { projectName, displayName } = options;
     const dir = path.join(root, 'apps/desktop');
     writePackageJson(dir, projectName);
+    writeFile(path.join(dir, 'eslint.config.mjs'), 'import { config } from "@workspace/eslint-config/react-internal";\nexport default [...config, { files: ["**/*.{ts,tsx,cts}"], languageOptions: { parserOptions: { babelOptions: { parserOpts: { plugins: ["jsx"] } } } }, rules: { "no-undef": "off", "no-unused-vars": "off" } }];\n');
     writeTsConfig(dir);
     writeViteConfig(dir);
     writePostcssConfig(dir);
@@ -26,7 +27,8 @@ function writePackageJson(dir: string, projectName: string): void {
         scripts: {
             dev: 'tsc -p tsconfig.main.json && node scripts/dev.mjs',
             build: 'tsc --noEmit && tsc -p tsconfig.main.json && vite build',
-            typecheck: 'tsc --noEmit',
+            typecheck: 'tsc --noEmit && tsc -p tsconfig.main.json --noEmit',
+            lint: 'eslint src --max-warnings 0',
             'build:mac': `pnpm build && electron-builder --mac${''}`,
             'build:win': `pnpm build && electron-builder --win${''}`,
             'build:linux': `pnpm build && electron-builder --linux${''}`,
@@ -56,10 +58,17 @@ function writePackageJson(dir: string, projectName: string): void {
             ...updatePublish,
         },
         dependencies: DESKTOP_DEPENDENCIES.dependencies,
-        devDependencies: DESKTOP_DEPENDENCIES.devDependencies,
+        devDependencies: { ...DESKTOP_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*' },
     }, null, 2) + '\n');
 }
 function writeTsConfig(dir: string): void {
+    writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({
+        compilerOptions: { target: 'ES2022', lib: ['ES2022', 'DOM'], module: 'ESNext',
+            moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true,
+            esModuleInterop: true, noEmit: true, types: ['node', 'vite/client'],
+            paths: { '@/*': ['./src/renderer/*'] } },
+        include: ['src/renderer/**/*', 'vite.config.ts'],
+    }, null, 2) + '\n');
     writeFile(path.join(dir, 'tsconfig.main.json'), JSON.stringify({
         compilerOptions: {
             target: 'ES2022',
@@ -136,16 +145,16 @@ function stop(child) {
   if (child && child.exitCode === null && !child.killed) child.kill('SIGTERM');
 }
 
+async function isServerReady(url) {
+  try { return (await fetch(url)).ok; }
+  catch { return false; }
+}
+
 async function waitForServer(server, url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (server.exitCode !== null) throw new Error('Vite exited before the dev server was ready.');
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch {
-      // The server is still starting.
-    }
+    if (await isServerReady(url)) return;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   throw new Error('Timed out waiting for Vite at ' + url + '.');
@@ -345,6 +354,7 @@ export function Button({ className, type = 'button', ...props }: React.ButtonHTM
 `);
     writeFile(path.join(dir, 'src/renderer/main.tsx'), `import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { Button } from '@/components/ui/button';
 import './styles.css';
 
 function App() {
@@ -356,10 +366,7 @@ function App() {
           ${"Electron + shadcn/ui desktop client ready for your application."}
         </p>
       </section>
-
-
-
-
+      <Button className="self-start" onClick={() => window.location.reload()}>Reload</Button>
     </main>
   );
 }

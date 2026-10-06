@@ -68,3 +68,15 @@ if (size !== metadata.size) {
 }
 
 console.log(`Verified ${metadata.name}@${metadata.version}: ${metadata.integrity}`);
+
+function verifyPlugin(plugin, version, directory) {
+  if (!plugin) return; // Preserve verification of releases that predate the plugin.
+  if (plugin.version !== version || plugin.cliVersion !== version || plugin.filename !== `anhedral-plugin-${version}.zip`) throw new Error('Plugin release identity mismatch');
+  const filename = path.join(directory, plugin.filename);
+  const stat = lstatSync(filename);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Plugin archive must be a regular file');
+  const contents = readFileSync(filename);
+  const integrity = `sha512-${createHash('sha512').update(contents).digest('base64')}`;
+  if (integrity !== plugin.integrity || contents.length !== plugin.size) throw new Error('Plugin integrity mismatch');
+}
+verifyPlugin(metadata.plugin, metadata.version, path.dirname(metadataPath));
