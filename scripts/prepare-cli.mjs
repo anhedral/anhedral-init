@@ -13,6 +13,9 @@ mkdirSync(references, { recursive: true });
 writeFileSync(new URL('capabilities.json', references), JSON.stringify(CAPABILITY_REGISTRY, null, 2) + '\n');
 writeFileSync(new URL('application-stack-standard.md', references), readFileSync(new URL('../docs/application-stack-standard.md', import.meta.url)));
 writeFileSync(new URL('../plugins/anhedral/LICENSE', import.meta.url), readFileSync(new URL('../LICENSE', import.meta.url)));
+const assets = new URL('../plugins/anhedral/assets/', import.meta.url);
+mkdirSync(assets, { recursive: true });
+writeFileSync(new URL('anhedral.svg', assets), readFileSync(new URL('../assets/anhedral.svg', import.meta.url)));
 
 const manifestUrl = new URL('../plugins/anhedral/plugin.json', import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, 'utf8'));

@@ -20,6 +20,10 @@ while (result.contents.readUInt32LE(offset) === 0x04034b50) {
 assert.ok(files.has('plugin.json'));
 assert.ok(files.has('skills/anhedral/SKILL.md'));
 assert.ok(files.has('LICENSE'));
+const manifest = JSON.parse(files.get('plugin.json'));
+for (const field of ['composerIcon', 'composerIconDark', 'logo', 'logoDark']) {
+  assert.deepEqual(files.get(manifest.extensions['com.openai'].interface[field].replace(/^\.\//, '')), readFileSync(path.join(root, 'assets/anhedral.svg')));
+}
 for (const [name, contents] of files) {
   if (!name.endsWith('.md')) continue;
   for (const match of contents.toString().matchAll(/\]\(([^)]+)\)/g)) {
