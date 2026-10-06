@@ -36,14 +36,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ inputs.release_sha }}
+          ref: main
 
-      - name: Require a commit from main
+      - name: Require the prepared main commit
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
-          if ! git merge-base --is-ancestor "$RELEASE_SHA" "refs/remotes/origin/main"; then
-            echo "Release commit $RELEASE_SHA is not contained in origin/main"
+          if [ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]; then
+            echo "Release commit $RELEASE_SHA is no longer the current main commit"
             exit 1
           fi
 
@@ -134,7 +134,12 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-          ref: ${{ inputs.release_sha }}
+          ref: main
+
+      - name: Require the prepared main commit
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -174,7 +179,12 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-          ref: ${{ inputs.release_sha }}
+          ref: main
+
+      - name: Require the prepared main commit
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -238,7 +248,12 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          ref: ${{ inputs.release_sha }}
+          ref: main
+
+      - name: Require the prepared main commit
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6

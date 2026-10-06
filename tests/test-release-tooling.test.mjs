@@ -86,6 +86,10 @@ function makeTarEntry(name, contents) {
 }
 
 try {
+  for (const extension of ['jsonc', 'toml', 'svg']) {
+    const credential = `gh${'p_'}${'x'.repeat(36)}`;
+    assert.equal(scanText(`config.${extension}`, Buffer.from(credential))[0]?.pattern, 'github-token');
+  }
   assert.deepEqual(resolveSpawnCommand('npm', ['pack'], { platform: 'linux' }), {
     command: 'npm',
     args: ['pack'],

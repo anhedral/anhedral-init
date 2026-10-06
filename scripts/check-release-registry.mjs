@@ -83,8 +83,8 @@ async function main() {
     return;
   }
 
-  const attempts = Number.parseInt(process.env.ANHEDRAL_REGISTRY_VERIFY_ATTEMPTS ?? '6', 10);
-  const delayMs = Number.parseInt(process.env.ANHEDRAL_REGISTRY_VERIFY_DELAY_MS ?? '10000', 10);
+  const attempts = Number.parseInt(process.env.ANHEDRAL_REGISTRY_VERIFY_ATTEMPTS ?? '30', 10);
+  const delayMs = Number.parseInt(process.env.ANHEDRAL_REGISTRY_VERIFY_DELAY_MS ?? '15000', 10);
   if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 30) {
     throw new Error('ANHEDRAL_REGISTRY_VERIFY_ATTEMPTS must be an integer from 1 to 30');
   }

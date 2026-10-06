@@ -18,7 +18,7 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck
+      - run: pnpm lint && pnpm typecheck && pnpm audit:deps
       - name: Audit pull request
         if: github.event_name == 'pull_request'
         env:

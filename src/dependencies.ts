@@ -27,7 +27,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@types/react-dom
     "@types/react-dom": '19.2.3',
     // renovate: datasource=npm depName=electron
-    "electron": '43.1.1',
+    "electron": '43.7.8',
     // renovate: datasource=npm depName=electron-builder
     "electron-builder": '26.15.3',
     // renovate: datasource=npm depName=electron-builder-squirrel-windows
@@ -35,7 +35,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=tailwindcss
     "tailwindcss": '4.1.18',
     // renovate: datasource=npm depName=postcss
-    "postcss": '8.5.19',
+    "postcss": '8.5.23',
     // renovate: datasource=npm depName=typescript
     "typescript": '5.9.3',
     // renovate: datasource=npm depName=vite
@@ -66,7 +66,7 @@ export const EXTENSION_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=autoprefixer
     "autoprefixer": '10.4.23',
     // renovate: datasource=npm depName=postcss
-    "postcss": '8.5.19',
+    "postcss": '8.5.23',
     // renovate: datasource=npm depName=tailwindcss
     "tailwindcss": '3.4.19',
     // renovate: datasource=npm depName=typescript

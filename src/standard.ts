@@ -148,6 +148,10 @@ function cleanShadcnStarter(root: string): void {
     if (directory === 'packages/ui') {
       if (!sources.some((source) => source.includes('@turbo/gen')) && !Object.values(manifest.scripts ?? {}).some((script) => String(script).includes('turbo gen'))) delete manifest.devDependencies?.['@turbo/gen'];
       manifest.devDependencies = { ...manifest.devDependencies, 'postcss-load-config': '^6.0.1' };
+      if (manifest.dependencies?.shadcn) {
+        manifest.devDependencies.shadcn = manifest.dependencies.shadcn;
+        delete manifest.dependencies.shadcn;
+      }
     }
     json(root, manifestPath, manifest);
   }
@@ -217,7 +221,7 @@ export function createDatabase(connectionString: string) {
 ` : `import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './schema.js';
 export function createDatabase(binding: Parameters<typeof drizzle>[0]) { return drizzle(binding, { schema }); }
-`, { 'drizzle-orm': '^0.44.0', ...(has('neon') ? { postgres: '^3.4.0' } : {}) });
+`, { 'drizzle-orm': '^0.45.3', ...(has('neon') ? { postgres: '^3.4.0' } : {}) });
     put(root, 'packages/db/src/schema.ts', '// Define product tables here; generate and review SQL before migration.\nexport {};\n');
     put(root, 'packages/db/drizzle.config.ts', has('neon') ? `import { defineConfig } from 'drizzle-kit';
 export default defineConfig({ dialect: 'postgresql', schema: './src/schema.ts', out: './migrations', dbCredentials: { url: process.env.DATABASE_URL! } });
@@ -256,7 +260,7 @@ async function handler(request: Request) {
 export { handler as GET, handler as POST };
 `);
       put(root, 'apps/web/cloudflare-env.d.ts', `interface CloudflareEnv { ${has('neon') ? 'HYPERDRIVE: { connectionString: string };' : "DB: Parameters<typeof import('drizzle-orm/d1').drizzle>[0];"} }\n`);
-      patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '^0.44.0' } });
+      patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '^0.45.3' } });
     }
     put(root, `apps/${runtimeApp}/.dev.vars.example`, 'BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:8787\n');
     if (has('hono')) put(root, 'apps/api/src/secrets.d.ts', 'interface Env { BETTER_AUTH_SECRET: string }\n');
@@ -390,7 +394,7 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
   const existing = readJson(root, 'package.json');
   patchPackage(root, 'package.json', { name: options.name, packageManager: PACKAGE_MANAGER, engines: { node: '>=22.13.0' },
     scripts: { dev: 'turbo dev', build: 'turbo build', lint: 'turbo lint', typecheck: 'turbo typecheck',
-      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', check: 'pnpm lint && pnpm typecheck && pnpm run audit && pnpm test && pnpm build' },
+      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'pnpm audit --prod --audit-level high', check: 'pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build' },
     devDependencies: { fallow: '^3.31.0' } });
   put(root, 'scripts/audit.mjs', `import { spawnSync } from 'node:child_process';
 const base = process.env.AUDIT_BASE;
@@ -482,7 +486,7 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck
+      - run: pnpm lint && pnpm typecheck && pnpm audit:deps
       - name: Audit pull request
         if: github.event_name == 'pull_request'
         env:

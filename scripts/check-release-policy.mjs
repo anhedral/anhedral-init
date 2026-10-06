@@ -115,6 +115,11 @@ export function validateWorkflowPolicy(root) {
     }
   }
   const releaseWorkflow = readFileSync(path.join(workflowsRoot, 'release.yml'), 'utf8');
+  if (/ref:\s*\$\{\{\s*inputs\./.test(releaseWorkflow)
+    || (releaseWorkflow.match(/ref: main/g) ?? []).length !== 4
+    || (releaseWorkflow.match(/name: Require the prepared main commit/g) ?? []).length !== 4) {
+    failures.push('.github/workflows/release.yml: executable checkouts must use trusted main and verify the prepared commit before execution');
+  }
   const releaseTrigger = releaseWorkflow.match(/^on:\s*$[\s\S]*?(?=^[a-zA-Z0-9_-]+:\s*(?:$|\S))/m)?.[0] ?? '';
   if (/^\s{2}workflow_dispatch:/m.test(releaseTrigger)) {
     failures.push('.github/workflows/release.yml: reusable release must be dispatched through release-on-main.yml for trusted publishing');

@@ -50,7 +50,7 @@ function isPlaceholderValue(value) {
 
 const TEXT_EXTENSIONS = new Set([
   '', '.cjs', '.css', '.env', '.html', '.js', '.json', '.jsx', '.md', '.mjs', '.mts',
-  '.sh', '.ts', '.tsx', '.txt', '.yaml', '.yml',
+  '.sh', '.ts', '.tsx', '.txt', '.yaml', '.yml', '.jsonc', '.toml', '.svg', '.xml', '.ini',
 ]);
 const MAX_TEXT_BYTES = 5 * 1024 * 1024;
 
@@ -74,6 +74,8 @@ export function scanText(relativePath, contents) {
         id === 'email-address'
         && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
       ) continue;
+      // Explicitly published project contact; not a private address or credential.
+      if (id === 'email-address' && /^support@anhedral\.com$/i.test(match[0])) continue;
       const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
       if (id === 'credential-assignment' && assignedValue && isPlaceholderValue(assignedValue)) continue;
       // Saved demos declare local-only placeholders in environment examples.
