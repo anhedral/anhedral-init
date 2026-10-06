@@ -1,5 +1,14 @@
 import { readFileSync } from "node:fs";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  McpServer,
+  type RegisteredTool,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  ListToolsRequestSchema,
+  ToolSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   registerAppResource,
@@ -13,9 +22,17 @@ import { registerProject, snapshot, updateSettings } from "./status.js";
 
 export const UI_URI = "ui://anhedral/control-panel.html";
 export function createControlServer() {
+  const icons = [
+    {
+      src: `data:image/svg+xml;base64,${readFileSync(new URL("./assets/anhedral.svg", import.meta.url)).toString("base64")}`,
+      mimeType: "image/svg+xml",
+      sizes: ["any"],
+    },
+  ];
   const server = new McpServer({
     name: "anhedral",
     version: GENERATOR_VERSION,
+    icons,
   });
   new OpenAIExtensions(server);
   const html = readFileSync(
@@ -55,7 +72,7 @@ export function createControlServer() {
       .default("default"),
     refresh: z.boolean().default(false),
   };
-  registerAppTool(
+  const open = registerAppTool(
     server,
     "anhedral_open",
     {
@@ -83,7 +100,7 @@ export function createControlServer() {
       structuredContent: await snapshot(projectId, environment, refresh),
     }),
   );
-  server.registerTool(
+  const register = server.registerTool(
     "anhedral_register_project",
     {
       title: "Add a project to Anhedral",
@@ -104,7 +121,7 @@ export function createControlServer() {
       };
     },
   );
-  server.registerTool(
+  const settings = server.registerTool(
     "anhedral_update_settings",
     {
       title: "Update project connection settings",
@@ -142,6 +159,43 @@ export function createControlServer() {
       };
     },
   );
+  // SDK 1.32's high-level registration omits standard MCP tool icons.
+  const tools: [string, RegisteredTool][] = [
+    ["anhedral_open", open],
+    ["anhedral_register_project", register],
+    ["anhedral_update_settings", settings],
+  ];
+  server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: tools
+      .filter(([, tool]) => tool.enabled)
+      .map(([name, tool]) => {
+        const input = normalizeObjectSchema(tool.inputSchema);
+        const output = normalizeObjectSchema(tool.outputSchema);
+        return ToolSchema.parse({
+          name,
+          title: tool.title,
+          description: tool.description,
+          inputSchema: input
+            ? toJsonSchemaCompat(input, {
+                strictUnions: true,
+                pipeStrategy: "input",
+              })
+            : { type: "object", properties: {} },
+          ...(output
+            ? {
+                outputSchema: toJsonSchemaCompat(output, {
+                  strictUnions: true,
+                  pipeStrategy: "output",
+                }),
+              }
+            : {}),
+          annotations: tool.annotations,
+          execution: tool.execution,
+          _meta: tool._meta,
+          ...(name === "anhedral_open" ? { icons } : {}),
+        });
+      }),
+  }));
   return server;
 }
 

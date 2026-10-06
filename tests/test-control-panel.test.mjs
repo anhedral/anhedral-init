@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -63,6 +63,13 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     await client.connect(transport);
     const tools = await client.listTools();
     const open = tools.tools.find((tool) => tool.name === 'anhedral_open');
+    assert.equal(tools.tools.length, 3);
+    assert.equal(open.icons[0].mimeType, 'image/svg+xml');
+    assert.deepEqual(open.icons[0].sizes, ['any']);
+    assert.ok(open.icons[0].src.startsWith('data:image/svg+xml;base64,'));
+    assert.equal(Buffer.from(open.icons[0].src.split(',')[1], 'base64').toString(), readFileSync('assets/anhedral.svg', 'utf8'));
+    assert.deepEqual(client.getServerVersion().icons, open.icons);
+    assert.equal(open.inputSchema.properties.environment.default, 'default');
     assert.deepEqual(open._meta['openai/ui'].entrypoints, [{ type: 'global' }, { type: 'thread' }]);
     assert.equal(open.annotations.readOnlyHint, true);
     const resource = await client.readResource({ uri: open._meta.ui.resourceUri });
