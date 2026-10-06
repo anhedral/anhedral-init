@@ -426,6 +426,7 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   const existing = readJson(root, 'package.json');
   const securityOverrides = {
+    ...(has('wxt') ? { '@wxt-dev/module-react>@vitejs/plugin-react': '5.2.0' } : {}),
     ...(has('next') || has('expo') ? { "sharp@<0.35.5": "0.35.5" } : {}),
     "source-map-js@<1.2.2": "1.2.2",
     "baseline-browser-mapping@<2.11.0": "2.11.27",

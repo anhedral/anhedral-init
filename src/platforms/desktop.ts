@@ -17,7 +17,6 @@ export async function scaffoldDesktop(root: string, options: ProjectOptions): Pr
     writeSourceFiles(dir, displayName);
 }
 function writePackageJson(dir: string, projectName: string): void {
-    const updatePublish = {};
     writeFile(path.join(dir, 'package.json'), JSON.stringify({
         name: childPackageName(projectName, 'desktop'),
         version: '0.1.0',
@@ -29,11 +28,10 @@ function writePackageJson(dir: string, projectName: string): void {
             build: 'tsc --noEmit && tsc -p tsconfig.main.json && vite build',
             typecheck: 'tsc --noEmit && tsc -p tsconfig.main.json --noEmit',
             lint: 'eslint src --max-warnings 0',
-            'build:mac': `pnpm build && electron-builder --mac${''}`,
-            'build:win': `pnpm build && electron-builder --win${''}`,
-            'build:linux': `pnpm build && electron-builder --linux${''}`,
-            package: `pnpm build && electron-builder${''}`,
-            ...({}),
+            'build:mac': 'pnpm build && electron-builder --mac',
+            'build:win': 'pnpm build && electron-builder --win',
+            'build:linux': 'pnpm build && electron-builder --linux',
+            package: 'pnpm build && electron-builder',
         },
         build: {
             appId: `dev.anhedral.${identifierSegment(projectName)}`,
@@ -55,7 +53,6 @@ function writePackageJson(dir: string, projectName: string): void {
                 executableName: identifierSegment(projectName),
                 target: ['AppImage', 'deb'],
             },
-            ...updatePublish,
         },
         dependencies: DESKTOP_DEPENDENCIES.dependencies,
         devDependencies: { ...DESKTOP_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*' },
