@@ -1,5 +1,6 @@
 {
   "ignorePatterns": [
+    "**/next-env.d.ts",
     "**/.next/**",
     "**/.open-next/**",
     "**/.wrangler/**",
