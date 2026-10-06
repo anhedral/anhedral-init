@@ -11,13 +11,14 @@ const cli = path.resolve(import.meta.dirname, '../dist/bin.js');
 process.env.WRANGLER_SEND_METRICS = 'false';
 process.env.NEXT_TELEMETRY_DISABLED = '1';
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
+process.env.ANHEDRAL_VERBOSE = '1';
 for (const profile of selected) {
   assert.ok(Object.hasOwn(profiles, profile), `Unknown core profile: ${profile}`);
   const temporary = mkdtempSync(path.join(tmpdir(), 'anhedral-core-'));
   const root = path.join(temporary, profile);
   try {
     console.log(`Generating and validating real ${profile} project`);
-    execFile(process.execPath, [cli, 'new', root, ...profiles[profile], '--no-git'], temporary);
+    execFile(process.execPath, [cli, 'new', root, ...profiles[profile], '--no-git', '--verbose'], temporary);
     assert.equal(inspectProject(root).localReady, true);
     execFile('pnpm', ['check'], root);
     if (profile === 'web') assert.ok(existsSync(path.join(root, 'apps/web/.open-next/worker.js')));
