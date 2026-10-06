@@ -1,0 +1,22 @@
+{
+  "name": "@workspace/auth",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "dependencies": {
+    "better-auth": "^1.0.0",
+    "@workspace/db": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "@workspace/eslint-config": "workspace:*"
+  }
+}

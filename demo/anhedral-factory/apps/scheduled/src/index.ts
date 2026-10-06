@@ -1,0 +1,1 @@
+export default {async scheduled(event:ScheduledController,env:Env){await env.CONFIG.put('last-scheduled-check',JSON.stringify({at:new Date(event.scheduledTime).toISOString(),status:'ok'}),{expirationTtl:86400});await env.ANALYTICS.send([{value:{event:'scheduled.heartbeat',at:new Date(event.scheduledTime).toISOString()}}]);console.log('Factory scheduled check completed');}};

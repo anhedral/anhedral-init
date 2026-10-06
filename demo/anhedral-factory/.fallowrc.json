@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    "**/.next/**",
+    "**/.open-next/**",
+    "**/.wrangler/**",
+    "**/dist/**",
+    "**/worker-configuration.d.ts",
+    "**/cloudflare-env.d.ts"
+  ]
+}

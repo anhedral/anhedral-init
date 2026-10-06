@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { collectOsvFindings } from './osv-audit-core.mjs';
 import { collectPnpmLockPackages } from './osv-packages.mjs';
@@ -11,49 +11,13 @@ function addPackage(name, version) {
   packages.push({ name, version });
 }
 
-function overridePackageName(selector) {
-  const rangeSeparator = selector.lastIndexOf('@');
-  return rangeSeparator > 0 ? selector.slice(0, rangeSeparator) : selector;
-}
-
 function collectLockfilePackages(lockfilePath) {
   const lockfile = readFileSync(lockfilePath, 'utf8');
   for (const { name, version } of collectPnpmLockPackages(lockfile, lockfilePath)) addPackage(name, version);
 }
 
-async function collectGeneratorPackages() {
-  const dependenciesModule = path.resolve(import.meta.dirname, '..', 'dist', 'dependencies.js');
-  if (!existsSync(dependenciesModule)) {
-    throw new Error('Generator dependency audit requires dist/dependencies.js; run pnpm build first');
-  }
-
-  const { dependencyManifest } = await import(dependenciesModule);
-  const manifest = dependencyManifest();
-  const packageManagerSeparator = manifest.packageManager.lastIndexOf('@');
-  if (packageManagerSeparator <= 0) throw new Error('Generator package manager is not an exact name@version pin');
-  addPackage(
-    manifest.packageManager.slice(0, packageManagerSeparator),
-    manifest.packageManager.slice(packageManagerSeparator + 1),
-  );
-
-  for (const [name, version] of Object.entries(manifest.toolchain)) addPackage(name, version);
-  for (const [groupName, group] of Object.entries(manifest)) {
-    if (['verifiedAt', 'packageManager', 'toolchain'].includes(groupName) || typeof group !== 'object' || group === null) continue;
-    const dependencyMaps = 'dependencies' in group || 'devDependencies' in group
-      ? [group.dependencies, group.devDependencies]
-      : [group];
-    for (const dependencyMap of dependencyMaps) {
-      for (const [name, version] of Object.entries(dependencyMap ?? {})) {
-        addPackage(groupName === 'securityOverrides' ? overridePackageName(name) : name, version);
-      }
-    }
-  }
-}
-
-const includeGenerator = process.argv.includes('--generator');
 const lockfileArgument = process.argv.slice(2).find((argument) => !argument.startsWith('--'));
 collectLockfilePackages(lockfileArgument ? path.resolve(process.cwd(), lockfileArgument) : defaultLockfile);
-if (includeGenerator) await collectGeneratorPackages();
 
 const uniquePackages = [...new Map(packages.map((entry) => [`${entry.name}@${entry.version}`, entry])).values()];
 const OSV_ENDPOINT = 'https://api.osv.dev/v1/querybatch';
@@ -133,5 +97,5 @@ if (findings.length > 0) {
   );
 }
 
-const auditScope = includeGenerator ? 'locked and generator' : 'locked';
+const auditScope = 'locked';
 console.log(`OSV audit passed for ${uniquePackages.length} unique ${auditScope} package versions`);

@@ -41,9 +41,9 @@ for (const filename of readdirSync(path.join(root, 'src'), { recursive: true }))
   }
 }
 
-const templatesRoot = path.join(root, 'src', 'templates');
-for (const filename of readdirSync(templatesRoot).filter((entry) => entry.endsWith('.ts'))) {
-  const relative = path.join('src', 'templates', filename);
+const platformsRoot = path.join(root, 'src', 'platforms');
+for (const filename of readdirSync(platformsRoot).filter((entry) => entry.endsWith('.ts'))) {
+  const relative = path.join('src', 'platforms', filename);
   const source = readFileSync(path.join(root, relative), 'utf8');
   for (const match of source.matchAll(/['"](@?[a-z0-9][a-z0-9._/-]*)['"]\s*:\s*['"](?:\^|~)?\d+\.\d+\.\d+/gi)) {
     failures.push(`${relative}: dependency-like pin ${match[1]} must come from src/dependencies.ts`);

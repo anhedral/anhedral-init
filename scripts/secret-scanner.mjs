@@ -76,6 +76,14 @@ export function scanText(relativePath, contents) {
       ) continue;
       const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
       if (id === 'credential-assignment' && assignedValue && isPlaceholderValue(assignedValue)) continue;
+      // Saved demos declare local-only placeholders in environment examples.
+      // The same assignment in a runtime .env is still reported.
+      if (id === 'credential-assignment' && relativePath.endsWith('.env.example')
+        && /^local-demo-[a-z0-9-]+$/.test(assignedValue ?? '')) continue;
+      const sourceLine = text.slice(0, match.index).split('\n').at(-1);
+      // Package deprecation notices carry public maintainer contact addresses.
+      if (id === 'email-address' && path.basename(relativePath) === 'pnpm-lock.yaml'
+        && /^\s*deprecated:/.test(sourceLine)) continue;
       const line = text.slice(0, match.index).split('\n').length;
       findings.push({ path: relativePath, line, pattern: id });
     }

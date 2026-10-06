@@ -10,44 +10,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const npmCache = mkdtempSync(path.join(tmpdir(), 'anhedral-packlist-'));
 const requiredFiles = new Set([
-  'CHANGELOG.md',
-  'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
-  'SKILL.md',
-  'SECURITY.md',
   'anhedral.svg',
-  'bin/anhedral.js',
   'dist/bin.js',
   'dist/index.d.ts',
   'dist/index.js',
   'favicon.ico',
   'package.json',
-  'docs/conventions.md',
-  'docs/build-for-what-comes-next.md',
-  'docs/cli-reference.md',
-  'docs/master-stack-map.md',
-  'docs/NORTHSTAR.md',
   'assets/anhedral-cli-init.svg',
   'assets/anhedral-cli-init-technical.svg',
-  'assets/images/svg/ably-symbol-color.svg',
   'assets/images/svg/logo-white-subtract.svg',
-  'docs/output-tree-contract.md',
-  'docs/stack-tool-options.md',
-  'docs/references/manual-scaffolding.md',
-  'docs/references/provisioning.md',
-  'scripts/render-master-stack-map.mjs',
-  'scripts/render-technical-stack-map.mjs',
-  'templates/catalog.json',
-  'templates/web-next/apps/web/next-env.d.ts',
+  'docs/application-stack-standard.md',
 ]);
 const allowedRootFiles = new Set([
-  'CHANGELOG.md',
-  'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
-  'SKILL.md',
-  'SECURITY.md',
   'anhedral.svg',
   'favicon.ico',
   'package.json',
@@ -121,52 +99,7 @@ try {
   assert.match(readme, /Generated applications[\s\S]+developers can customize and license for their products/i);
   assert.doesNotMatch(readme, /does not grant permission to install|separate written agreement/i);
   assertPackedMarkdownLinks('README.md', readme, files);
-
-  const skill = readFileSync(path.join(repoRoot, 'SKILL.md'), 'utf8');
-  assert.match(skill, /docs\/master-stack-map\.md/);
-  assert.match(skill, /1 select \+ plan -> 2 generate safely/);
-  assert.match(skill, /Bootstrap a blank workstation/);
-  assert.match(skill, /Node\.js 24 LTS/);
-  assert.match(skill, /npm is not the package manager for a generated\s+workspace/);
-  assert.match(skill, /does not implement Stripe Checkout/);
-  assertPackedMarkdownLinks('SKILL.md', skill, files);
-
-  const provisioning = readFileSync(path.join(repoRoot, 'docs/references/provisioning.md'), 'utf8');
-  for (const requiredProvisioningPattern of [
-    /Bootstrap a workstation from zero/,
-    /Resolve accounts, CLIs, and unavoidable browser work/,
-    /RevenueCat's Test Store supports development purchases without Apple, Google, or\s+Stripe accounts/,
-    /Use this control sequence whenever a CLI opens a browser/,
-    /generated `billing` module supplies entitlement reconciliation/,
-    /Workstation ready/,
-    /Distribution ready/,
-  ]) {
-    assert.match(provisioning, requiredProvisioningPattern);
-  }
-  assertPackedMarkdownLinks('docs/references/provisioning.md', provisioning, files);
-
-  const masterMapDocument = readFileSync(path.join(repoRoot, 'docs/master-stack-map.md'), 'utf8');
-  const [masterMap = ''] = masterMapDocument.split('```text').slice(1);
-  const [masterMapAscii = ''] = masterMap.split('```');
-  const masterMapLines = masterMapAscii.trim().split('\n');
-  const framedLines = masterMapLines.filter((line) => line.startsWith('+') || line.startsWith('|'));
-  assert.ok(framedLines.length > 100, 'master stack map must retain its complete fixed-width structure');
-  assert.deepEqual(
-    [...new Set(framedLines.map((line) => line.length))],
-    [124],
-    'every master stack map border and content line must be exactly aligned',
-  );
-  for (const requiredMapText of [
-    'electron-updater -> desktop',
-    'apps/desktop-updater-worker',
-    'desktop:updates:worker:{check,dev,deploy,types}',
-    'WORKFLOWS workflows:{login,dev,deploy,types,secret:put,instances:list,instances:describe}',
-    'SUBAGENTS Lead owns mutations',
-    'SECRET HANDOFF Stop before Generate/Reveal/Create',
-    'app.<domain> points from Cloudflare DNS to Vercel and stays DNS-only',
-  ]) {
-    assert.match(masterMapAscii, new RegExp(requiredMapText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  }
+  assertPackedMarkdownLinks('docs/application-stack-standard.md', readFileSync(path.join(repoRoot, 'docs/application-stack-standard.md'), 'utf8'), files);
 
   const renderedMapPath = path.join(npmCache, 'anhedral-cli-init.svg');
   const renderResult = spawnSyncPortable(
@@ -178,32 +111,19 @@ try {
   const checkedInSvg = readFileSync(path.join(repoRoot, 'assets/anhedral-cli-init.svg'), 'utf8');
   assert.equal(readFileSync(renderedMapPath, 'utf8'), checkedInSvg, 'generated stack map SVG must be current');
   for (const requiredSvgText of [
-    'Anhedral Init Stack',
-    'CLIENT SURFACES',
-    'Fastify Backend',
-    'RevenueCat + Stripe',
-    'Ably Realtime',
-    'Cloudflare Workflows',
-    'Cloudflare Workers',
-    '2 generated edge gateways',
-    'assets-private-proxy · electron-updater',
-    'Cloudflare R2',
-    'assets + signed desktop updates',
-    'Cloudflare DNS + Vercel',
-    'Desktop Releases',
-    'electron-updater enabled',
-    'backend service connection',
-  ]) assert.match(checkedInSvg, new RegExp(requiredSvgText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(
-    checkedInSvg,
-    /data-connection="fastify-to-cloudflare-r2"/,
-    'Fastify backend must connect to the Cloudflare R2 service card',
-  );
+    'Anhedral Init Stack', 'CLIENT SURFACES', 'OpenNext', 'Hono + OpenAPI',
+    'Workers', 'Hyperdrive', 'Neon + Drizzle',
+    'Private R2', 'KV', 'Durable Objects', 'WebSockets', 'Queues',
+    'Cron Triggers', 'Workflows', 'Observability', 'Basin', 'Pipelines',
+    'Workers AI', 'D1 + Drizzle', 'Fallow audit',
+  ]) assert.ok(checkedInSvg.includes(requiredSvgText), `stack diagram must include ${requiredSvgText}`);
+  assert.doesNotMatch(checkedInSvg, /Ably|Fastify/);
+  assert.match(checkedInSvg, /Vercel when explicitly selected/);
 
   const renderedTechnicalMapPath = path.join(npmCache, 'anhedral-cli-init-technical.svg');
   const technicalRenderResult = spawnSyncPortable(
     process.execPath,
-    [path.join(repoRoot, 'scripts/render-technical-stack-map.mjs'), '--output', renderedTechnicalMapPath],
+    [path.join(repoRoot, 'scripts/render-master-stack-map.mjs'), '--technical', '--output', renderedTechnicalMapPath],
     { cwd: repoRoot, encoding: 'utf8' },
   );
   assert.equal(
@@ -220,60 +140,25 @@ try {
     checkedInTechnicalSvg,
     'generated technical stack map SVG must be current',
   );
-  for (const requiredTechnicalText of [
-    'Anhedral Init — Technical Communication Map',
-    'AUTHENTICATED APPLICATION API',
-    'BILLING RECONCILIATION + REALTIME INVALIDATION',
-    'PRIVATE R2 ASSET STORAGE',
-    'CLOUDFLARE DURABLE WORKFLOWS',
-    'SIGNED DESKTOP UPDATE CHANNEL',
-    'DEPLOYMENT, DNS + OPTIONAL SELF-HOSTED TOPOLOGY',
-    'COMPLETE SERVICE CONTRACT CATALOG',
-    'assets-private-proxy',
-    'desktop-updater Worker',
-    'APPLICATION_WORKFLOW',
-    'WORKFLOW_API_TOKEN',
-    'R2 S3 keys',
-    'private:users:',
-    'Stripe Checkout: product integration',
-    'DNS-only → Vercel',
-    'Dashed card = opt-in or explicit product integration',
-  ]) {
-    assert.match(
-      checkedInTechnicalSvg,
-      new RegExp(requiredTechnicalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    );
-  }
+  assert.match(checkedInTechnicalSvg, /Application service contracts/);
+  assert.match(checkedInTechnicalSvg, /CLOUDFLARE SERVICE BINDINGS/);
+  assert.doesNotMatch(checkedInTechnicalSvg, /Ably|Vercel|Fastify/);
 
   for (const file of packed.files) {
-    const allowedBin = file.path === 'bin/anhedral.js';
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
-    const allowedTemplate = file.path.startsWith('templates/')
-      && /(?:\.json|\.d\.ts)$/.test(file.path);
     const allowedDocumentation = file.path === 'assets/anhedral-cli-init.svg'
       || file.path === 'assets/anhedral-cli-init-technical.svg'
-      || file.path === 'assets/images/svg/ably-symbol-color.svg'
       || file.path === 'assets/images/svg/logo-white-subtract.svg'
-      || file.path === 'docs/conventions.md'
-      || file.path === 'docs/build-for-what-comes-next.md'
-      || file.path === 'docs/cli-reference.md'
-      || file.path === 'docs/master-stack-map.md'
-      || file.path === 'docs/NORTHSTAR.md'
-      || file.path === 'docs/output-tree-contract.md'
-      || file.path === 'docs/stack-tool-options.md'
-      || file.path === 'docs/references/manual-scaffolding.md'
-      || file.path === 'docs/references/provisioning.md';
-    const allowedDiagramSource = file.path === 'scripts/render-master-stack-map.mjs'
-      || file.path === 'scripts/render-technical-stack-map.mjs';
-    const allowed = allowedRootFiles.has(file.path) || allowedBin || allowedDist || allowedTemplate || allowedDocumentation || allowedDiagramSource;
+      || file.path === 'docs/application-stack-standard.md';
+    const allowed = allowedRootFiles.has(file.path) || allowedDist || allowedDocumentation;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
-    if (!allowedDocumentation && !allowedDiagramSource) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
+    if (!allowedDocumentation) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
     assert.doesNotMatch(file.path, /\.(?:map|tgz|tsbuildinfo)$/);
   }
 
-  const binEntry = packed.files.find((file) => file.path === 'bin/anhedral.js');
-  assert.ok(binEntry, 'packlist should describe bin/anhedral.js');
-  assert.notEqual(binEntry.mode & 0o111, 0, 'bin/anhedral.js should be executable');
+  const binEntry = packed.files.find((file) => file.path === 'dist/bin.js');
+  assert.ok(binEntry, 'packlist should describe dist/bin.js');
+  assert.notEqual(binEntry.mode & 0o111, 0, 'dist/bin.js should be executable');
 
   console.log(`Packlist policy passed: ${files.length} files, ${packed.size} packed bytes`);
 } finally {

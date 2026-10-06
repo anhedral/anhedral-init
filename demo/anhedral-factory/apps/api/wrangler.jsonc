@@ -1,0 +1,62 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "anhedral-factory-example-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "5f45654a79ff4c738b3b783cdab0c8d8"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "anhedral-factory-example-assets"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CONFIG",
+      "id": "4486f8768a1e49fb9f29f5af08e414bd"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOBS",
+        "queue": "anhedral-factory-example-jobs"
+      }
+    ]
+  },
+  "vars": {
+    "BETTER_AUTH_URL": "https://anhedral-factory-example-web.anhedral.workers.dev"
+  },
+  "account_id": "77f9c2265a1309ae2592b82f29d3b979",
+  "workers_dev": false,
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOMS",
+        "class_name": "Room",
+        "script_name": "anhedral-factory-example-realtime"
+      }
+    ]
+  },
+  "pipelines": [
+    {
+      "binding": "ANALYTICS",
+      "stream": "a4120f4533df40b7ae279ae08fb27ca5"
+    }
+  ]
+}

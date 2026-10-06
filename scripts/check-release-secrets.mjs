@@ -8,7 +8,7 @@ import {
 } from './secret-scanner.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const metadataPath = path.resolve(process.argv[2] ?? 'release-artifact/metadata.json');
+const metadataPath = path.resolve(process.argv[2] ?? '.artifacts/release/metadata.json');
 const findings = [
   ...scanTrackedTree(root),
   ...scanDirectory(root, 'dist'),

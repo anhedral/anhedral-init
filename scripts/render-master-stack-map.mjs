@@ -8,7 +8,10 @@ import {
   siDrizzle,
   siElectron,
   siExpo,
-  siFastify,
+  siHono,
+  siTurborepo,
+  siResend,
+  siSqlite,
   siGithub,
   siNeon,
   siNextdotjs,
@@ -18,28 +21,25 @@ import {
   siStripe,
   siTailwindcss,
   siTypescript,
-  siVercel,
   siWxt,
-  siZod,
 } from 'simple-icons';
+
+const technical = process.argv.includes('--technical');
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, '..');
 const outputFlag = process.argv.indexOf('--output');
 const outputPath = resolve(outputFlag >= 0 && process.argv[outputFlag + 1]
   ? process.argv[outputFlag + 1]
-  : resolve(repositoryRoot, 'assets/anhedral-cli-init.svg'));
+  : resolve(repositoryRoot, `assets/anhedral-cli-init${technical ? '-technical' : ''}.svg`));
 const anhedralMarkPath = resolve(repositoryRoot, 'assets/images/svg/logo-white-subtract.svg');
 const anhedralMarkSource = await readFile(anhedralMarkPath, 'utf8');
-const ablySymbolPath = resolve(repositoryRoot, 'assets/images/svg/ably-symbol-color.svg');
-const ablySymbolSource = await readFile(ablySymbolPath, 'utf8');
-const [, ablySymbolContent = ''] = ablySymbolSource.match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/) ?? [];
 const [, markViewBox = '0 0 1820 2199'] = anhedralMarkSource.match(/viewBox="([^"]+)"/) ?? [];
 const [, , markWidth = '1820', markHeight = '2199'] = markViewBox.split(/\s+/).map(Number);
 const markPaths = [...anhedralMarkSource.matchAll(/<path\b[^>]*\bd="([^"]+)"[^>]*>/g)].map((match) => match[1]);
 
 const W = 1920;
-const H = 1240;
+const H = 1660;
 const palette = {
   background: '#0c1117',
   panel: '#0a1724',
@@ -121,11 +121,6 @@ function anhedralMark(x, y, height) {
   for (const d of markPaths) svg.push(`<path d="${d}" fill="${palette.text}"/>`);
   svg.push('</g>');
   return markWidth * scale;
-}
-
-function ablySymbol(x, y, width) {
-  const scale = width / 78;
-  svg.push(`<g transform="translate(${x} ${y}) scale(${scale})">${ablySymbolContent}</g>`);
 }
 
 function iconBox(x, y, size = 70) {
@@ -240,19 +235,14 @@ function card(x, y, width, height, {
   else if (customIcon === 'app-store') customAppStore(boxX, boxY, boxSize);
   else if (customIcon === 'google-play') customGooglePlay(boxX, boxY, boxSize);
   else if (customIcon === 'chrome') customChrome(boxX, boxY, boxSize);
+  else if (customIcon === 'ai') text(boxX + boxSize / 2, boxY + boxSize * 0.66, 'AI', { size: 27, weight: 600, anchor: 'middle' });
   else if (customIcon === 'r2') customR2(boxX, boxY, boxSize);
-  else if (customIcon === 'ably') {
-    const ablyWidth = boxSize - 12;
-    ablySymbol(boxX + 6, boxY + (boxSize - ablyWidth * 64 / 78) / 2, ablyWidth);
-  }
   else if (icon) {
     if (secondIcon || secondEmbeddedIcon) {
-      const pairedSize = wideIcon ? 36 : compact ? 26 : 38;
+      const pairedSize = wideIcon ? 36 : compact ? 23 : 38;
       const pairedInset = compact ? 5 : 6;
       logo(icon, boxX + pairedInset, boxY + (boxSize - pairedSize) / 2, pairedSize, iconColor);
-      if (secondEmbeddedIcon === 'ably') {
-        ablySymbol(boxX + boxWidth - pairedSize - 4, boxY + (boxSize - pairedSize * 64 / 78) / 2, pairedSize);
-      } else if (secondEmbeddedIcon === 'r2') {
+      if (secondEmbeddedIcon === 'r2') {
         customR2(
           boxX + boxWidth - pairedSize - pairedInset,
           boxY + (boxSize - pairedSize) / 2,
@@ -322,8 +312,8 @@ function dxTool(x, y, {
 }
 
 svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="title description">`);
-svg.push('<title id="title">Anhedral Init Stack</title>');
-svg.push('<desc id="description">A simplified architecture diagram showing DX tools, deployment destinations, four generated client surfaces, their shared Fastify API, billing, realtime, durable Cloudflare Workflows, private R2 assets, and desktop updates.</desc>');
+svg.push(`<title id="title">${technical ? 'Anhedral Application service contracts' : 'Anhedral Init Stack'}</title>`);
+svg.push('<desc id="description">Client-owned shadcn, pnpm and Turborepo monorepo. Next.js uses OpenNext on Cloudflare Workers; Hono and OpenAPI provide optional shared APIs. Select Neon with Drizzle and Hyperdrive or D1, authentication, private R2, KV, realtime, jobs, workflows, AI, email, billing, observability and analytics only when required. Dashed yellow lines show publication; white lines show application runtime and service bindings.</desc>');
 svg.push(`<defs>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
@@ -354,8 +344,8 @@ text(brandRuleX + 22, 80, 'ANHEDRAL', { size: 27, weight: 500, spacing: 1.3 });
   text(x, 176, value, { size: 78, weight: 700 });
   line(x + 1, 195, underlineEnd, 195, { stroke: palette.yellow, width: 6 });
 });
-text(34, 240, 'One init flow for web, native apps, extensions, backend,', { size: 24 });
-text(34, 274, 'storage, auth, subscriptions, durable work, and desktop updates.', { size: 24 });
+text(34, 240, 'Client-owned apps. Cloudflare-first. Add only what you need.', { size: 24 });
+text(34, 274, 'shadcn monorepo init → pnpm + Turborepo → apps/* + packages/*', { size: 24 });
 
 const dxToolStartX = 1187;
 const dxToolY = 76;
@@ -366,10 +356,13 @@ heading(dxToolStartX, 52, 676, 'DX TOOLS');
   { icon: siShadcnui, label: 'shadcn/ui', color: palette.text },
   { icon: siReact, label: 'RN Reusables', color: '#61dafb' },
   { icon: siTypescript, label: 'TypeScript', color: '#3178c6' },
-  { icon: siZod, label: 'Zod', color: '#3e67b1' },
+  { icon: siTurborepo, label: 'Turborepo', color: '#ef4444' },
   { icon: siGithub, label: 'GitHub', color: palette.text },
-  { label: 'Anhedral Skills', anhedral: true },
+  { label: 'Codex + Skills', anhedral: true },
 ].forEach((tool, index) => dxTool(dxToolStartX + index * dxToolGap, dxToolY, tool));
+text(dxToolStartX, 210, 'macOS · OpenAI / Codex · Computer Use + Control Chrome', { size: 17, fill: palette.muted });
+text(dxToolStartX, 240, 'GitHub Actions · Fallow audit · Cloudflare plugin + cf + API/MCP', { size: 16, fill: palette.muted });
+text(dxToolStartX, 270, 'Cloudflare-first · free-first · client-owned delivery', { size: 17, fill: palette.muted });
 
 const deployX = 54;
 const deployW = 396;
@@ -384,18 +377,18 @@ const architectureCardTop = 354;
 
 heading(deployX, architectureHeadingY, deployW, 'DEPLOY & DISTRIBUTE');
 heading(clientX, architectureHeadingY, clientW, 'CLIENT SURFACES');
-heading(apiX, architectureHeadingY, serviceX + serviceW - apiX, 'BACKEND + SERVICES');
+heading(apiX, architectureHeadingY, serviceX + serviceW - apiX, technical ? 'CLOUDFLARE SERVICE BINDINGS' : 'BACKEND + SERVICES');
 
-const deployRows = Array.from({ length: 5 }, (_, index) => architectureCardTop + index * 114);
+const deployRows = Array.from({ length: 5 }, (_, index) => architectureCardTop + index * 206);
 [
-  { title: 'Web', subtitle: 'Vercel preview + production', detail: 'hosts web + API', customIcon: 'globe' },
+  { title: 'Web', subtitle: 'Cloudflare Workers + OpenNext', detail: technical ? 'Web-only endpoints: route handlers' : 'Vercel when explicitly selected', customIcon: 'globe' },
   { title: 'App Store', subtitle: 'iOS distribution', detail: 'EAS signed release', customIcon: 'app-store' },
   { title: 'Google Play', subtitle: 'Android distribution', detail: 'EAS signed release', customIcon: 'google-play' },
   { title: 'Browser Web Stores', subtitle: 'extension distribution', detail: 'reviewed WXT ZIP', customIcon: 'chrome' },
-  { title: 'Desktop Releases', subtitle: 'macOS · Windows · Linux', detail: 'signed installers + seamless updates', customIcon: 'desktop', iconColor: palette.text },
+  { title: 'Desktop Releases', subtitle: 'macOS · Windows · Linux', detail: 'signed installers + release updates', customIcon: 'desktop', iconColor: palette.text },
 ].forEach((item, index) => card(deployX, deployRows[index], deployW, 102, item));
 
-const clientRows = Array.from({ length: 4 }, (_, index) => architectureCardTop + index * 152);
+const clientRows = Array.from({ length: 4 }, (_, index) => architectureCardTop + index * 260);
 [
   {
     title: 'Next.js',
@@ -404,92 +397,50 @@ const clientRows = Array.from({ length: 4 }, (_, index) => architectureCardTop +
     icon: siNextdotjs,
     iconColor: palette.text,
     iconScale: 58,
-    cornerIcon: siVercel,
+    cornerIcon: siCloudflare,
+    cornerIconColor: palette.orange,
   },
   { title: 'Expo Native', subtitle: 'React Native Reusables', detail: 'iOS + Android', icon: siExpo, iconColor: palette.text, iconScale: 58 },
   { title: 'WXT Extension', subtitle: 'Chrome · Firefox · Edge', detail: 'MV3 background + side panel', icon: siWxt, iconColor: palette.lime, iconScale: 58 },
-  { title: 'Electron Desktop', subtitle: 'macOS · Windows · Linux', detail: 'electron-updater enabled', icon: siElectron, iconColor: palette.cyan, iconScale: 58 },
+  { title: 'Electron Desktop', subtitle: 'macOS · Windows · Linux', detail: 'shadcn/ui · GPUI / Rust by choice', icon: siElectron, iconColor: palette.cyan, iconScale: 58 },
 ].forEach((item, index) => card(clientX, clientRows[index], clientW, 112, item));
 
-// One central API, matching the supplied simplified architecture.
-const apiY = architectureCardTop + 132;
-rect(apiX, apiY, apiW, 296, { radius: 14 });
+// Workers hosts the web runtime and optional shared API; no mandatory API app.
+const apiY = architectureCardTop + 364;
+const apiH = 400;
+rect(apiX, apiY, apiW, apiH, { radius: 14 });
 const apiIconBoxSize = 88;
 const apiIconBoxX = apiX + (apiW - apiIconBoxSize) / 2;
 const apiIconBoxY = apiY + 16;
 iconBox(apiIconBoxX, apiIconBoxY, apiIconBoxSize);
-logo(siFastify, apiIconBoxX + 10, apiIconBoxY + 10, 68, palette.text);
-logo(siVercel, apiX + apiW - 32, apiY + 16, 17, palette.text);
+logo(siCloudflare, apiIconBoxX + 10, apiIconBoxY + 10, 68, palette.orange);
 line(apiX + 18, apiY + 128, apiX + apiW - 18, apiY + 128, { stroke: palette.divider });
-text(apiX + apiW / 2, apiY + 169, 'Fastify Backend', { size: 25, weight: 500, anchor: 'middle' });
-text(apiX + apiW / 2, apiY + 201, 'API + business logic', { size: 17, fill: palette.muted, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 166, 'Workers', { size: 25, weight: 500, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 196, 'Next.js + OpenNext', { size: 16, fill: palette.muted, anchor: 'middle' });
+logo(siHono, apiX + apiW / 2 - 16, apiY + 225, 32, palette.orange);
+text(apiX + apiW / 2, apiY + 286, 'Hono + OpenAPI', { size: 19, weight: 500, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 312, 'optional shared API', { size: 15, fill: palette.muted, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 348, 'Web-only: route handlers', { size: 13, fill: palette.muted, anchor: 'middle' });
+text(apiX + apiW / 2, apiY + 376, 'Containers when required', { size: 13, fill: palette.muted, anchor: 'middle' });
 
-const serviceRows = Array.from({ length: 8 }, (_, index) => architectureCardTop + index * 88);
+const services = [
+  { title: 'Neon + Drizzle', subtitle: 'PostgreSQL via Hyperdrive', detail: 'Worker → Drizzle → Hyperdrive → Neon', icon: siNeon, iconColor: palette.neon, secondIcon: siDrizzle, secondIconColor: palette.yellow },
+  { title: 'D1 + Local Data', subtitle: 'D1 + Drizzle · or local SQLite', detail: 'Choose persistence per product', icon: siSqlite, iconColor: palette.cyan },
+  { title: 'Clerk / Better Auth', subtitle: 'Managed or application-owned identity', detail: 'No auth when accounts are unnecessary', icon: siClerk },
+  { title: 'Stripe + RevenueCat', subtitle: 'Web billing + optional store entitlements', detail: 'Transactional, idempotent consumption', icon: siStripe, iconColor: '#635bff', secondIcon: siRevenuecat, secondIconColor: palette.red },
+  { title: 'Durable Objects', subtitle: 'WebSockets · rooms · presence', detail: 'Stateful realtime coordination', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Private R2', subtitle: 'Files through authorized Worker bindings', detail: 'Clients never receive R2 credentials', customIcon: 'r2' },
+  { title: 'Cloudflare KV', subtitle: 'Eventually consistent cache + config', detail: 'Keep transactional state in the database', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Queues + Cron Triggers', subtitle: 'Async jobs + scheduled work', detail: 'Retries · idempotency · failure handling', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Cloudflare Workflows', subtitle: 'Durable multi-step processes', detail: 'Resumable steps · retries · recovery', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'OpenAI SDK / AI SDK', subtitle: 'AI integrations · streaming · tools', detail: 'Workers AI when advantageous', customIcon: 'ai' },
+  { title: 'Resend + Email Routing', subtitle: 'Outbound app email + inbound forwarding', detail: 'Business mailbox stays with existing provider', icon: siResend },
+  { title: 'Cloudflare Observability', subtitle: 'Logs · errors · traces · latency', detail: 'Sentry for additional runtime diagnostics', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Basin Analytics', subtitle: 'Product events · datasets · queries', detail: 'Pipelines → R2 / PostHog when required', icon: siCloudflare, iconColor: palette.orange },
+];
+const serviceRows = services.map((_, index) => architectureCardTop + index * 88);
 const serviceCardHeight = 80;
-[
-  {
-    title: 'Neon + Drizzle',
-    subtitle: 'Postgres + ORM',
-    detail: 'reviewed migrations',
-    icon: siNeon,
-    iconColor: palette.neon,
-    secondIcon: siDrizzle,
-    secondIconColor: palette.yellow,
-  },
-  {
-    title: 'Clerk Auth',
-    subtitle: 'identity + sessions',
-    detail: 'verified server-side',
-    icon: siClerk,
-    iconColor: palette.text,
-    iconScale: 56,
-  },
-  {
-    title: 'RevenueCat + Stripe',
-    subtitle: 'subscriptions + payments',
-    detail: 'billing integration + shared entitlements',
-    icon: siRevenuecat,
-    iconColor: palette.red,
-    secondIcon: siStripe,
-    secondIconColor: '#635bff',
-  },
-  {
-    title: 'Ably Realtime',
-    subtitle: 'scoped invalidations',
-    detail: 'outbox → event → client refetch',
-    customIcon: 'ably',
-  },
-  {
-    title: 'Cloudflare Workflows',
-    subtitle: 'durable multi-step jobs',
-    detail: 'retry · sleep · wait for event',
-    icon: siCloudflare,
-    iconColor: palette.orange,
-    iconScale: 46,
-  },
-  {
-    title: 'Cloudflare Workers',
-    subtitle: '2 generated edge gateways',
-    detail: 'assets-private-proxy · electron-updater',
-    icon: siCloudflare,
-    iconColor: palette.orange,
-  },
-  {
-    title: 'Cloudflare R2',
-    subtitle: 'PRIVATE object storage',
-    detail: 'assets + signed desktop updates',
-    customIcon: 'r2',
-  },
-  {
-    title: 'Cloudflare DNS + Vercel',
-    subtitle: 'app domain: DNS-only → Vercel',
-    detail: 'DNSSEC · assets/updates Worker domains',
-    icon: siCloudflare,
-    iconColor: palette.orange,
-    secondIcon: siVercel,
-    secondIconColor: palette.text,
-  },
-].forEach((item, index) => card(serviceX, serviceRows[index], serviceW, serviceCardHeight, { ...item, compact: true }));
+services.forEach((item, index) => card(serviceX, serviceRows[index], serviceW, serviceCardHeight, { ...item, compact: true }));
 
 // Publish connections are mapped by product surface rather than by row. Expo
 // intentionally fans out to both native stores; every lane meets both card
@@ -517,37 +468,36 @@ publishConnections.forEach(({ clientIndex, deployIndex }) => {
 });
 
 // Client-to-API runtime lines.
-const apiTargets = [46, 116, 186, 256].map((offset) => apiY + offset);
+const apiTargets = [46, 146, 246, 346].map((offset) => apiY + offset);
 clientRows.forEach((row, index) => {
   const sourceY = row + 56;
   const targetY = apiTargets[index];
   smoothConnector(clientX + clientW, sourceY, apiX, targetY);
 });
 
-// API-to-service lines. Fastify talks directly to the application providers,
-// including the Workers control plane and private R2 object storage.
-const serviceApiSources = [12, 58, 104, 150, 196, 242, 284].map((offset) => apiY + offset);
-serviceRows.slice(0, 7).forEach((row, index) => {
-  const sourceY = serviceApiSources[index];
+// Worker-to-provider or binding connections. Every capability is optional.
+serviceRows.forEach((row, index) => {
+  const sourceY = apiY + 12 + index * (apiH - 24) / (services.length - 1);
   const targetY = row + serviceCardHeight / 2;
-  if (index === 6) svg.push('<g data-connection="fastify-to-cloudflare-r2">');
+  svg.push(`<g data-connection="workers-to-service-${index}">`);
   smoothConnector(apiX + apiW, sourceY, serviceX, targetY, { marker: '' });
   endpoint(serviceX, targetY);
-  if (index === 6) svg.push('</g>');
+  svg.push('</g>');
 });
 
 // One compact legend; no command, agent, or updater panels below the architecture.
-const legendY = 1100;
+const legendY = 1530;
 const legendLineY = legendY + 43;
 rect(126, legendY, 1668, 86, { radius: 12 });
 line(246, legendLineY, 350, legendLineY, { stroke: palette.text, width: 3, marker: 'arrow-white' });
-text(374, legendLineY + 7, 'runtime API flow', { size: 17, fill: palette.muted });
+text(374, legendLineY + 7, 'application runtime flow', { size: 17, fill: palette.muted });
 line(720, legendLineY, 824, legendLineY, { stroke: palette.yellow, width: 3, dash: '10 8', marker: 'arrow-yellow' });
 text(848, legendLineY + 7, 'deploy / publish', { size: 17, fill: palette.muted });
 line(1198, legendLineY, 1302, legendLineY, { stroke: palette.text, width: 3 });
 endpoint(1302, legendLineY);
-text(1332, legendLineY + 7, 'backend service connection', { size: 17, fill: palette.muted });
+text(1332, legendLineY + 7, 'Worker binding / provider', { size: 17, fill: palette.muted });
 
+text(W / 2, 1640, 'Select capabilities only when required · Client-owned accounts, source, infrastructure and recovery', { size: 16, fill: palette.muted, anchor: 'middle' });
 svg.push('</svg>');
 await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${svg.join('\n')}\n`, 'utf8');

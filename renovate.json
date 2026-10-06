@@ -104,19 +104,18 @@
         "/^src\\/dependencies\\.ts$/"
       ],
       "matchStrings": [
-        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:['\\\"]?[^:'\\\"]+['\\\"]?): '(?<currentValue>[^']+)'"
+        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:['\\\"]?[^:'\\\"]+['\\\"]?): '(?<currentValue>[^']+)'",
+        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+export const [A-Z_]+ = '(?<currentValue>[^']+)'"
       ]
     },
     {
       "customType": "regex",
       "description": "Synchronized pnpm runtime pin in generator source and CI",
       "managerFilePatterns": [
-        "/^CONTRIBUTING\\.md$/",
         "/^src\\/dependencies\\.ts$/",
-        "/^\\.github\\/workflows\\/(?:ci|release|toolchain-drift)\\.yml$/"
+        "/^\\.github\\/workflows\\/(?:ci|release)\\.yml$/"
       ],
       "matchStrings": [
-        "pnpm (?<currentValue>\\d+\\.\\d+\\.\\d+)",
         "PACKAGE_MANAGER\\s*=\\s*'pnpm@(?<currentValue>[^']+)'",
         "name:\\s*Setup pnpm[\\s\\S]{0,250}?uses:\\s*pnpm/action-setup@[^\\n]+\\n\\s*with:\\s*\\n\\s*version:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)"
       ],

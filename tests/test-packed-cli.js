@@ -39,12 +39,10 @@ function runInstalledScaffold(installRoot) {
   const binRoot = path.join(installRoot, 'node_modules', '.bin');
   const binPath = path.join(binRoot, process.platform === 'win32' ? 'anhedral.cmd' : 'anhedral');
   const projectRoot = path.join(installRoot, 'packed-project');
-  mkdirSync(projectRoot);
-  run(binPath, ['init', '--fastify', '--skip-install'], projectRoot);
-  const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'anhedral.json'), 'utf8'));
-  assert.equal(manifest.schemaVersion, 6);
-  assert.deepEqual(Object.keys(manifest.templates), ['api-fastify']);
-  assert.equal(existsSync(path.join(projectRoot, 'apps/api/tsconfig.json')), true);
+  const plan = run(binPath, ['new', projectRoot, '--hono', '--neon', '--r2', '--dry-run', '--json'], installRoot);
+  assert.deepEqual(JSON.parse(plan.stdout).products, ['hono', 'neon', 'r2']);
+  assert.equal(existsSync(projectRoot), false);
+
 }
 
 function resolveProvidedTarball(argument) {
@@ -76,14 +74,14 @@ const installRoot = mkdtempSync(path.join(tmpdir(), 'anhedral-packed-cli-'));
 try {
   run(npmCommand, ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], installRoot);
   const packageJson = JSON.parse(readFileSync(path.join(installRoot, 'node_modules/anhedral/package.json'), 'utf8'));
-  assert.equal(packageJson.bin.anhedral, 'bin/anhedral.js');
+  assert.equal(packageJson.bin.anhedral, 'dist/bin.js');
   assert.equal(packageJson.types, './dist/index.d.ts');
   assert.match(runInstalledCli(installRoot).stdout, /anhedral init/);
   runInstalledScaffold(installRoot);
   const imported = run(process.execPath, ['--input-type=module', '--eval', [
     "const packageApi = await import('anhedral');",
-    "if (typeof packageApi.scaffoldProject !== 'function') throw new Error('missing scaffoldProject export');",
-    "if (typeof packageApi.resolveModules !== 'function') throw new Error('missing resolveModules export');",
+    "if (typeof packageApi.scaffoldStandardProject !== 'function') throw new Error('missing scaffoldStandardProject export');",
+    "if (typeof packageApi.parseStandardOptions !== 'function') throw new Error('missing parseStandardOptions export');",
   ].join('\n')], installRoot);
   assert.equal(imported.stdout, '');
 } finally {

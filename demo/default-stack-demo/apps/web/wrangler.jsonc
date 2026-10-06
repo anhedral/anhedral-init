@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "anhedral-factory-example-web",
+  "main": "custom-worker.ts",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "anhedral-factory-example-web"
+    },
+    {
+      "binding": "API",
+      "service": "anhedral-factory-example-api"
+    }
+  ],
+  "account_id": "77f9c2265a1309ae2592b82f29d3b979",
+  "workers_dev": true,
+  "preview_urls": false
+}

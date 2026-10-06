@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSyncPortable } from './spawn-command.mjs';
 
 const mode = process.argv[2];
-const metadataPath = path.resolve(process.argv[3] ?? 'release-artifact/metadata.json');
+const metadataPath = path.resolve(process.argv[3] ?? '.artifacts/release/metadata.json');
 
 if (mode !== 'preflight' && mode !== 'verify') {
   throw new Error('Usage: check-release-registry.mjs <preflight|verify> [metadata-path]');

@@ -1,5 +1,4 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,53 +33,13 @@ export function resolveReleaseVersion(currentVersion, publishedVersion, automati
   return { version: `${major}.${minor}.${patch + 1}`, automatic: true };
 }
 
-export function updateChangelog(changelog, version, date, summaries) {
-  const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^## (?:\\[${escapedVersion}\\]|${escapedVersion})(?: - \\d{4}-\\d{2}-\\d{2})?$`, 'm')
-    .test(changelog)) {
-    return changelog;
-  }
-
-  const uniqueSummaries = [...new Set(summaries
-    .map((summary) => summary.trim().replace(/\s*\[skip ci\]\s*/gi, ' ').trim())
-    .filter((summary) => summary && !/^chore\(release\):/i.test(summary)))];
-  const bullets = uniqueSummaries.length > 0
-    ? uniqueSummaries.map((summary) => `- ${summary.replace(/[.]?$/, '.')}`).join('\n')
-    : '- Release the latest changes from `main`.';
-
-  const unreleasedPattern = /(^## (?:\[?Unreleased\]?)[^\n]*\n)([\s\S]*?)(?=^## )/m;
-  if (!unreleasedPattern.test(changelog)) {
-    throw new Error('CHANGELOG.md is missing an Unreleased section before its version entries');
-  }
-
-  return changelog.replace(unreleasedPattern, (section, heading, unreleasedBody) => {
-    const existing = unreleasedBody.trim();
-    const releaseBody = existing || `### Changed\n\n${bullets}`;
-    return `${heading}\n## ${version} - ${date}\n\n${releaseBody}\n\n`;
-  });
-}
-
-function gitSummaries(root, publishedVersion) {
-  const result = spawnSync(
-    'git',
-    ['log', '--reverse', '--format=%s', `v${publishedVersion}..HEAD`],
-    { cwd: root, encoding: 'utf8' },
-  );
-  if (result.status !== 0) {
-    throw new Error(`Unable to read changes since v${publishedVersion}: ${result.stderr.trim()}`);
-  }
-  return result.stdout.split('\n').filter(Boolean);
-}
-
 export function prepareAutomaticRelease(
   root,
   publishedVersion,
-  date = new Date().toISOString().slice(0, 10),
   automaticPatch = true,
 ) {
   const packagePath = path.join(root, 'package.json');
   const versionSourcePath = path.join(root, 'src', 'version.ts');
-  const changelogPath = path.join(root, 'CHANGELOG.md');
   const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
   const resolution = resolveReleaseVersion(packageJson.version, publishedVersion, automaticPatch);
 
@@ -99,12 +58,6 @@ export function prepareAutomaticRelease(
   }
   writeFileSync(versionSourcePath, updatedVersionSource);
 
-  const changelog = readFileSync(changelogPath, 'utf8');
-  writeFileSync(
-    changelogPath,
-    updateChangelog(changelog, resolution.version, date, gitSummaries(root, publishedVersion)),
-  );
-
   return resolution;
 }
 
@@ -117,6 +70,6 @@ if (isMain) {
   }
   const root = path.resolve(import.meta.dirname, '..');
   const automaticPatch = process.argv[3] !== '--preserve-current';
-  const result = prepareAutomaticRelease(root, publishedVersion, undefined, automaticPatch);
+  const result = prepareAutomaticRelease(root, publishedVersion, automaticPatch);
   console.log(JSON.stringify(result));
 }
