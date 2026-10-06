@@ -153,8 +153,13 @@ try {
   mkdirSync(path.join(preparationRoot, 'src'), { recursive: true });
   writeFileSync(path.join(preparationRoot, 'package.json'), JSON.stringify({ version: '0.4.0' }));
   writeFileSync(path.join(preparationRoot, 'src/version.ts'), "export const GENERATOR_VERSION = '0.4.0';\n");
+  mkdirSync(path.join(preparationRoot, 'plugins/anhedral/skills/anhedral/references'), { recursive: true });
+  writeFileSync(path.join(preparationRoot, 'plugins/anhedral/plugin.json'), JSON.stringify({ version: '0.4.0' }));
+  writeFileSync(path.join(preparationRoot, 'plugins/anhedral/skills/anhedral/references/capabilities.json'), JSON.stringify({ cliVersion: '0.4.0' }));
   assert.deepEqual(prepareAutomaticRelease(preparationRoot, '0.4.0'), { version: '0.4.1', automatic: true });
   assert.equal(JSON.parse(readFileSync(path.join(preparationRoot, 'package.json'), 'utf8')).version, '0.4.1');
+  assert.equal(JSON.parse(readFileSync(path.join(preparationRoot, 'plugins/anhedral/plugin.json'), 'utf8')).version, '0.4.1');
+  assert.equal(JSON.parse(readFileSync(path.join(preparationRoot, 'plugins/anhedral/skills/anhedral/references/capabilities.json'), 'utf8')).cliVersion, '0.4.1');
   assert.deepEqual(validateGeneratorVersion(
     { version: '0.4.1' }, readFileSync(path.join(preparationRoot, 'src/version.ts'), 'utf8'),
   ), []);

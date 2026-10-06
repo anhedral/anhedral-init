@@ -889,6 +889,7 @@ export async function runStagedTransaction(
   const transactionDirectory = path.join(path.resolve(root), TRANSACTION_DIRECTORY);
   const stageRoot = path.join(transactionDirectory, `stage-${token}`);
   const backupRoot = path.join(transactionDirectory, `backup-${token}`);
+  let namespaceValidated = false;
 
   try {
     if (options.dryRun && pathEntryExists(path.join(root, JOURNAL_FILE))) {
@@ -899,6 +900,7 @@ export async function runStagedTransaction(
     if (await options.prepare?.() === false) return Object.freeze([]);
 
     assertTransactionNamespace(transactionDirectory);
+    namespaceValidated = true;
     mkdirSync(stageRoot, { recursive: true, mode: 0o700 });
     mkdirSync(backupRoot, { recursive: true, mode: 0o700 });
 
@@ -942,7 +944,7 @@ export async function runStagedTransaction(
     return Object.freeze(uniquePaths);
   } finally {
     try {
-      if (!pathEntryExists(path.join(root, JOURNAL_FILE))) {
+      if (namespaceValidated && !pathEntryExists(path.join(root, JOURNAL_FILE))) {
         rmSync(stageRoot, { recursive: true, force: true });
         rmSync(backupRoot, { recursive: true, force: true });
         removeEmptyTransactionDirectory(root);

@@ -45,9 +45,6 @@ export function prepareAutomaticRelease(
 
   if (!resolution.automatic) return resolution;
 
-  packageJson.version = resolution.version;
-  writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-
   const versionSource = readFileSync(versionSourcePath, 'utf8');
   const updatedVersionSource = versionSource.replace(
     /export const GENERATOR_VERSION = '[^']+';/,
@@ -56,7 +53,17 @@ export function prepareAutomaticRelease(
   if (updatedVersionSource === versionSource) {
     throw new Error('src/version.ts does not contain GENERATOR_VERSION');
   }
+  const pluginPath = path.join(root, 'plugins/anhedral/plugin.json');
+  const registryPath = path.join(root, 'plugins/anhedral/skills/anhedral/references/capabilities.json');
+  const plugin = JSON.parse(readFileSync(pluginPath, 'utf8'));
+  const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  packageJson.version = resolution.version;
+  plugin.version = resolution.version;
+  registry.cliVersion = resolution.version;
+  writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
   writeFileSync(versionSourcePath, updatedVersionSource);
+  writeFileSync(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`);
+  writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
 
   return resolution;
 }
