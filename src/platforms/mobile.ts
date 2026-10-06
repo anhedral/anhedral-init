@@ -57,6 +57,7 @@ const config = getDefaultConfig(__dirname);
 module.exports = withNativeWind(config, { input: './global.css', inlineRem: 16 });
 `);
     writeFile(path.join(dir, 'nativewind-env.d.ts'), '/// <reference types="nativewind/types" />\n');
+    writeFile(path.join(dir, 'styles.d.ts'), "declare module '*.css';\n");
     writeFile(path.join(dir, 'tailwind.config.js'), `const { hairlineWidth } = require('nativewind/theme');
 
 /** @type {import('tailwindcss').Config} */
