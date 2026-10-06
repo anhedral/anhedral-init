@@ -13,7 +13,7 @@ pnpm dlx anhedral@latest new product --next --expo --hono --neon --clerk --r2
 pnpm dlx anhedral@latest init --wxt
 ```
 
-The updated source must be built and published before `anhedral@latest` includes this behavior. To use this checkout now, run `pnpm build`, then `node dist/bin.js new <directory>`.
+To use a local checkout, run `pnpm build`, then `node dist/bin.js new <directory>`.
 
 Applications: `next`, `expo`, `electron`, `wxt`, `hono`.
 
