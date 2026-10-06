@@ -18,6 +18,12 @@ function collectLockfilePackages(lockfilePath) {
 
 const lockfileArgument = process.argv.slice(2).find((argument) => !argument.startsWith('--'));
 collectLockfilePackages(lockfileArgument ? path.resolve(process.cwd(), lockfileArgument) : defaultLockfile);
+if (!lockfileArgument) {
+  const source = readFileSync(new URL('../src/dependencies.ts', import.meta.url), 'utf8');
+  for (const [, name, version] of source.matchAll(/"([^"\n]+)":\s*'(\d+\.\d+\.\d+)'/g)) addPackage(name, version);
+  const eas = source.match(/EAS_CLI_VERSION = '(\d+\.\d+\.\d+)'/)?.[1];
+  if (eas) addPackage('eas-cli', eas);
+}
 
 const uniquePackages = [...new Map(packages.map((entry) => [`${entry.name}@${entry.version}`, entry])).values()];
 const OSV_ENDPOINT = 'https://api.osv.dev/v1/querybatch';

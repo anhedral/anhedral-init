@@ -113,3 +113,35 @@ jobs:
       - run: pnpm build
       - run: node --test tests/test-cli-validation.test.mjs tests/test-standard.test.mjs tests/test-util-exec.test.mjs
       - run: node tests/test-packed-cli.js
+
+  demos:
+    name: Demo (${{ matrix.demo }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [anhedral-factory, default-stack-demo]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.18.0'
+          package-manager-cache: false
+      - name: Install demo dependencies
+        working-directory: demo/${{ matrix.demo }}
+        run: pnpm install --frozen-lockfile
+      - name: Validate demo and production dependencies
+        working-directory: demo/${{ matrix.demo }}
+        env:
+          AUDIT_BASE: HEAD^
+        run: pnpm check
+      - name: Build Cloudflare web artifact
+        working-directory: demo/${{ matrix.demo }}/apps/web
+        run: pnpm run build:worker

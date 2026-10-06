@@ -11,8 +11,9 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "audit": "node scripts/audit.mjs",
     "audit:full": "fallow --fail-on-issues",
-    "check": "pnpm lint && pnpm typecheck && pnpm run audit && pnpm test && pnpm build",
-    "setup:database": "node scripts/connect-database.mjs"
+    "check": "pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build",
+    "setup:database": "node scripts/connect-database.mjs",
+    "audit:deps": "pnpm audit --prod --audit-level high"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
@@ -26,5 +27,18 @@
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22.13.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp@<0.35.5": "0.35.5",
+      "source-map-js@<1.2.2": "1.2.2",
+      "baseline-browser-mapping@<2.11.0": "2.11.27",
+      "browserslist@<4.28.7": "4.29.3",
+      "esbuild@<0.25.0": "0.25.12",
+      "brace-expansion@<2": "1.1.21",
+      "brace-expansion@>=2 <3": "2.1.7",
+      "brace-expansion@>=3 <4": "3.0.9",
+      "brace-expansion@>=4 <5.0.12": "5.0.12"
+    }
   }
 }

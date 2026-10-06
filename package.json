@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Initialize client-owned applications with shadcn, pnpm, Turborepo, and Cloudflare-first services.",
   "type": "module",
   "exports": {
@@ -89,11 +89,6 @@
   ],
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
-  "pnpm": {
-    "overrides": {
-      "brace-expansion@<=5.0.7": "5.0.8"
-    }
-  },
   "devDependencies": {
     "@types/node": "20.19.43",
     "simple-icons": "16.27.0",

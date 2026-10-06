@@ -1,5 +1,9 @@
 # Anhedral
 
+[![CI](https://github.com/anhedral/anhedral-init/actions/workflows/ci.yml/badge.svg)](https://github.com/anhedral/anhedral-init/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/anhedral)](https://www.npmjs.com/package/anhedral)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 Initialize client-owned applications using the [Anhedral Application Stack & Delivery Standard](docs/application-stack-standard.md).
 
 Every new project starts from the official **shadcn pnpm/Turborepo monorepo**. The default creates **Next.js + React + TypeScript + Tailwind + shadcn/ui**, hosted on **Cloudflare Workers through OpenNext**. Select additional apps and services only when needed.
@@ -33,12 +37,18 @@ Provider packages and services are **starters**, not finished product features. 
 
 The CLI supports `new`, `init`, `--help`, and `--version`. Use `anhedral --help` for options.
 
+Requires Node.js 20.19+ in the 20 series or 22.12+ and pnpm 10.34.5. Version 0.6 replaces the legacy generator and builder with the Cloudflare-first initializer; earlier generator commands and templates are retired. Existing applications are not automatically migrated. Pin a CLI version for reproducible initialization and review upgrades before use.
+
+## Contributing and security
+
+Anhedral is maintainer-led, with a small contribution surface. Focused bug fixes, tests, and documentation corrections are welcome; discuss larger changes before implementation. See [contributing](https://github.com/anhedral/anhedral-init/blob/main/.github/CONTRIBUTING.md), the [code of conduct](https://github.com/anhedral/anhedral-init/blob/main/.github/CODE_OF_CONDUCT.md), and [security reporting](https://github.com/anhedral/anhedral-init/blob/main/.github/SECURITY.md). Use [issues](https://github.com/anhedral/anhedral-init/issues) for reproducible CLI problems and [private reporting](https://github.com/anhedral/anhedral-init/security/advisories/new) for vulnerabilities.
+
 ## Workspace layout
 
 ```text
 demo/
 ├── anhedral-factory/        Factory application and service workspaces
-└── default-stack-demo/      Preserved, tested default stack snapshot
+└── default-stack-demo/      Default stack snapshot with security maintenance
 
 src/                        Current initializer implementation
 dist/                       Generated JavaScript + declarations
@@ -53,4 +63,4 @@ pnpm --dir demo/anhedral-factory dev
 pnpm --dir demo/anhedral-factory check
 ```
 
-Anhedral is open source under the [Apache License 2.0](LICENSE). Generated applications remain ordinary project source that their developers can customize and license for their products.
+Anhedral is open source under the [Apache License 2.0](LICENSE). Generated applications remain ordinary project source that their developers can customize and license for their products. Preserve applicable license notices for upstream code and dependencies.

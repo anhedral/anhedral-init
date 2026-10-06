@@ -14,7 +14,7 @@ function seed(root) {
   mkdirSync(path.join(root, 'packages/eslint-config'), { recursive: true });
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'fixture', packageManager: 'pnpm@11.0.0', devDependencies: { turbo: '^2' }, scripts: {} }));
   writeFileSync(path.join(root, 'apps/web/package.json'), JSON.stringify({ name: 'web', scripts: { build: 'next build' }, dependencies: { next: '16.3.6' } }));
-  writeFileSync(path.join(root, 'packages/ui/package.json'), JSON.stringify({ name: '@workspace/ui' }));
+  writeFileSync(path.join(root, 'packages/ui/package.json'), JSON.stringify({ name: '@workspace/ui', dependencies: { shadcn: '4.21.1' } }));
   writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n  - "packages/*"\nallowBuilds:\n  esbuild: true\n');
   writeFileSync(path.join(root, 'turbo.json'), JSON.stringify({ tasks: { build: {}, dev: { persistent: true } } }));
   writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n');
@@ -43,6 +43,9 @@ try {
   assert.equal(read(web.root, 'apps/web/wrangler.jsonc').main, '.open-next/worker.js');
   assert.equal(existsSync(path.join(web.root, 'apps/api')), false);
   assert.equal(read(web.root, 'package.json').scripts.audit, 'node scripts/audit.mjs');
+  assert.equal(read(web.root, 'packages/ui/package.json').dependencies.shadcn, undefined);
+  assert.equal(read(web.root, 'packages/ui/package.json').devDependencies.shadcn, '4.21.1');
+  assert.match(read(web.root, 'package.json').scripts.check, /audit:deps/);
   assert.equal(existsSync(path.join(web.root, 'pnpm-lock.yaml')), true);
   assert.match(readFileSync(path.join(web.root, 'AGENTS.md'), 'utf8'), /cloudflare\/security-audit-skill/);
   assert.match(readFileSync(path.join(web.root, 'pnpm-workspace.yaml'), 'utf8'), /onlyBuiltDependencies/);

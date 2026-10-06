@@ -1,0 +1,5 @@
+{
+  "entry": ["src/bin.ts", "src/index.ts", "scripts/*.mjs", "tests/*"],
+  "publicPackages": ["anhedral"],
+  "ignorePatterns": ["demo/**", "dist/**", ".artifacts/**"]
+}

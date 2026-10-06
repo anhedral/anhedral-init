@@ -14,7 +14,7 @@
     "@hono/zod-openapi": "^1.0.0",
     "@workspace/db": "workspace:*",
     "@workspace/auth": "workspace:*",
-    "drizzle-orm": "^0.44.0"
+    "drizzle-orm": "0.45.3"
   },
   "devDependencies": {
     "wrangler": "^4.0.0",
