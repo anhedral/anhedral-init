@@ -1,0 +1,530 @@
+{
+  "schemaVersion": 1,
+  "cliVersion": "0.7.0",
+  "capabilities": {
+    "next": {
+      "purpose": "Web application",
+      "tools": [
+        "Browser control"
+      ],
+      "access": [],
+      "credentials": [],
+      "resources": [
+        "Next.js app; configure the selected hosting provider"
+      ],
+      "verify": [
+        "Web flows, accessibility, production hosting build and deployed preview"
+      ],
+      "selection": {
+        "app": true
+      }
+    },
+    "expo": {
+      "purpose": "Mobile application",
+      "tools": [
+        "Expo/EAS CLI",
+        "Xcode or Android SDK"
+      ],
+      "access": [
+        "Client-owned Apple/Google developer accounts for store delivery"
+      ],
+      "credentials": [
+        "Platform signing credentials; EAS access when used"
+      ],
+      "resources": [
+        "Expo app; native adapters, signing, store configuration"
+      ],
+      "verify": [
+        "Native simulator/device flows and signed native build; web export alone is insufficient"
+      ],
+      "selection": {
+        "app": true
+      }
+    },
+    "electron": {
+      "purpose": "Desktop application",
+      "tools": [
+        "Electron tooling",
+        "Platform packaging tools"
+      ],
+      "access": [
+        "Signing/notarization account for the target platform"
+      ],
+      "credentials": [
+        "Signing credentials; notarization credentials when required"
+      ],
+      "resources": [
+        "Electron app; packaging and distribution configuration"
+      ],
+      "verify": [
+        "Packaged desktop app, permissions, update/recovery behavior"
+      ],
+      "selection": {
+        "app": true
+      }
+    },
+    "wxt": {
+      "purpose": "Chrome side-panel extension",
+      "tools": [
+        "Chrome",
+        "WXT"
+      ],
+      "access": [
+        "Extension store publisher access for distribution"
+      ],
+      "credentials": [
+        "Store publishing credentials when required"
+      ],
+      "resources": [
+        "Extension app; minimal browser permissions and store package"
+      ],
+      "verify": [
+        "Installed side panel, background/content messaging and permission behavior"
+      ],
+      "selection": {
+        "app": true
+      }
+    },
+    "hono": {
+      "purpose": "Shared OpenAPI backend",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare Workers deployment access"
+      ],
+      "credentials": [],
+      "resources": [
+        "API Worker; application routes and authorization"
+      ],
+      "verify": [
+        "Contract validation, unauthenticated rejection and resource ownership"
+      ],
+      "selection": {
+        "app": true
+      }
+    },
+    "neon": {
+      "purpose": "PostgreSQL persistence through Drizzle and Hyperdrive",
+      "tools": [
+        "Neon integration or API",
+        "Wrangler"
+      ],
+      "access": [
+        "Neon project/branch access; Cloudflare Hyperdrive configuration access"
+      ],
+      "credentials": [
+        "DATABASE_URL for migrations; separate least-privilege Hyperdrive origin credentials"
+      ],
+      "resources": [
+        "Neon project/branches, database roles, migrations, HYPERDRIVE binding"
+      ],
+      "verify": [
+        "Migration and runtime connectivity; disable query caching for correctness-sensitive reads"
+      ],
+      "selection": {
+        "conflicts": [
+          "d1"
+        ],
+        "workerBinding": true
+      }
+    },
+    "d1": {
+      "purpose": "SQLite-compatible hosted persistence",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare D1 access"
+      ],
+      "credentials": [],
+      "resources": [
+        "D1 database, DB binding and reviewed migrations"
+      ],
+      "verify": [
+        "Migration, constraints, transactional behavior and runtime queries"
+      ],
+      "selection": {
+        "conflicts": [
+          "neon"
+        ],
+        "workerBinding": true
+      }
+    },
+    "local-data": {
+      "purpose": "Device-local SQLite and files",
+      "tools": [
+        "Selected platform database/filesystem tooling"
+      ],
+      "access": [],
+      "credentials": [],
+      "resources": [
+        "Integration boundary; implement platform adapters and explicit synchronization if needed"
+      ],
+      "verify": [
+        "Persistence, offline writes and recovery on the selected device"
+      ],
+      "selection": {}
+    },
+    "clerk": {
+      "purpose": "Managed identity",
+      "tools": [
+        "Clerk integration or dashboard"
+      ],
+      "access": [
+        "Client-owned Clerk project access"
+      ],
+      "credentials": [
+        "Clerk publishable key; server secret key; webhook secret when used"
+      ],
+      "resources": [
+        "Identity project, allowed URLs, SDK setup and protected routes"
+      ],
+      "verify": [
+        "Sign-in/out, session expiry, resource authorization and selected native client flows"
+      ],
+      "selection": {
+        "conflicts": [
+          "better-auth"
+        ],
+        "requiresAny": [
+          "next",
+          "hono"
+        ]
+      }
+    },
+    "better-auth": {
+      "purpose": "Application-managed identity",
+      "tools": [
+        "Selected database tooling"
+      ],
+      "access": [
+        "Selected database migration/runtime access"
+      ],
+      "credentials": [
+        "BETTER_AUTH_SECRET; BETTER_AUTH_URL"
+      ],
+      "resources": [
+        "Selected Neon or D1 database, auth schema, trusted origins and application routes"
+      ],
+      "verify": [
+        "Sign-in/out, session expiry, sign-up policy and resource authorization"
+      ],
+      "selection": {
+        "conflicts": [
+          "clerk"
+        ],
+        "requiresAny": [
+          "neon",
+          "d1"
+        ],
+        "workerBinding": true
+      }
+    },
+    "r2": {
+      "purpose": "Private remote files",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare R2 bucket/binding access"
+      ],
+      "credentials": [],
+      "resources": [
+        "Private R2 bucket and FILES binding; authorized upload/download endpoints"
+      ],
+      "verify": [
+        "Public bucket access disabled; file ownership enforced; clients receive no storage credentials"
+      ],
+      "selection": {
+        "workerBinding": true
+      }
+    },
+    "kv": {
+      "purpose": "Eventually consistent cache/configuration",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare KV namespace access"
+      ],
+      "credentials": [],
+      "resources": [
+        "KV namespace and CONFIG binding"
+      ],
+      "verify": [
+        "TTL and propagation behavior; never use KV as transactional authority"
+      ],
+      "selection": {
+        "workerBinding": true
+      }
+    },
+    "realtime": {
+      "purpose": "Rooms and collaboration",
+      "tools": [
+        "Wrangler",
+        "Browser control"
+      ],
+      "access": [
+        "Cloudflare Durable Objects deployment access"
+      ],
+      "credentials": [],
+      "resources": [
+        "Realtime Worker, Durable Object namespace/migration and WebSocket authorization"
+      ],
+      "verify": [
+        "Authorized room isolation, disconnect/reconnect and deployed WebSockets"
+      ],
+      "selection": {}
+    },
+    "queues": {
+      "purpose": "Deferred jobs",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare Queues configuration access"
+      ],
+      "credentials": [],
+      "resources": [
+        "Queue, producer/consumer bindings and failure handling"
+      ],
+      "verify": [
+        "Retries, idempotency, concurrency and dead-letter recovery"
+      ],
+      "selection": {}
+    },
+    "cron": {
+      "purpose": "Scheduled work",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare Worker deployment access"
+      ],
+      "credentials": [],
+      "resources": [
+        "Scheduled Worker and environment-specific Cron Triggers"
+      ],
+      "verify": [
+        "Schedule, idempotency, failure visibility and overlapping runs"
+      ],
+      "selection": {}
+    },
+    "workflows": {
+      "purpose": "Durable multi-step processing",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare Workflows deployment access"
+      ],
+      "credentials": [],
+      "resources": [
+        "Workflow Worker/binding and resumable steps"
+      ],
+      "verify": [
+        "Retry/resume, idempotency, cancellation and failure recovery"
+      ],
+      "selection": {}
+    },
+    "openai": {
+      "purpose": "Direct OpenAI integration",
+      "tools": [
+        "OpenAI integration or API"
+      ],
+      "access": [
+        "Client-owned OpenAI project and model access"
+      ],
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "resources": [
+        "Server SDK factory; implement application behavior and spending limits"
+      ],
+      "verify": [
+        "Selected model, failure handling, private inputs and cost controls"
+      ],
+      "selection": {
+        "conflicts": [
+          "ai-sdk"
+        ]
+      }
+    },
+    "ai-sdk": {
+      "purpose": "Streaming AI and provider abstraction",
+      "tools": [
+        "Selected AI provider integration or API"
+      ],
+      "access": [
+        "Selected provider project/model access"
+      ],
+      "credentials": [
+        "OPENAI_API_KEY for the generated default; selected provider credentials otherwise"
+      ],
+      "resources": [
+        "Server SDK factory; implement streaming, tools and application behavior"
+      ],
+      "verify": [
+        "Streaming, tool authorization, interruption and spending limits"
+      ],
+      "selection": {
+        "conflicts": [
+          "openai"
+        ]
+      }
+    },
+    "workers-ai": {
+      "purpose": "Cloudflare-hosted inference",
+      "tools": [
+        "Wrangler"
+      ],
+      "access": [
+        "Cloudflare Workers AI model access"
+      ],
+      "credentials": [],
+      "resources": [
+        "AI binding and selected model invocation"
+      ],
+      "verify": [
+        "Supported model behavior, authorization and usage limits"
+      ],
+      "selection": {
+        "workerBinding": true
+      }
+    },
+    "resend": {
+      "purpose": "Outbound application email",
+      "tools": [
+        "Resend integration or API"
+      ],
+      "access": [
+        "Client-owned Resend project; sending-domain DNS access"
+      ],
+      "credentials": [
+        "RESEND_API_KEY; webhook secret when used"
+      ],
+      "resources": [
+        "Verified sending domain, sender and server integration"
+      ],
+      "verify": [
+        "Delivery, suppression/bounce handling and webhook verification; inbound routing is separate"
+      ],
+      "selection": {}
+    },
+    "stripe": {
+      "purpose": "Web payments and subscriptions",
+      "tools": [
+        "Stripe integration or CLI"
+      ],
+      "access": [
+        "Client-owned Stripe account; test/live access as required"
+      ],
+      "credentials": [
+        "STRIPE_SECRET_KEY; STRIPE_WEBHOOK_SECRET"
+      ],
+      "resources": [
+        "Products/prices, signed webhooks and entitlement implementation"
+      ],
+      "verify": [
+        "Test purchase/cancellation, webhook replay and transactional idempotency"
+      ],
+      "selection": {}
+    },
+    "revenuecat": {
+      "purpose": "Cross-store subscription entitlements alongside Stripe",
+      "tools": [
+        "RevenueCat integration or API",
+        "Selected mobile store tooling"
+      ],
+      "access": [
+        "RevenueCat project; App Store/Play Store product access"
+      ],
+      "credentials": [
+        "Platform public SDK keys; server API/webhook credentials as required"
+      ],
+      "resources": [
+        "Integration guidance only; install platform SDKs and configure offerings/store products"
+      ],
+      "verify": [
+        "Sandbox purchase/restore, verified webhooks and entitlement reconciliation"
+      ],
+      "selection": {
+        "requiresAll": [
+          "stripe"
+        ]
+      }
+    },
+    "sentry": {
+      "purpose": "Additional runtime/crash diagnostics",
+      "tools": [
+        "Sentry integration or API"
+      ],
+      "access": [
+        "Client-owned Sentry project access"
+      ],
+      "credentials": [
+        "SENTRY_DSN; source-map upload token when required"
+      ],
+      "resources": [
+        "Integration boundary; install/init runtime SDKs and configure private source-map uploads"
+      ],
+      "verify": [
+        "Captured runtime errors, source maps, privacy filtering and alert delivery"
+      ],
+      "selection": {}
+    },
+    "basin": {
+      "purpose": "Cloudflare analytical events",
+      "tools": [
+        "Wrangler",
+        "Cloudflare integration or API"
+      ],
+      "access": [
+        "Cloudflare analytics/Pipelines access; plan supporting selected services; Pipelines Setup grant for managed R2 sink setup"
+      ],
+      "credentials": [],
+      "resources": [
+        "Basin dataset/stream, ANALYTICS binding, optional private R2 sink and authorized sink writes"
+      ],
+      "verify": [
+        "Private ingestion, event delivery, query results and archive retrieval when selected"
+      ],
+      "selection": {
+        "workerBinding": true
+      }
+    },
+    "posthog": {
+      "purpose": "Specialized product analytics",
+      "tools": [
+        "PostHog integration or API"
+      ],
+      "access": [
+        "Client-owned PostHog project access"
+      ],
+      "credentials": [
+        "POSTHOG_API_KEY; POSTHOG_HOST; separate privileged key if needed"
+      ],
+      "resources": [
+        "Analytics client factory; implement consent, event schema and privacy filtering"
+      ],
+      "verify": [
+        "Event receipt, consent behavior and redaction of private data"
+      ],
+      "selection": {}
+    },
+    "styling": {
+      "purpose": "Shared styling definitions",
+      "tools": [],
+      "access": [],
+      "credentials": [],
+      "resources": [
+        "Styling package; implement actual shared colors, typography, spacing and themes"
+      ],
+      "verify": [
+        "Consistency across selected interfaces; preserve platform-specific components"
+      ],
+      "selection": {}
+    }
+  }
+}

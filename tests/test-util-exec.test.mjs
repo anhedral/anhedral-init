@@ -1,5 +1,6 @@
+import { resolveCommand } from '../dist/command.js';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,6 +29,17 @@ function runExecFile(args, env = {}) {
 }
 
 try {
+  const shimRoot = path.join(temporaryRoot, 'tools with spaces');
+  mkdirSync(path.join(shimRoot, 'node_modules/pnpm/bin'), { recursive: true });
+  const entry = path.join(shimRoot, 'node_modules/pnpm/bin/pnpm.cjs');
+  writeFileSync(entry, 'process.stdout.write(JSON.stringify(process.argv.slice(2)))');
+  const literalArgs = ['literal & value', '$(unchanged)', 'path with spaces'];
+  const resolved = resolveCommand('pnpm', literalArgs, 'win32', shimRoot);
+  const direct = spawnSync(resolved.command, resolved.args, { encoding: 'utf8', shell: false });
+  assert.equal(direct.status, 0);
+  assert.deepEqual(JSON.parse(direct.stdout), literalArgs);
+  assert.throws(() => resolveCommand('pnpm', [], 'win32', ''), /direct pnpm entry point/);
+
   const noisySuccess = path.join(temporaryRoot, 'noisy-success.mjs');
   writeFileSync(noisySuccess, `
     process.stdout.write('o'.repeat(2 * 1024 * 1024));

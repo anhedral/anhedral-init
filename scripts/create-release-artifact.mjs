@@ -1,3 +1,4 @@
+import { packagePlugin } from './package-plugin.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -90,6 +91,8 @@ try {
     entryCount: packageResult.entryCount,
     files: packageResult.files.map((file) => file.path).sort(),
   };
+
+  metadata.plugin = packagePlugin(repoRoot, artifactDirectory);
 
   const metadataPath = path.join(artifactDirectory, 'metadata.json');
   writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);

@@ -30,8 +30,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     "electron": '43.7.8',
     // renovate: datasource=npm depName=electron-builder
     "electron-builder": '26.15.3',
-    // renovate: datasource=npm depName=electron-builder-squirrel-windows
-    "electron-builder-squirrel-windows": '26.15.3',
+    "eslint": '10.0.3',
     // renovate: datasource=npm depName=tailwindcss
     "tailwindcss": '4.1.18',
     // renovate: datasource=npm depName=postcss
@@ -82,10 +81,6 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
   "dependencies": {
     // renovate: datasource=npm depName=@rn-primitives/portal
     "@rn-primitives/portal": '1.5.2',
-    // renovate: datasource=npm depName=@rn-primitives/slot
-    "@rn-primitives/slot": '1.5.2',
-    // renovate: datasource=npm depName=class-variance-authority
-    "class-variance-authority": '0.7.1',
     // renovate: datasource=npm depName=clsx
     "clsx": '2.1.1',
     // renovate: datasource=npm depName=expo
@@ -96,18 +91,12 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     "expo-router": '57.0.8',
     // renovate: datasource=npm depName=expo-status-bar
     "expo-status-bar": '57.0.1',
-    // renovate: datasource=npm depName=expo-system-ui
-    "expo-system-ui": '57.0.1',
-    // renovate: datasource=npm depName=lucide-react-native
-    "lucide-react-native": '1.21.0',
     // renovate: datasource=npm depName=react
     "react": '19.2.3',
     // renovate: datasource=npm depName=react-dom
     "react-dom": '19.2.3',
     // renovate: datasource=npm depName=react-native
     "react-native": '0.86.0',
-    // renovate: datasource=npm depName=react-native-gesture-handler
-    "react-native-gesture-handler": '2.32.0',
     // renovate: datasource=npm depName=react-native-reanimated
     "react-native-reanimated": '4.5.0',
     // renovate: datasource=npm depName=react-native-safe-area-context
@@ -118,14 +107,16 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     "react-native-worklets": '0.10.0',
     // renovate: datasource=npm depName=react-native-web
     "react-native-web": '0.21.2',
-    // renovate: datasource=npm depName=react-native-svg
-    "react-native-svg": '15.15.4',
     // renovate: datasource=npm depName=tailwind-merge
     "tailwind-merge": '3.5.0',
     // renovate: datasource=npm depName=tailwindcss-animate
     "tailwindcss-animate": '1.0.7'
   },
   "devDependencies": {
+    // renovate: datasource=npm depName=@babel/core
+    "@babel/core": '7.29.7',
+    // renovate: datasource=npm depName=babel-preset-expo
+    "babel-preset-expo": '57.0.14',
     // renovate: datasource=npm depName=@testing-library/dom
     "@testing-library/dom": '10.4.1',
     // renovate: datasource=npm depName=@react-native/metro-config

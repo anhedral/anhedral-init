@@ -62,6 +62,26 @@ function looksLikeText(name, contents) {
     || basename === 'LICENSE';
 }
 
+function isAllowedMatch(id, relativePath, match, text) {
+  if (
+    id === 'email-address'
+    && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
+  ) return true;
+  // Explicitly published project contact; not a private address or credential.
+  if (id === 'email-address' && /^support@anhedral\.com$/i.test(match[0])) return true;
+  const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
+  if (id === 'credential-assignment' && assignedValue && isPlaceholderValue(assignedValue)) return true;
+  // Saved demos declare local-only placeholders in environment examples.
+  // The same assignment in a runtime .env is still reported.
+  if (id === 'credential-assignment' && relativePath.endsWith('.env.example')
+    && /^local-demo-[a-z0-9-]+$/.test(assignedValue ?? '')) return true;
+  const sourceLine = text.slice(0, match.index).split('\n').at(-1);
+  // Package deprecation notices carry public maintainer contact addresses.
+  if (id === 'email-address' && path.basename(relativePath) === 'pnpm-lock.yaml'
+    && /^\s*deprecated:/.test(sourceLine)) return true;
+  return false;
+}
+
 export function scanText(relativePath, contents) {
   if (!looksLikeText(relativePath, contents)) return [];
   const text = contents.toString('utf8');
@@ -70,22 +90,7 @@ export function scanText(relativePath, contents) {
   for (const { id, pattern } of SECRET_PATTERNS) {
     pattern.lastIndex = 0;
     for (const match of text.matchAll(pattern)) {
-      if (
-        id === 'email-address'
-        && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
-      ) continue;
-      // Explicitly published project contact; not a private address or credential.
-      if (id === 'email-address' && /^support@anhedral\.com$/i.test(match[0])) continue;
-      const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
-      if (id === 'credential-assignment' && assignedValue && isPlaceholderValue(assignedValue)) continue;
-      // Saved demos declare local-only placeholders in environment examples.
-      // The same assignment in a runtime .env is still reported.
-      if (id === 'credential-assignment' && relativePath.endsWith('.env.example')
-        && /^local-demo-[a-z0-9-]+$/.test(assignedValue ?? '')) continue;
-      const sourceLine = text.slice(0, match.index).split('\n').at(-1);
-      // Package deprecation notices carry public maintainer contact addresses.
-      if (id === 'email-address' && path.basename(relativePath) === 'pnpm-lock.yaml'
-        && /^\s*deprecated:/.test(sourceLine)) continue;
+      if (isAllowedMatch(id, relativePath, match, text)) continue;
       const line = text.slice(0, match.index).split('\n').length;
       findings.push({ path: relativePath, line, pattern: id });
     }

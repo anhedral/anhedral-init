@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Initialize client-owned applications with shadcn, pnpm, Turborepo, and Cloudflare-first services.",
   "type": "module",
   "exports": {
@@ -21,8 +21,8 @@
     "assets/images/svg/logo-white-subtract.svg",
     "LICENSE",
     "README.md",
-    "anhedral.svg",
-    "favicon.ico",
+    "assets/anhedral.svg",
+    "assets/favicon.ico",
     "docs/application-stack-standard.md"
   ],
   "homepage": "https://github.com/anhedral/anhedral-init#readme",
@@ -69,7 +69,8 @@
     "docs:technical-stack-map": "node scripts/render-master-stack-map.mjs --technical",
     "docs:stack-maps": "pnpm docs:stack-map && pnpm docs:technical-stack-map",
     "test:standard": "pnpm build && node --test tests/test-standard.test.mjs",
-    "test:unit": "node --test --test-concurrency=4 --test-reporter=spec tests/*.test.mjs"
+    "test:unit": "node --test --test-concurrency=4 --test-reporter=spec tests/*.test.mjs",
+    "test:integration": "pnpm build && node tests/test-generated-apps.mjs"
   },
   "keywords": [
     "cli",

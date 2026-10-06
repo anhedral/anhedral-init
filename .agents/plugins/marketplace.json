@@ -1,0 +1,11 @@
+{
+  "name": "anhedral",
+  "interface": { "displayName": "Anhedral" },
+  "plugins": [
+    {
+      "name": "anhedral",
+      "source": { "source": "local", "path": "./plugins/anhedral" },
+      "interface": { "displayName": "Anhedral" }
+    }
+  ]
+}

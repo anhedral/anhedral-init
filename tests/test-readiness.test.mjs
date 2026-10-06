@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createSetupPlan } from '../dist/capabilities.js';
+import { parseStandardOptions } from '../dist/standard.js';
+import { inspectProject, validateSetupPlan } from '../dist/readiness.js';
+const root = mkdtempSync(path.join(tmpdir(), 'anhedral-readiness-'));
+const write = (file, value) => writeFileSync(path.join(root, file), typeof value === 'string' ? value : JSON.stringify(value));
+const options = parseStandardOptions('new', [root]);
+const plan = createSetupPlan(options);
+try {
+  assert.equal(inspectProject(root).localReady, false);
+  assert.deepEqual(readdirSync(root), []);
+  validateSetupPlan(plan);
+  const { setup, ...incomplete } = plan;
+  assert.throws(() => validateSetupPlan(incomplete), /Missing setup requirements/);
+  assert.throws(() => validateSetupPlan({ ...plan, setup: { ...setup, capabilities: [] } }), /Invalid capability requirements/);
+  assert.throws(() => validateSetupPlan({ ...plan, products: ['unknown'] }), /Unknown setup capabilities/);
+  write('anhedral.setup.json', plan);
+  write('anhedral.standard.json', { schemaVersion: 1, products: options.products, hosting: options.hosting });
+  write('pnpm-lock.yaml', 'lockfileVersion: "9.0"\n');
+  write('pnpm-workspace.yaml', 'packages: []\n');
+  const before = readdirSync(root).map((file) => [file, readFileSync(path.join(root, file), 'utf8')]);
+  const result = inspectProject(root);
+  assert.equal(result.localReady, true);
+  assert.equal(result.providerVerification, 'unverified');
+  assert.equal(result.productionReady, false);
+  assert.deepEqual(readdirSync(root).map((file) => [file, readFileSync(path.join(root, file), 'utf8')]), before);
+  write('anhedral.setup.json', { ...plan, cliVersion: '0.0.1' });
+  assert.equal(inspectProject(root).localReady, false);
+  write('anhedral.setup.json', plan);
+  write('anhedral.standard.json', { schemaVersion: 1, products: options.products, hosting: 'vercel' });
+  assert.equal(inspectProject(root).localReady, false);
+} finally { rmSync(root, { recursive: true, force: true }); }

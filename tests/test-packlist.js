@@ -12,11 +12,11 @@ const npmCache = mkdtempSync(path.join(tmpdir(), 'anhedral-packlist-'));
 const requiredFiles = new Set([
   'LICENSE',
   'README.md',
-  'anhedral.svg',
+  'assets/anhedral.svg',
   'dist/bin.js',
   'dist/index.d.ts',
   'dist/index.js',
-  'favicon.ico',
+  'assets/favicon.ico',
   'package.json',
   'assets/anhedral-cli-init.svg',
   'assets/anhedral-cli-init-technical.svg',
@@ -26,8 +26,6 @@ const requiredFiles = new Set([
 const allowedRootFiles = new Set([
   'LICENSE',
   'README.md',
-  'anhedral.svg',
-  'favicon.ico',
   'package.json',
 ]);
 
@@ -147,6 +145,8 @@ try {
   for (const file of packed.files) {
     const allowedDist = file.path.startsWith('dist/') && /\.(?:d\.ts|js)$/.test(file.path);
     const allowedDocumentation = file.path === 'assets/anhedral-cli-init.svg'
+      || file.path === 'assets/anhedral.svg'
+      || file.path === 'assets/favicon.ico'
       || file.path === 'assets/anhedral-cli-init-technical.svg'
       || file.path === 'assets/images/svg/logo-white-subtract.svg'
       || file.path === 'docs/application-stack-standard.md';

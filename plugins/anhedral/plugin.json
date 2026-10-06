@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "anhedral",
+  "version": "0.7.0",
+  "description": "Guide application planning, developer setup, infrastructure, implementation, verification, delivery, and operations.",
+  "author": {
+    "name": "Anhedral",
+    "email": "support@anhedral.com"
+  },
+  "repository": "https://github.com/anhedral/anhedral-init",
+  "license": "Apache-2.0",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Anhedral",
+        "shortDescription": "Build and ship applications",
+        "longDescription": "Guide the development lifecycle, connect the tools and accounts a project needs, and verify delivery. The CLI initializes the repository foundation.",
+        "developerName": "Anhedral",
+        "category": "Developer Tools",
+        "defaultPrompt": [
+          "Use Anhedral to plan, set up, build, verify, and deliver my application."
+        ]
+      }
+    }
+  }
+}

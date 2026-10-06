@@ -10,12 +10,16 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 assert.match(readme, /\]\(docs\/application-stack-standard\.md\)/);
 assert.match(readme, /anhedral --help/);
 try {
-  for (const args of [['add', 'expo'], ['doctor'], ['setup-vps'], ['init', '--legacy'], ['new', '--json'], ['init', '--fastify'], ['init', '--all'], ['init', '--neon', '--d1']]) {
+  for (const args of [['add', 'expo'], ['doctor', '--unknown'], ['setup-vps'], ['init', '--legacy'], ['new', '--json'], ['init', '--fastify'], ['init', '--all'], ['init', '--neon', '--d1']]) {
     const result = run(...args, '--json');
     assert.equal(result.status, 1, `${args} must fail`);
     assert.ok(JSON.parse(result.stderr).error);
     assert.deepEqual(readdirSync(root), [], 'invalid commands must not create files');
   }
+  const diagnosis = run('doctor', '--json');
+  assert.equal(diagnosis.status, 1);
+  assert.equal(JSON.parse(diagnosis.stdout).productionReady, false);
+  assert.deepEqual(readdirSync(root), [], 'doctor must not write');
   const target = path.join(root, 'planned');
   const result = run('new', target, '--hono', '--neon', '--dry-run', '--json');
   assert.equal(result.status, 0, result.stderr);

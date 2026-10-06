@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const directories = ['.github', 'docs', 'scripts', 'src', 'tests'];
+const directories = ['.agents', '.github', 'docs', 'plugins', 'scripts', 'src', 'tests'];
 const rootFiles = [
   '.gitignore',
   'LICENSE',
