@@ -121,6 +121,10 @@ export function validateWorkflowPolicy(root) {
     failures.push('.github/workflows/release.yml: executable checkouts must use trusted main and verify the prepared commit before execution');
   }
   const releaseTrigger = releaseWorkflow.match(/^on:\s*$[\s\S]*?(?=^[a-zA-Z0-9_-]+:\s*(?:$|\S))/m)?.[0] ?? '';
+  const portabilityJob = releaseWorkflow.split('\n  portability:')[1]?.split('\n  publish:')[0] ?? '';
+  if (!/name: Require the prepared main commit\n\s+shell: bash/.test(portabilityJob)) {
+    failures.push('.github/workflows/release.yml: the cross-platform commit guard must explicitly use Bash');
+  }
   if (/^\s{2}workflow_dispatch:/m.test(releaseTrigger)) {
     failures.push('.github/workflows/release.yml: reusable release must be dispatched through release-on-main.yml for trusted publishing');
   }
