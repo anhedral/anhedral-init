@@ -106,10 +106,14 @@ module.exports = {
 }
 function expoScheme(projectName: string): string {
     const unscoped = projectName.replace(/^@[^/]+\//, '');
-    const normalized = unscoped
+    const safe = unscoped
         .toLowerCase()
-        .replace(/[^a-z0-9+.-]+/g, '-')
-        .replace(/^[+.-]+|[+.-]+$/g, '');
+        .replace(/[^a-z0-9+.-]+/g, '-');
+    let start = 0;
+    let end = safe.length;
+    while (start < end && '+.-'.includes(safe[start]!)) start++;
+    while (end > start && '+.-'.includes(safe[end - 1]!)) end--;
+    const normalized = safe.slice(start, end);
     const candidate = normalized || 'app';
     return /^[a-z]/.test(candidate) ? candidate : `app-${candidate}`;
 }

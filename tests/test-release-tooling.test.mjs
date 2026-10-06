@@ -90,13 +90,27 @@ try {
     command: 'npm',
     args: ['pack'],
   });
-  assert.deepEqual(resolveSpawnCommand('npm.cmd', ['pack', '--json'], {
-    platform: 'win32',
-    comSpec: 'C:\\Windows\\System32\\cmd.exe',
-  }), {
-    command: 'C:\\Windows\\System32\\cmd.exe',
-    args: ['/d', '/s', '/c', 'call', 'npm.cmd', 'pack', '--json'],
-  });
+  const nodeTools = mkdtempSync(path.join(tmpdir(), 'anhedral node & tools-'));
+  try {
+    const npmEntry = path.join(nodeTools, 'node_modules/npm/bin/npm-cli.js');
+    mkdirSync(path.dirname(npmEntry), { recursive: true });
+    writeFileSync(npmEntry, '');
+    const args = ['pack', 'literal&argument'];
+    assert.deepEqual(resolveSpawnCommand('npm.cmd', args, { platform: 'win32', searchPath: nodeTools }), {
+      command: process.execPath,
+      args: [npmEntry, ...args],
+    });
+    const cliEntry = path.join(nodeTools, 'node_modules/anhedral/dist/bin.js');
+    mkdirSync(path.dirname(cliEntry), { recursive: true });
+    writeFileSync(cliEntry, '');
+    assert.deepEqual(resolveSpawnCommand(path.join(nodeTools, 'node_modules/.bin/anhedral.cmd'), args, { platform: 'win32' }), {
+      command: process.execPath,
+      args: [cliEntry, ...args],
+    });
+    assert.throws(() => resolveSpawnCommand('unknown.cmd', args, { platform: 'win32' }), /No direct Node entry/);
+  } finally {
+    rmSync(nodeTools, { recursive: true, force: true });
+  }
 
   assert.equal(isValidSemver('0.2.0'), true);
   assert.equal(isValidSemver('1.0.0-rc.1'), true);
