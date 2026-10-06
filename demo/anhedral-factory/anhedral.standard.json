@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "standard": "anhedral-application-stack",
+  "products": [
+    "ai-sdk",
+    "basin",
+    "better-auth",
+    "cron",
+    "hono",
+    "kv",
+    "neon",
+    "next",
+    "posthog",
+    "queues",
+    "r2",
+    "realtime",
+    "resend",
+    "sentry",
+    "stripe",
+    "workers-ai",
+    "workflows"
+  ],
+  "hosting": "cloudflare",
+  "bootstrap": {
+    "command": "pnpm dlx shadcn@latest init --monorepo --template next",
+    "upstreamPackageManager": "pnpm@11.25.0"
+  },
+  "status": "starter",
+  "resourcesProvisioned": false
+}

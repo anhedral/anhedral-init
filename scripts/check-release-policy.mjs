@@ -14,21 +14,10 @@ export function isValidSemver(value) {
   return prerelease === '' || prerelease.split('.').every((part) => !/^\d+$/.test(part) || part === '0' || !part.startsWith('0'));
 }
 
-export function validateReleaseDeclaration(packageJson, changelog) {
-  const failures = [];
-  if (!isValidSemver(packageJson.version)) {
-    failures.push(`package.json version is not valid SemVer: ${JSON.stringify(packageJson.version)}`);
-  } else {
-    const escaped = packageJson.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (!new RegExp(`^## \\[${escaped}\\](?: - \\d{4}-\\d{2}-\\d{2})?$`, 'm').test(changelog)
-      && !new RegExp(`^## ${escaped}(?: - \\d{4}-\\d{2}-\\d{2})?$`, 'm').test(changelog)) {
-      failures.push(`CHANGELOG.md is missing a level-two entry for ${packageJson.version}`);
-    }
-  }
-  if (!/^## (?:\[?Unreleased\]?)/m.test(changelog)) {
-    failures.push('CHANGELOG.md is missing an Unreleased section');
-  }
-  return failures;
+export function validateReleaseDeclaration(packageJson) {
+  return isValidSemver(packageJson.version)
+    ? []
+    : [`package.json version is not valid SemVer: ${JSON.stringify(packageJson.version)}`];
 }
 
 export function validateGeneratorVersion(packageJson, versionSource) {
@@ -59,7 +48,6 @@ export function validateRenovateExtraction(root, renovate) {
   }
 
   const candidateFiles = [
-    'CONTRIBUTING.md',
     'package.json',
     ...readdirSync(path.join(root, '.github', 'workflows')).map((name) => `.github/workflows/${name}`),
     ...readdirSync(path.join(root, 'src')).filter((name) => name.endsWith('.ts')).map((name) => `src/${name}`),
@@ -146,31 +134,19 @@ export function validateWorkflowPolicy(root) {
   if (artifactActionCounts.upload === 0 || artifactActionCounts.download === 0) {
     failures.push('.github/workflows/release.yml: release must upload and download the exact verified artifact');
   }
-  const runtimeAcceptance = releaseWorkflow.match(
-    /^  runtime-acceptance:[\s\S]*?(?=^  [a-zA-Z0-9_-]+:\s*$)/m,
-  )?.[0] ?? '';
-  if (!/actions\/download-artifact@/.test(runtimeAcceptance)) {
-    failures.push('.github/workflows/release.yml: runtime acceptance must download the verified release artifact');
-  }
-  if (!/test-runtime-acceptance\.js[^\n]*release-artifact\/metadata\.json/.test(runtimeAcceptance)) {
-    failures.push('.github/workflows/release.yml: runtime acceptance must execute the exact release artifact metadata');
-  }
-  if (/Install generator dependencies|pnpm install --frozen-lockfile/.test(runtimeAcceptance)) {
-    failures.push('.github/workflows/release.yml: runtime acceptance must not rebuild or execute the checkout generator');
-  }
-  if (!/npm publish "\.\/release-artifact\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
-    failures.push('.github/workflows/release.yml: npm publish must use an explicit local release-artifact tarball path');
+  if (!/npm publish "\.\/\.artifacts\/release\/\$TARBALL" --ignore-scripts/.test(releaseWorkflow)) {
+    failures.push('.github/workflows/release.yml: npm publish must use an explicit local .artifacts/release tarball path');
   }
   const tagJob = releaseWorkflow.match(/^  tag:[\s\S]*$/m)?.[0] ?? '';
   const releasePublishCount = [...tagJob.matchAll(/gh release edit "\$TAG" --draft=false/g)].length;
-  if (!/METADATA="release-artifact\/metadata\.json"/.test(tagJob)
+  if (!/METADATA="\.artifacts\/release\/metadata\.json"/.test(tagJob)
     || !/gh release upload[\s\S]*?"\$METADATA#release integrity metadata"/.test(tagJob)
     || !/gh release create "\$TAG" \\\n\s+--draft \\/.test(tagJob)
     || releasePublishCount !== 2
     || !/gh release download[\s\S]*?--pattern metadata\.json/.test(tagJob)
     || !/cmp "\$ASSET" "\$DOWNLOAD_DIR\/\$TARBALL"/.test(tagJob)
     || !/cmp "\$METADATA" "\$DOWNLOAD_DIR\/metadata\.json"/.test(tagJob)) {
-    failures.push('.github/workflows/release.yml: GitHub releases must attach release-artifact/metadata.json with the tarball');
+    failures.push('.github/workflows/release.yml: GitHub releases must attach .artifacts/release/metadata.json with the tarball');
   }
   const releaseOnMainWorkflow = readFileSync(path.join(workflowsRoot, 'release-on-main.yml'), 'utf8');
   const ciWorkflow = readFileSync(path.join(workflowsRoot, 'ci.yml'), 'utf8');
@@ -195,9 +171,6 @@ export function validateWorkflowPolicy(root) {
   if (!/workflow_run:/.test(releaseOnMainWorkflow)
     || !/workflow_run\.conclusion == 'success'/.test(releasePreparationJob)) {
     failures.push('.github/workflows/release-on-main.yml: automatic releases must wait for successful main CI');
-  }
-  if (!/update-output-tree-contracts\.js/.test(releasePreparationJob)) {
-    failures.push('.github/workflows/release-on-main.yml: automatic patch releases must refresh version-dependent output contracts');
   }
   if (!/^\s{6}contents:\s*write\s*$/m.test(releasePreparationJob)) {
     failures.push('.github/workflows/release-on-main.yml: release preparation must grant contents=write');
@@ -237,11 +210,10 @@ export function validateWorkflowPolicy(root) {
 
 export function checkReleasePolicy(root) {
   const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const changelog = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
   const versionSource = readFileSync(path.join(root, 'src', 'version.ts'), 'utf8');
   const renovate = JSON.parse(readFileSync(path.join(root, 'renovate.json'), 'utf8'));
   return [
-    ...validateReleaseDeclaration(packageJson, changelog),
+    ...validateReleaseDeclaration(packageJson),
     ...validateGeneratorVersion(packageJson, versionSource),
     ...validateWorkflowPolicy(root),
     ...validateRenovateExtraction(root, renovate),

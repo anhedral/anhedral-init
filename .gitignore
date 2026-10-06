@@ -12,8 +12,9 @@ yarn-debug.log*
 yarn-error.log*
 *.tgz
 *.tsbuildinfo
-/release-artifact/
-/demo
+/.artifacts/
+/demo/*
+!/demo/anhedral-factory/
+!/demo/default-stack-demo/
 /.claude/
 /.fallow/
-!/init-builder/

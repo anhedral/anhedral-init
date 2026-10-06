@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const metadataPath = path.resolve(process.argv[2] ?? 'release-artifact/metadata.json');
+const metadataPath = path.resolve(process.argv[2] ?? '.artifacts/release/metadata.json');
 const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
 const expectations = [
   ['name', process.env.ANHEDRAL_EXPECTED_NAME],

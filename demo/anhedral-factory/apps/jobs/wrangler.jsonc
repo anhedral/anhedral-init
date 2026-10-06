@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "anhedral-factory-example-jobs",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOBS",
+        "queue": "anhedral-factory-example-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "anhedral-factory-example-jobs",
+        "max_batch_size": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "anhedral-factory-example-jobs-dlq"
+      }
+    ]
+  },
+  "account_id": "77f9c2265a1309ae2592b82f29d3b979",
+  "workers_dev": false,
+  "preview_urls": false,
+  "workflows": [
+    {
+      "name": "anhedral-factory-example-delivery",
+      "binding": "WORKFLOW",
+      "class_name": "ApplicationWorkflow",
+      "script_name": "anhedral-factory-example-workflows"
+    }
+  ]
+}

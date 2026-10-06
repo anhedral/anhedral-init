@@ -1,12 +1,2 @@
-# Human review is required for every change.
-* @rswearin @PaulManes
-
-# Supply-chain and release surfaces remain explicit even though the same
-# maintainers currently own the whole repository.
-/.github/workflows/ @rswearin @PaulManes
-/scripts/ @rswearin @PaulManes
-/package.json @rswearin @PaulManes
-/pnpm-lock.yaml @rswearin @PaulManes
-/renovate.json @rswearin @PaulManes
-/SECURITY.md @rswearin @PaulManes
-/docs/RELEASING.md @rswearin @PaulManes
+# rswearin is the sole code owner and reviewer.
+* @rswearin

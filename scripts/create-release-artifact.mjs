@@ -7,7 +7,7 @@ import { spawnSyncPortable } from './spawn-command.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
-const artifactDirectoryName = process.argv[2] ?? 'release-artifact';
+const artifactDirectoryName = process.argv[2] ?? '.artifacts/release';
 const artifactDirectory = path.resolve(repoRoot, artifactDirectoryName);
 const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 

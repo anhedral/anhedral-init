@@ -1,0 +1,131 @@
+{
+  "application": "Anhedral Factory",
+  "environment": "example",
+  "cloudflareAccount": {
+    "id": "77f9c2265a1309ae2592b82f29d3b979",
+    "name": "Anhedral",
+    "workersPlan": "paid; approved and activated ($5/month minimum plus usage)"
+  },
+  "neon": {
+    "projectId": "weathered-block-80474357",
+    "branchId": "br-blue-block-ar8pwqlq",
+    "region": "aws-us-west-2",
+    "plan": "free",
+    "state": "connected; Drizzle migration applied"
+  },
+  "r2": {
+    "bucket": "anhedral-factory-example-assets",
+    "state": "created; private"
+  },
+  "kv": {
+    "id": "4486f8768a1e49fb9f29f5af08e414bd",
+    "state": "created"
+  },
+  "queues": [
+    {
+      "name": "anhedral-factory-example-jobs",
+      "id": "4d1bd95c588e4c8785e5b7fbb7b531a1",
+      "state": "created; consumer attached; live delivery verified"
+    },
+    {
+      "name": "anhedral-factory-example-jobs-dlq",
+      "id": "e08be0a5ecb946a18d3f8f9825876fb9",
+      "state": "created"
+    }
+  ],
+  "workers": {
+    "realtime": {
+      "name": "anhedral-factory-example-realtime",
+      "state": "deployed; private Durable Object",
+      "version": "65857687-161c-4ad3-b6e4-f6d8603618b0"
+    },
+    "scheduled": {
+      "name": "anhedral-factory-example-scheduled",
+      "state": "deployed; hourly cron",
+      "version": "fa52a698-491c-4ccc-acfd-e356efa4f81e"
+    },
+    "api": {
+      "name": "anhedral-factory-example-api",
+      "state": "deployed; private; auth secret configured",
+      "version": "36961720-8e30-4f6c-8d40-46769ac8a71f"
+    },
+    "web": {
+      "name": "anhedral-factory-example-web",
+      "state": "deployed; public example app",
+      "version": "06650176-4f69-495b-a860-da43cade7c93",
+      "url": "https://anhedral-factory-example-web.anhedral.workers.dev"
+    },
+    "jobs": {
+      "name": "anhedral-factory-example-jobs",
+      "state": "deployed; queue consumer attached",
+      "version": "0316dcf5-b06b-466e-9db2-ab2b85be9874"
+    },
+    "workflows": {
+      "name": "anhedral-factory-example-workflows",
+      "state": "deployed; durable delivery verified",
+      "version": "8ed96196-3843-401d-a336-5a0c7dc09621",
+      "workflowName": "anhedral-factory-example-delivery",
+      "verification": "Cloudflare instance fb2f4174-55ff-4da7-9e62-973c553da778 reached complete"
+    }
+  },
+  "hyperdrive": {
+    "id": "5f45654a79ff4c738b3b783cdab0c8d8",
+    "state": "created; caching disabled"
+  },
+  "basin": {
+    "streamId": "a4120f4533df40b7ae279ae08fb27ca5",
+    "sinkId": "85b73977389f483e8ceef63013e1b261",
+    "state": "running; private stream \u2192 SQL pipeline \u2192 private R2 archive",
+    "pipelineId": "efdc4fafd8a9427a8b01ee07708c568f",
+    "verification": "scheduled heartbeat archived in private R2 on 2026-10-06"
+  },
+  "optionalThirdParties": {
+    "resend": "SDK package only; no account/key/domain configured",
+    "stripe": "SDK package only; no account/key/products configured",
+    "posthog": "SDK package only; no project/key configured",
+    "sentry": "configuration placeholder only"
+  },
+  "workersAI": {
+    "model": "@cf/meta/llama-3.2-3b-instruct",
+    "verification": "live API inference succeeded on 2026-10-06"
+  },
+  "verification": {
+    "checkedAt": "2026-10-06T05:44:26.573Z",
+    "url": "https://anhedral-factory-example-web.anhedral.workers.dev",
+    "projectId": "0c6ecc30-c965-4e87-bd68-3bdc32e38e8b",
+    "taskId": "fb2f4174-55ff-4da7-9e62-973c553da778",
+    "checks": [
+      "registration",
+      "session",
+      "anonymous denial",
+      "tenant isolation",
+      "origin validation",
+      "authenticated websocket",
+      "queue",
+      "workflow",
+      "private report",
+      "live completion",
+      "Workers AI"
+    ]
+  },
+  "browserVerification": {
+    "checkedAt": "2026-10-06T06:01:23.008882+00:00",
+    "environment": "deployed example in Chrome",
+    "result": "passed",
+    "checks": [
+      "valid example sign-in",
+      "invalid password rejected with HTTP 401 and visible message",
+      "project creation",
+      "five-task AI draft",
+      "durable delivery complete",
+      "live updates connected",
+      "browser report download",
+      "session persists across reload",
+      "sign-out and sign-in preserve projects",
+      "sign-out clears AI draft"
+    ],
+    "taskId": "2d57f110-0108-4ff2-8edf-c1c9a52e4173",
+    "staticGate": "pnpm check passed",
+    "openNextDeployment": "passed"
+  }
+}
