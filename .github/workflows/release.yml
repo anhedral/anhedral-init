@@ -137,6 +137,7 @@ jobs:
           ref: main
 
       - name: Require the prepared main commit
+        shell: bash
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
