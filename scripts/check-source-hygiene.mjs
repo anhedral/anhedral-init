@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const directories = ['.agents', '.github', 'docs', 'plugins', 'scripts', 'src', 'tests'];
+const directories = ['.agents', '.github', 'docs', 'plugins', 'apps', 'scripts', 'src', 'tests'];
 const rootFiles = [
   '.gitignore',
   'LICENSE',
@@ -12,7 +12,7 @@ const rootFiles = [
   'renovate.json',
   'tsconfig.json',
 ];
-const textExtensions = new Set(['.js', '.json', '.md', '.mjs', '.ts', '.txt', '.yaml', '.yml']);
+const textExtensions = new Set(['.js', '.json', '.md', '.mjs', '.ts', '.tsx', '.css', '.txt', '.yaml', '.yml']);
 
 function collect(directory) {
   const files = [];

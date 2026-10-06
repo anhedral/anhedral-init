@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "anhedral",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Guide application planning, developer setup, infrastructure, implementation, verification, delivery, and operations.",
   "author": {
     "name": "Anhedral",
@@ -14,7 +14,7 @@
       "interface": {
         "displayName": "Anhedral",
         "shortDescription": "Build and ship applications",
-        "longDescription": "Guide the development lifecycle, connect the tools and accounts a project needs, and verify delivery. The CLI initializes the repository foundation.",
+        "longDescription": "Control your development lifecycle from one workspace: infrastructure status, access requirements, local readiness, and delivery checks. The CLI initializes the repository foundation.",
         "developerName": "Anhedral",
         "category": "Developer Tools",
         "composerIcon": "./assets/anhedral.svg",
@@ -22,7 +22,13 @@
         "logo": "./assets/anhedral.svg",
         "logoDark": "./assets/anhedral.svg",
         "defaultPrompt": [
+          "Open the Anhedral control panel.",
           "Use Anhedral to plan, set up, build, verify, and deliver my application."
+        ],
+        "capabilities": [
+          "Interactive",
+          "Read",
+          "Write"
         ]
       }
     }

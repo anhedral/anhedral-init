@@ -11,6 +11,8 @@ Read [the stack standard](references/application-stack-standard.md) when selecti
 
 Establish intended users, interfaces, core workflows, data, budget and observable acceptance criteria. Infer what the project already establishes and ask only for consequential missing choices. Select only necessary apps and services. Default web hosting to Cloudflare Workers + OpenNext; use shared Hono APIs when additional consumers justify them.
 
+When the control-panel tools are available, use `anhedral_open` to show infrastructure, readiness, and delivery status. Register only project folders the user selected; use the intended environment and account. Refresh supported provider checks on request. Credential availability is not authorization proof, and resource existence is not product readiness. Keep credential values server-side; settings accept only non-secret identifiers.
+
 Use [setup](references/setup.md) for plugins, tools, accounts, access, initialization and infrastructure. The versioned [capability registry](references/capabilities.json) defines initializer requirements and remaining starter work. Read selected entries; installed plugins, provider authorization, project SDKs and runtime credentials are separate requirements.
 
 Implement product behavior, authorization and integrations before calling a starter complete. Consult available specialized provider, framework and design skills for their actual scope. Use [delivery](references/delivery.md) for verification, release and operations.
