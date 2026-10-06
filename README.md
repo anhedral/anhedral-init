@@ -41,6 +41,8 @@ The CLI supports `new`, `init`, `doctor`, `--help`, and `--version`. `anhedral d
 
 Requires Node.js 20.19+ in the 20 series or 22.12+ and pnpm 10.34.5. Version 0.6 replaces the legacy generator and builder with the Cloudflare-first initializer; earlier generator commands and templates are retired. Existing applications are not automatically migrated. Pin the CLI version and commit the generated lockfile. The `shadcn@latest` bootstrap can change between generation dates; review upgrades before use.
 
+Initialize from Linux, macOS, or WSL. Native Windows initialization fails before writes because upstream shadcn currently resolves monorepo component paths outside the project; planning and `doctor` remain portable. Expo's release gate currently blocks unpatched `node-forge` and `braces` advisories in its CLI/Metro dependencies. Application releases require resolving or explicitly reviewing those risks; the initializer does not waive them.
+
 ## Contributing and security
 
 Anhedral is maintainer-led, with a small contribution surface. Focused bug fixes, tests, and documentation corrections are welcome; discuss larger changes before implementation. See [contributing](https://github.com/anhedral/anhedral-init/blob/main/.github/CONTRIBUTING.md), the [code of conduct](https://github.com/anhedral/anhedral-init/blob/main/.github/CODE_OF_CONDUCT.md), and [security reporting](https://github.com/anhedral/anhedral-init/blob/main/.github/SECURITY.md). Use [issues](https://github.com/anhedral/anhedral-init/issues) for reproducible CLI problems and [private reporting](https://github.com/anhedral/anhedral-init/security/advisories/new) for vulnerabilities.

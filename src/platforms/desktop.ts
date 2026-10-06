@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { writeReactLintConfig } from './lint.js';
 import { writeFile } from '../util.js';
 import type { ProjectOptions } from '../project.js';
 import { DESKTOP_DEPENDENCIES } from '../dependencies.js';
@@ -7,7 +8,7 @@ export async function scaffoldDesktop(root: string, options: ProjectOptions): Pr
     const { projectName, displayName } = options;
     const dir = path.join(root, 'apps/desktop');
     writePackageJson(dir, projectName);
-    writeFile(path.join(dir, 'eslint.config.mjs'), 'import { config } from "@workspace/eslint-config/react-internal";\nexport default [...config, { files: ["**/*.{ts,tsx,cts}"], languageOptions: { parserOptions: { babelOptions: { parserOpts: { plugins: ["jsx"] } } } }, rules: { "no-undef": "off", "no-unused-vars": "off" } }];\n');
+    writeReactLintConfig(dir);
     writeTsConfig(dir);
     writeViteConfig(dir);
     writePostcssConfig(dir);

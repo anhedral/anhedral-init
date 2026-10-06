@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { writeReactLintConfig } from './lint.js';
 import { appendGitignore, writeFile } from '../util.js';
 import { childPackageName, jsString } from '../render.js';
 import { MOBILE_APP_DEPENDENCIES, MOBILE_NATIVEWIND_DEPENDENCIES, EAS_CLI_VERSION, } from '../dependencies.js';
@@ -133,6 +134,7 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
     const dir = path.join(root, 'apps/mobile');
     const { projectName, displayName } = options;
     const nameLiteral = jsString(displayName);
+    writeReactLintConfig(dir);
     writeFile(path.join(dir, 'package.json'), JSON.stringify({
         name: childPackageName(projectName, 'mobile'),
         version: '0.1.0',
@@ -153,9 +155,10 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
             'submit:ios': `pnpm dlx eas-cli@${EAS_CLI_VERSION} submit --platform ios --profile production --latest`,
             'submit:android': `pnpm dlx eas-cli@${EAS_CLI_VERSION} submit --platform android --profile production --latest`,
             typecheck: 'tsc --noEmit',
+            lint: 'eslint app components lib --max-warnings 0',
         },
         dependencies: { ...MOBILE_APP_DEPENDENCIES.dependencies, ...MOBILE_NATIVEWIND_DEPENDENCIES.dependencies },
-        devDependencies: MOBILE_APP_DEPENDENCIES.devDependencies,
+        devDependencies: { ...MOBILE_APP_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*', eslint: '10.0.3' },
     }, null, 2) + '\n');
     writeFile(path.join(dir, 'app.json'), JSON.stringify({
         expo: {
@@ -164,7 +167,6 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
             version: '1.0.0',
             orientation: 'portrait',
             scheme: expoScheme(projectName),
-            userInterfaceStyle: 'automatic',
             web: { bundler: 'metro', output: 'static' },
             plugins: ['expo-router', 'expo-status-bar'],
             experiments: { reactCompiler: true, typedRoutes: true },

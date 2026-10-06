@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { writeReactLintConfig } from './lint.js';
 import { writeFile } from '../util.js';
 import type { ProjectOptions } from '../project.js';
 import { EXTENSION_DEPENDENCIES } from '../dependencies.js';
@@ -8,7 +9,7 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
     const dir = path.join(root, 'apps/extension');
     writePackageJson(dir, projectName);
     writeFile(path.join(dir, 'tsconfig.json'), JSON.stringify({ extends: './.wxt/tsconfig.json', compilerOptions: { strict: true, jsx: 'react-jsx', paths: { '@/*': ['./src/*'] } } }, null, 2) + '\n');
-    writeFile(path.join(dir, 'eslint.config.mjs'), 'import { config } from "@workspace/eslint-config/react-internal";\nexport default [...config, { files: ["**/*.{ts,tsx}"], languageOptions: { parserOptions: { babelOptions: { parserOpts: { plugins: ["jsx"] } } } }, rules: { "no-undef": "off", "no-unused-vars": "off" } }];\n');
+    writeReactLintConfig(dir);
     writeWxtConfig(dir, displayName);
     writeEnvExample(dir);
     writePostcssConfig(dir);

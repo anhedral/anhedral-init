@@ -427,11 +427,11 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
   const existing = readJson(root, 'package.json');
   const securityOverrides = {
     ...(has('wxt') ? { '@wxt-dev/module-react>@vitejs/plugin-react': '5.2.0' } : {}),
-    ...(has('next') || has('expo') ? { "sharp@<0.35.5": "0.35.5" } : {}),
+    ...(has('next') ? { "sharp@<0.35.5": "0.35.5" } : {}),
     "source-map-js@<1.2.2": "1.2.2",
     "baseline-browser-mapping@<2.11.0": "2.11.27",
     "browserslist@<4.28.7": "4.29.3",
-    "esbuild@<0.25.0": "0.25.12",
+    ...(has('next') || has('hono') || has('electron') || has('wxt') ? { "esbuild@<0.25.0": "0.25.12" } : {}),
     "brace-expansion@<2": "1.1.21",
     "brace-expansion@>=2 <3": "2.1.7",
     "brace-expansion@>=3 <4": "3.0.9",
@@ -453,7 +453,10 @@ const result = spawnSync(process.execPath, [entry, ...args], { stdio: 'inherit',
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
 `);
-  json(root, '.fallowrc.json', { ...(has('electron') ? { entry: ['apps/desktop/src/main/preload.cts'] } : {}), ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
+  json(root, '.fallowrc.json', { ...(has('electron') ? { entry: ['apps/desktop/src/main/preload.cts'] } : {}),
+    // Expo web export and NativeWind load these runtime dependencies dynamically.
+    ...(has('expo') ? { ignoreDependencies: ['react-native-web', 'react-native-css-interop', 'react-native-reanimated', 'react-native-worklets'] } : {}),
+    ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
   const turbo = readJson(root, 'turbo.json');
   turbo.globalEnv = ['DATABASE_URL', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'OPENAI_API_KEY', 'RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTHOG_API_KEY', 'POSTHOG_HOST', 'SENTRY_DSN'];
   turbo.tasks = { ...turbo.tasks, test: { dependsOn: ['^build'], outputs: ['coverage/**'] },
@@ -567,9 +570,15 @@ jobs:
 
 export type StandardRunner = (command: string, args: string[], cwd: string) => void;
 const defaultRunner: StandardRunner = (command, args, cwd) => execFile(command, args, cwd);
+function assertBootstrapPlatform(run: StandardRunner): void {
+  if (process.platform === 'win32' && run === defaultRunner) {
+    throw new Error('Native Windows initialization is blocked because the upstream shadcn monorepo bootstrap writes component files outside the project. Run Anhedral inside WSL. Planning and doctor remain available on Windows.');
+  }
+}
 export async function scaffoldStandardProject(options: StandardOptions, run: StandardRunner = defaultRunner): Promise<void> {
   const plan = createSetupPlan(options);
   if (options.dryRun) { console.log(options.json ? JSON.stringify(plan, null, 2) : JSON.stringify(plan)); return; }
+  assertBootstrapPlatform(run);
   const root = options.root;
   const previousQuiet = process.env.ANHEDRAL_QUIET;
   if (options.json) process.env.ANHEDRAL_QUIET = '1';
