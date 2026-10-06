@@ -392,10 +392,23 @@ export async function recordEvents(stream: EventStream, events: Record<string, u
 function writeStandardRoot(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   const existing = readJson(root, 'package.json');
+  const securityOverrides = {
+    "sharp@<0.35.5": "0.35.5",
+    "source-map-js@<1.2.2": "1.2.2",
+    "baseline-browser-mapping@<2.11.0": "2.11.27",
+    "browserslist@<4.28.7": "4.29.3",
+    "esbuild@<0.25.0": "0.25.12",
+    "brace-expansion@<2": "1.1.21",
+    "brace-expansion@>=2 <3": "2.1.7",
+    "brace-expansion@>=3 <4": "3.0.9",
+    "brace-expansion@>=4 <5.0.12": "5.0.12"
+  };
   patchPackage(root, 'package.json', { name: options.name, packageManager: PACKAGE_MANAGER, engines: { node: '>=22.13.0' },
     scripts: { dev: 'turbo dev', build: 'turbo build', lint: 'turbo lint', typecheck: 'turbo typecheck',
       test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'pnpm audit --prod --audit-level high', check: 'pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build' },
-    devDependencies: { fallow: '^3.31.0' } });
+    devDependencies: { fallow: '^3.31.0' },
+    // Upstream starter lockfiles can retain vulnerable transitive versions. Keep fixes within compatible majors.
+    pnpm: { ...existing.pnpm, overrides: { ...existing.pnpm?.overrides, ...securityOverrides } } });
   put(root, 'scripts/audit.mjs', `import { spawnSync } from 'node:child_process';
 const base = process.env.AUDIT_BASE;
 const hasBase = base || ['origin/main', 'main'].find((ref) => spawnSync('git', ['rev-parse', '--verify', ref], { stdio: 'ignore' }).status === 0);
@@ -404,7 +417,7 @@ const result = spawnSync('pnpm', args, { stdio: 'inherit', shell: false });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
 `);
-  json(root, '.fallowrc.json', { ignorePatterns: ['**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
+  json(root, '.fallowrc.json', { ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
   const turbo = readJson(root, 'turbo.json');
   turbo.globalEnv = ['DATABASE_URL', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'OPENAI_API_KEY', 'RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTHOG_API_KEY', 'POSTHOG_HOST', 'SENTRY_DSN'];
   turbo.tasks = { ...turbo.tasks, test: { dependsOn: ['^build'], outputs: ['coverage/**'] },

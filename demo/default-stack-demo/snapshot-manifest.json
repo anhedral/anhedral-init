@@ -8,7 +8,7 @@
   "files": {
     ".env.example": "4c627dfb3a790ea95644f6eca1cc967bf0f9b3ccda6f8b37a8cc3439371c2696",
     ".eslintrc.js": "c3b3914027b142760a9c78a4e16f912ad65ee0bbb3cfe8a237f260458052d288",
-    ".fallowrc.json": "a10c8cda41f063faa0ebc723823e597a1a2a6fb12f04defc8cc1858dcf259176",
+    ".fallowrc.json": "d5234ec5b44ff7cc17981d4890f9855e363515a77606a54ba5840cf25cfd00cc",
     ".github/workflows/check.yml": "ef044145dc6e55c480a7b4afa03ad8f9f810ca4937914d9930f7ae784d400219",
     ".gitignore": "bc960dbd54dac35ed0544143c266545413ae76e13d2012e91dd6e52cdc02ad38",
     ".npmrc": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

@@ -46,6 +46,7 @@ try {
   assert.equal(read(web.root, 'packages/ui/package.json').dependencies.shadcn, undefined);
   assert.equal(read(web.root, 'packages/ui/package.json').devDependencies.shadcn, '4.21.1');
   assert.match(read(web.root, 'package.json').scripts.check, /audit:deps/);
+  assert.ok(read(web.root, '.fallowrc.json').ignorePatterns.includes('**/next-env.d.ts'));
   assert.equal(existsSync(path.join(web.root, 'pnpm-lock.yaml')), true);
   assert.match(readFileSync(path.join(web.root, 'AGENTS.md'), 'utf8'), /cloudflare\/security-audit-skill/);
   assert.match(readFileSync(path.join(web.root, 'pnpm-workspace.yaml'), 'utf8'), /onlyBuiltDependencies/);
