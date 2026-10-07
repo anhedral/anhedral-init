@@ -16,6 +16,7 @@ writeFileSync(new URL('../plugins/anhedral/LICENSE', import.meta.url), readFileS
 const assets = new URL('../plugins/anhedral/assets/', import.meta.url);
 mkdirSync(assets, { recursive: true });
 writeFileSync(new URL('anhedral.svg', assets), readFileSync(new URL('../assets/anhedral.svg', import.meta.url)));
+writeFileSync(new URL('anhedral-mark.svg', assets), readFileSync(new URL('../assets/images/svg/logo-white-subtract.svg', import.meta.url)));
 
 const manifestUrl = new URL('../plugins/anhedral/plugin.json', import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, 'utf8'));

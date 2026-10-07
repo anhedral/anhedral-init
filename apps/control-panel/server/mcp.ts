@@ -24,7 +24,7 @@ export const UI_URI = "ui://anhedral/control-panel.html";
 export function createControlServer() {
   const icons = [
     {
-      src: `data:image/svg+xml;base64,${readFileSync(new URL("./assets/anhedral.svg", import.meta.url)).toString("base64")}`,
+      src: `data:image/svg+xml;base64,${readFileSync(new URL("./assets/anhedral-mark.svg", import.meta.url)).toString("base64")}`,
       mimeType: "image/svg+xml",
       sizes: ["any"],
     },
