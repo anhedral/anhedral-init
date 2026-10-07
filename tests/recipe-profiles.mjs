@@ -1,0 +1,1 @@
+export const GENERATED_PROFILES = { web: [], api: ['--hono', '--d1', '--better-auth', '--r2'], desktop: ['--electron'], extension: ['--wxt'], popup: ['--wxt', '--extension-surface', 'popup'], single: ['--hono', '--layout', 'single'], mobile: ['--expo'] };

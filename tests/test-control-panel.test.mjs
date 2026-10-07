@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { registerProject, snapshot, updateSettings, providerGet, createDraft, savePlan, recordProgress, recordPiece } from '../.artifacts/control-panel/status.js';
+import { registerProject, snapshot, updateSettings, providerGet, createDraft, savePlan, recordProgress, recordPiece, updateArchitecture } from '../.artifacts/control-panel/status.js';
 
 test('control panel scopes local configuration and never exposes provider credentials', async () => {
   const temporary = mkdtempSync(path.join(tmpdir(), 'anhedral-panel-'));
@@ -65,7 +65,7 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     assert.equal(client.getServerVersion().version, JSON.parse(readFileSync("plugins/anhedral/plugin.json", "utf8")).version);
     const tools = await client.listTools();
     const open = tools.tools.find((tool) => tool.name === 'anhedral_open');
-    assert.equal(tools.tools.length, 7);
+    assert.equal(tools.tools.length, 9);
     assert.equal(open.icons[0].mimeType, 'image/svg+xml');
     assert.deepEqual(open.icons[0].sizes, ['any']);
     assert.ok(open.icons[0].src.startsWith('data:image/svg+xml;base64,'));
@@ -78,7 +78,7 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     assert.equal(open.annotations.readOnlyHint, true);
     const resource = await client.readResource({ uri: open._meta.ui.resourceUri });
     assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
-    assert.ok(resource.contents[0].text.includes('Build your stack.'));
+    assert.ok(resource.contents[0].text.includes('Your app, connected.'));
     assert.deepEqual(resource.contents[0]._meta.ui.csp.connectDomains, []);
     const result = await client.callTool({ name: 'anhedral_open', arguments: {} });
     assert.equal(result.structuredContent.project, null);
@@ -90,9 +90,17 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     const registered = await client.callTool({ name: 'anhedral_register_project', arguments: { folder: projectRoot } });
     assert.equal(registered.structuredContent.project.name, 'mcp-project');
     const id = registered.structuredContent.project.id;
-    const configured = await client.callTool({ name: 'anhedral_update_settings', arguments: { projectId: id, environment: 'preview', repository: 'anhedral/anhedral-init' } });
+    const configured = await client.callTool({ name: 'anhedral_update_settings', arguments: { projectId: id, environment: 'preview', repository: 'anhedral/anhedral-init', cloudflareAccountId: 'a'.repeat(32) } });
     assert.equal(configured.structuredContent.environment, 'preview');
     assert.equal(configured.structuredContent.settings.repository, 'anhedral/anhedral-init');
+    await client.callTool({ name: 'anhedral_plan_stack', arguments: { projectId: id, environment: 'preview', revision: 0, selected: ['next'], hosting: 'cloudflare' } });
+    const observation = { capability: 'next', milestone: 'provisioned', outcome: 'passed', source: 'agent', observedAt: new Date().toISOString(), evidence: 'Recorded provider resource check', configurationFingerprint: configured.structuredContent.configurationFingerprint };
+    const noAccount = await client.callTool({ name: 'anhedral_report_project_progress', arguments: { projectId: id, report: { revision: 0, environment: 'preview', observations: [observation] } } });
+    assert.equal(noAccount.isError, true, 'Passed provider work must include observed scope');
+    assert.equal(existsSync(path.join(projectRoot, 'anhedral.progress.json')), false);
+    const scoped = await client.callTool({ name: 'anhedral_report_project_progress', arguments: { projectId: id, report: { revision: 0, environment: 'preview', observations: [{ ...observation, accountRef: 'a'.repeat(32) }] } } });
+    assert.equal(scoped.structuredContent.progress.revision, 1);
+
     const draft = await client.callTool({ name: 'anhedral_create_project', arguments: { name: 'Native draft', folder: path.join(temporary, 'native-draft'), brief: 'Test the native planning contract', selected: ['next'], hosting: 'cloudflare' } });
     const draftId = draft.structuredContent.project.id;
     const progressed = await client.callTool({ name: 'anhedral_record_progress', arguments: { projectId: draftId, revision: 1, stage: 'plan', status: 'done', summary: 'Requirements inspected', evidence: ['Test requirements'] } });
@@ -100,6 +108,30 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     const changed = await client.callTool({ name: 'anhedral_plan_stack', arguments: { projectId: draftId, revision: 2, selected: ['next', 'r2'] } });
     assert.equal(changed.structuredContent.checklist[0].status, 'pending');
     assert.equal(changed.structuredContent.assembly.revision, 3);
+
+    const graph = { nodes: [{ id: 'web', label: 'Web app', kind: 'Next.js', layer: 'interface', status: 'planned', evidence: [] }, { id: 'api', label: 'API', kind: 'Hono', layer: 'application', status: 'planned', evidence: [] }], edges: [{ from: 'web', to: 'api', label: 'Requests', status: 'planned', evidence: [] }] };
+    const mapped = await client.callTool({ name: 'anhedral_update_architecture', arguments: { projectId: draftId, revision: 3, architecture: graph } });
+    assert.deepEqual(mapped.structuredContent.assembly.architecture, graph);
+    assert.equal(mapped.structuredContent.assembly.revision, 4);
+    const stale = await client.callTool({ name: 'anhedral_update_architecture', arguments: { projectId: draftId, revision: 3, architecture: graph } });
+    assert.equal(stale.isError, true);
+    for (const invalidGraph of [
+      { ...graph, nodes: [...graph.nodes, graph.nodes[0]] },
+      { ...graph, nodes: [{ ...graph.nodes[0], capability: 'neon' }] },
+      { ...graph, edges: [{ ...graph.edges[0], to: 'missing' }] },
+      { ...graph, edges: [graph.edges[0], graph.edges[0]] },
+      { ...graph, nodes: [{ ...graph.nodes[0], status: 'verified' }] },
+      { ...graph, nodes: [{ ...graph.nodes[0], label: 'TOKEN=private-value' }] },
+    ]) {
+      const result = await client.callTool({ name: 'anhedral_update_architecture', arguments: { projectId: draftId, revision: 4, architecture: invalidGraph } });
+      assert.equal(result.isError, true);
+    }
+    const previewState = await client.callTool({ name: 'anhedral_open', arguments: { projectId: draftId, environment: 'preview' } });
+    assert.equal(previewState.structuredContent.assembly.architecture, undefined);
+    const unchanged = await client.callTool({ name: 'anhedral_plan_stack', arguments: { projectId: draftId, revision: 4, selected: ['next', 'r2'] } });
+    assert.deepEqual(unchanged.structuredContent.assembly.architecture, graph);
+    const reset = await client.callTool({ name: 'anhedral_plan_stack', arguments: { projectId: draftId, revision: 5, selected: ['next'] } });
+    assert.equal(reset.structuredContent.assembly.architecture, undefined);
 
   } finally { await client.close(); rmSync(temporary, { recursive: true, force: true }); }
 });
@@ -171,5 +203,60 @@ test('project assembly preserves scope, evidence order, revisions and draft iden
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
     rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+
+test('registry mutation contention preserves saved projects and releases failed writer locks', async () => {
+  const temporary = mkdtempSync(path.join(tmpdir(), 'anhedral-registry-lock-'));
+  const previous = { ...process.env };
+  try {
+    process.env.ANHEDRAL_STATE_DIR = path.join(temporary, 'state');
+    delete process.env.ANHEDRAL_PROJECT_ROOTS;
+    const root = path.join(temporary, 'project');
+    mkdirSync(root);
+    writeFileSync(path.join(root, 'package.json'), '{"name":"lock-project"}');
+    const project = registerProject(root);
+    const registry = path.join(temporary, 'state/projects.json');
+    const before = readFileSync(registry, 'utf8');
+    mkdirSync(`${registry}.lock`);
+    assert.throws(() => updateSettings(project.id, 'default', {}), /registry update/);
+    assert.equal(readFileSync(registry, 'utf8'), before);
+    rmSync(`${registry}.lock`, { recursive: true });
+    assert.throws(() => updateSettings(project.id, 'default', { repository: '../invalid' }));
+    assert.equal(existsSync(`${registry}.lock`), false, 'Validation failure must release its lock');
+    updateSettings(project.id, 'default', { repository: 'anhedral/example' });
+    assert.equal((await snapshot(project.id)).settings.repository, 'anhedral/example');
+    assert.equal(existsSync(`${registry}.lock`), false);
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
+    Object.assign(process.env, previous);
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+
+test('standalone API configuration appears in the same scoped architecture inventory', async () => {
+  const temporary = mkdtempSync(path.join(tmpdir(), 'anhedral-single-panel-'));
+  const previous = { ...process.env };
+  try {
+    process.env.ANHEDRAL_STATE_DIR = path.join(temporary, 'state');
+    delete process.env.ANHEDRAL_PROJECT_ROOTS;
+    const root = path.join(temporary, 'api');
+    mkdirSync(root);
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({name:'single-api'}));
+    writeFileSync(path.join(root, 'wrangler.jsonc'), JSON.stringify({name:'single-api',env:{preview:{name:'single-preview'}}}));
+    const project = registerProject(root);
+    const data = await snapshot(project.id);
+    assert.equal(data.resources.length, 1);
+    assert.equal(data.resources[0].id, 'worker:root');
+    assert.equal(data.resources[0].name, 'single-api');
+    assert.equal(data.resources[0].status, 'configured');
+    assert.equal((await snapshot(project.id,'preview')).resources[0].name, 'single-preview');
+    assert.equal((await snapshot(project.id,'production')).resources.length, 0);
+  } finally {
+    for(const key of Object.keys(process.env)) if(!(key in previous)) delete process.env[key];
+    Object.assign(process.env, previous);
+    rmSync(temporary,{recursive:true,force:true});
   }
 });

@@ -85,3 +85,17 @@ export function identifierSegment(value: string): string {
     .replace(/^-+|-+$/g, '');
   return segment || 'app';
 }
+
+/** Project names also become bootstrap directory components; scoped names are not supported. */
+export function assertProjectName(value: string): string {
+  if (typeof value !== 'string' || value.includes('/')) throw new Error('Project name must be a valid unscoped npm package name.');
+  return assertPackageName(value);
+}
+
+/** Provider identifiers obey DNS/R2 limits independently of valid npm names. */
+export function resourceName(projectName: string, suffix: string): string {
+  const normalized = identifierSegment(projectName);
+  const digest = createHash('sha256').update(projectName, 'utf8').digest('hex').slice(0, 8);
+  const distinct = normalized === projectName ? normalized : `${normalized}-${digest}`;
+  return `${compactPackageSegment(distinct, 63 - suffix.length - 1)}-${suffix}`;
+}

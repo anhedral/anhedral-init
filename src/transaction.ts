@@ -1,5 +1,7 @@
 import {
   closeSync,
+  constants,
+  fstatSync,
   cpSync,
   fsyncSync,
   linkSync,
@@ -7,6 +9,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   readdirSync,
   renameSync,
   rmdirSync,
@@ -294,13 +297,35 @@ function removeEntryDurably(target: string): void {
   if (pathEntryExists(parent)) syncDirectory(parent);
 }
 
+/** Reserved recovery metadata must never read devices, pipes or unbounded files. */
+function readRecoveryMetadata(filePath: string, maximumBytes: number): string {
+  const stat = lstatSync(filePath);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Recovery metadata must be a regular file: ${filePath}`);
+  const descriptor = openSync(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
+  try {
+    const opened = fstatSync(descriptor);
+    if (!opened.isFile()) throw new Error(`Recovery metadata must be a regular file: ${filePath}`);
+    if (opened.size > maximumBytes) throw new Error(`Recovery metadata exceeds size limit: ${filePath}`);
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.alloc(Math.min(8192, maximumBytes + 1 - total));
+      const length = readSync(descriptor, chunk, 0, chunk.length, null);
+      if (!length) return Buffer.concat(chunks).toString('utf8');
+      total += length;
+      if (total > maximumBytes) throw new Error(`Recovery metadata exceeds size limit: ${filePath}`);
+      chunks.push(chunk.subarray(0, length));
+    }
+  } finally { closeSync(descriptor); }
+}
+
 function parseLockOwner(lockPath: string): LockOwner {
   if (lstatSync(lockPath).isSymbolicLink()) {
     throw new Error(`Refusing symbolic-link transaction lock at ${lockPath}.`);
   }
   let value: unknown;
   try {
-    value = JSON.parse(readFileSync(lockPath, 'utf8'));
+    value = JSON.parse(readRecoveryMetadata(lockPath, 16 * 1024));
   } catch (error) {
     throw new Error(`Cannot read transaction lock owner at ${lockPath}; remove it only after confirming no Anhedral process is running.`, { cause: error });
   }
@@ -748,7 +773,7 @@ function recoverInterruptedTransactionUnlocked(root: string): boolean {
     throw new Error(`Refusing symbolic-link transaction journal at ${journalPath}.`);
   }
 
-  const journal = validateJournal(root, JSON.parse(readFileSync(journalPath, 'utf8')));
+  const journal = validateJournal(root, JSON.parse(readRecoveryMetadata(journalPath, 16 * 1024 * 1024)));
   restoreJournal(root, journal);
   return true;
 }
@@ -772,8 +797,8 @@ export class PostCommitError extends Error {
   constructor(committedPaths: readonly string[], cause: unknown) {
     const causeMessage = cause instanceof Error ? cause.message : String(cause);
     super(
-      `Changes were committed successfully, but the post-commit action failed: ${causeMessage}. `
-      + 'The generated files were kept; resolve the failure and rerun the post-commit command.',
+      `Generated files were saved, but the follow-up action failed: ${causeMessage}. `
+      + 'The generated files were kept; resolve the failure and rerun the failed command.',
       { cause },
     );
     this.name = 'PostCommitError';

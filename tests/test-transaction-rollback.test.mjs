@@ -338,7 +338,7 @@ try {
     (error) => {
       assert.equal(error instanceof PostCommitError, true);
       assert.deepEqual(error.committedPaths, ['committed.txt']);
-      assert.match(error.message, /Changes were committed successfully/);
+      assert.match(error.message, /Generated files were saved/);
       assert.match(error.message, /install failed/);
       return true;
     },

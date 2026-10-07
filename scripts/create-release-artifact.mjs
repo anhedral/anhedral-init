@@ -1,3 +1,4 @@
+import { releaseDirectory } from './release-directory.mjs';
 import { packagePlugin } from './package-plugin.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -9,12 +10,8 @@ import { spawnSyncPortable } from './spawn-command.mjs';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const artifactDirectoryName = process.argv[2] ?? '.artifacts/release';
-const artifactDirectory = path.resolve(repoRoot, artifactDirectoryName);
+const artifactDirectory = releaseDirectory(repoRoot, artifactDirectoryName);
 const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-
-if (artifactDirectory === repoRoot || !artifactDirectory.startsWith(`${repoRoot}${path.sep}`)) {
-  throw new Error('Release artifact directory must be inside the repository root');
-}
 
 const npmCache = mkdtempSync(path.join(tmpdir(), 'anhedral-release-pack-'));
 

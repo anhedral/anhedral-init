@@ -57,3 +57,5 @@ node_modules/
 # Generated Cloudflare binding types
 worker-configuration.d.ts
 cloudflare-env.d.ts
+
+.anhedral-audit-report.json

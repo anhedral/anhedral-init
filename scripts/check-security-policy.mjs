@@ -36,6 +36,7 @@ for (const filename of readdirSync(path.join(root, 'src'), { recursive: true }))
   if (typeof filename !== 'string' || !filename.endsWith('.ts')) continue;
   const relative = path.join('src', filename);
   const source = readFileSync(path.join(root, relative), 'utf8');
+  if (/['"](?:\^|~)\d+\.\d+\.\d+/.test(source)) failures.push(`${relative}: generated dependency versions must be exactly pinned`);
   if (/\bshell\s*:\s*true\b/.test(source)) {
     failures.push(`${relative}: child processes must use an executable and argument vector, not a command shell`);
   }

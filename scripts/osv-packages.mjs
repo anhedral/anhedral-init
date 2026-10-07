@@ -11,13 +11,19 @@ export function packageCoordinateFromPnpmKey(rawKey) {
 }
 
 export function collectPnpmLockPackages(lockfile, source = 'pnpm-lock.yaml') {
-  const packagesSection = lockfile.match(/\npackages:\n([\s\S]*?)\nsnapshots:\n/)?.[1];
-  if (!packagesSection) throw new Error(`Could not locate the packages section in ${source}`);
-
+  // pnpm 12 writes separate YAML documents for toolchain and app dependencies.
+  const sections = [...lockfile.matchAll(/(?:^|\n)packages:\r?\n([\s\S]*?)(?=\nsnapshots:\r?\n)/g)];
+  if (sections.length !== [...lockfile.matchAll(/^packages:\r?$/gm)].length) throw new Error(`Incomplete packages section in ${source}`);
+  if (!sections.length) throw new Error(`Could not locate the packages section in ${source}`);
   const packages = [];
-  for (const match of packagesSection.matchAll(/^  (.+):$/gm)) {
-    const coordinate = packageCoordinateFromPnpmKey(match[1]);
-    if (coordinate) packages.push(coordinate);
+  for (const [, section] of sections) {
+    for (const line of section.split(/\r?\n/).filter((row) => /^  [^ #\t]/.test(row))) {
+      const match = line.match(/^  (.+?):(?:[ \t].*|$)/);
+      if (!match) throw new Error(`Unsupported package row in ${source}: ${line}`);
+      const coordinate = packageCoordinateFromPnpmKey(match[1]);
+      if (!coordinate) throw new Error(`Unsupported package coordinate ${match[1]} in ${source}`);
+      packages.push(coordinate);
+    }
   }
   return packages;
 }

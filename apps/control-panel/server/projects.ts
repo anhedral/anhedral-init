@@ -1,3 +1,7 @@
+import {
+  architectureSchema,
+  type Architecture,
+} from "../shared/architecture.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -5,6 +9,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -99,10 +104,12 @@ function saveRegistry(data: Registry): void {
     throw new Error("Project registry is too large.");
   mkdirSync(stateDirectory(), { recursive: true, mode: 0o700 });
   const temporary = `${registryPath()}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, serialized, {
-    mode: 0o600,
-  });
-  renameSync(temporary, registryPath());
+  try {
+    writeFileSync(temporary, serialized, { mode: 0o600, flag: "wx" });
+    renameSync(temporary, registryPath());
+  } finally {
+    rmSync(temporary, { force: true });
+  }
 }
 
 export function readProjectFile(
@@ -144,7 +151,7 @@ function describeProject(folder: string): Project {
   return project;
 }
 
-export function registerProject(folder: string, draftId?: string): Project {
+function registerProjectUnlocked(folder: string, draftId?: string): Project {
   const project = describeProject(folder);
   const registry = readRegistry();
   if (draftId) {
@@ -198,7 +205,7 @@ export function projectFor(id: string): Project {
   return project;
 }
 
-export function updateSettings(
+function updateSettingsUnlocked(
   id: string,
   environment: string,
   settings: Environment,
@@ -217,7 +224,7 @@ export const draftInput = {
   brief: nonSecretText.pipe(z.string().trim().min(1).max(2000)),
   ...planInput,
 };
-export function createDraft(
+function createDraftUnlocked(
   input: z.infer<z.ZodObject<typeof draftInput>>,
 ): Project {
   const data = z.object(draftInput).strict().parse(input);
@@ -261,7 +268,7 @@ export function createDraft(
   saveRegistry(registry);
   return project;
 }
-export function savePlan(
+function savePlanUnlocked(
   id: string,
   environment: string,
   revision: number,
@@ -284,12 +291,13 @@ export function savePlan(
   registry.assemblies[id][environment] = {
     ...plan,
     revision: revision + 1,
+    architecture: same ? current.architecture : undefined,
     progress: same ? current.progress : {},
     pieces: same ? current.pieces : {},
   };
   saveRegistry(registrySchema.parse(registry));
 }
-export function recordProgress(
+function recordProgressUnlocked(
   id: string,
   environment: string,
   revision: number,
@@ -340,7 +348,7 @@ export function recordProgress(
   saveRegistry(registrySchema.parse(registry));
 }
 
-export function recordPiece(
+function recordPieceUnlocked(
   id: string,
   environment: string,
   revision: number,
@@ -373,3 +381,75 @@ export function recordPiece(
   current.revision++;
   saveRegistry(registry);
 }
+
+function updateArchitectureUnlocked(
+  id: string,
+  environment: string,
+  revision: number,
+  input: Architecture,
+): void {
+  projectFor(id);
+  environmentId.parse(environment);
+  const graph = architectureSchema.parse(input);
+  const registry = readRegistry();
+  const current = registry.assemblies[id]?.[environment];
+  if (!current || current.revision !== revision)
+    throw new Error(
+      "The plan changed. Open the project and use its current revision.",
+    );
+  if (
+    graph.nodes.some(
+      (node) => node.capability && !current.selected.includes(node.capability),
+    )
+  )
+    throw new Error(
+      "Architecture capabilities must belong to the selected stack.",
+    );
+  current.architecture = graph;
+  current.revision++;
+  saveRegistry(registry);
+}
+
+// A process-wide filesystem lock protects every registry read/modify/write pair.
+// Never steal a lock: after an interrupted writer, inspect and remove it explicitly.
+export function registryMutation<T>(run: () => T): T {
+  mkdirSync(stateDirectory(), { recursive: true, mode: 0o700 });
+  const lock = `${registryPath()}.lock`;
+  try {
+    mkdirSync(lock, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST")
+      throw new Error(
+        "Another registry update is in progress. Refresh and retry; inspect a persistent lock before recovering it.",
+      );
+    throw error;
+  }
+  try {
+    writeFileSync(
+      path.join(lock, "owner.json"),
+      JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }),
+      { mode: 0o600, flag: "wx" },
+    );
+    return run();
+  } finally {
+    rmSync(lock, { recursive: true });
+  }
+}
+export const registerProject = (
+  ...args: Parameters<typeof registerProjectUnlocked>
+) => registryMutation(() => registerProjectUnlocked(...args));
+export const updateSettings = (
+  ...args: Parameters<typeof updateSettingsUnlocked>
+) => registryMutation(() => updateSettingsUnlocked(...args));
+export const createDraft = (...args: Parameters<typeof createDraftUnlocked>) =>
+  registryMutation(() => createDraftUnlocked(...args));
+export const savePlan = (...args: Parameters<typeof savePlanUnlocked>) =>
+  registryMutation(() => savePlanUnlocked(...args));
+export const recordProgress = (
+  ...args: Parameters<typeof recordProgressUnlocked>
+) => registryMutation(() => recordProgressUnlocked(...args));
+export const recordPiece = (...args: Parameters<typeof recordPieceUnlocked>) =>
+  registryMutation(() => recordPieceUnlocked(...args));
+export const updateArchitecture = (
+  ...args: Parameters<typeof updateArchitectureUnlocked>
+) => registryMutation(() => updateArchitectureUnlocked(...args));

@@ -27,4 +27,4 @@ jobs:
       - name: Audit branch
         if: github.event_name != 'pull_request'
         run: pnpm audit:full
-      - run: pnpm test && pnpm build
+      - run: pnpm test && pnpm build && pnpm build:worker

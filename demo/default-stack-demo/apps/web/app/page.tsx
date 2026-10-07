@@ -83,14 +83,14 @@ function Header({ factory }: { factory: FactoryState }) {
 }
 
 function Introduction({ factory }: { factory: FactoryState }) {
- const { user, projects, live } = factory
+ const { user, live } = factory
  
  return (   <div className="mb-10 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-3 font-mono text-xs tracking-[0.2em] text-[#d0f3a6]">FROM BRIEF TO DELIVERY</p><h1 className="text-4xl font-medium tracking-tight md:text-5xl">Your next project starts here.</h1><p className="mt-4 max-w-xl text-sm leading-6 text-white/45">A small, working software delivery workspace. Real projects, durable jobs, private reports, and a little help getting started.</p></div>{user && <span className="flex items-center gap-2 text-xs text-white/45"><i className={`size-2 rounded-full ${live ? "bg-[#d0f3a6]" : "bg-amber-300"}`} />{live ? "Live updates connected" : "Updates reconnecting"}</span>}</div>
 )
 }
 
 function Login({ factory }: { factory: FactoryState }) {
- const { projects, busy, register, setRegister, authenticate } = factory
+ const { busy, register, setRegister, authenticate } = factory
  
  const copy = register ? { title: "Create your workspace", action: "Create account", toggle: "Already have an account? Sign in", autocomplete: "new-password" } : { title: "Welcome back", action: "Sign in", toggle: "New here? Create an account", autocomplete: "current-password" }
  return (<div className="grid gap-10 md:grid-cols-2">

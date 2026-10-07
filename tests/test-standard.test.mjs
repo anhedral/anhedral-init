@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import ts from 'typescript';
 import { parseStandardOptions, scaffoldStandardProject } from '../dist/standard.js';
 import { CAPABILITIES, CAPABILITY_REGISTRY, createSetupPlan } from '../dist/capabilities.js';
+import { inspectProject, validateSetupPlan } from '../dist/readiness.js';
 import { STANDARD_PRODUCTS } from '../dist/standard-products.js';
 
 const temp = mkdtempSync(path.join(tmpdir(), 'anhedral-standard-test-'));
@@ -17,9 +18,10 @@ function seed(root) {
   mkdirSync(path.join(root, 'packages/eslint-config'), { recursive: true });
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'fixture', packageManager: 'pnpm@11.0.0', devDependencies: { turbo: '^2' }, scripts: {} }));
   writeFileSync(path.join(root, 'apps/web/package.json'), JSON.stringify({ name: 'web', scripts: { build: 'next build' }, dependencies: { next: '16.3.6' } }));
+  writeFileSync(path.join(root, 'apps/web/tsconfig.json'), JSON.stringify({ exclude: ['node_modules'] }));
   mkdirSync(path.join(root, 'apps/web/app'), { recursive: true });
   writeFileSync(path.join(root, 'apps/web/app/layout.tsx'), 'export default function Layout({ children }: { children: React.ReactNode }) { return <html><body className="antialiased">{children}</body></html>; }\n');
-  writeFileSync(path.join(root, 'packages/ui/package.json'), JSON.stringify({ name: '@workspace/ui', dependencies: { shadcn: '4.21.1' } }));
+  writeFileSync(path.join(root, 'packages/ui/package.json'), JSON.stringify({ name: '@workspace/ui', dependencies: { shadcn: '4.21.3' } }));
   writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n  - "packages/*"\nallowBuilds:\n  esbuild: true\n');
   writeFileSync(path.join(root, 'turbo.json'), JSON.stringify({ tasks: { build: {}, dev: { persistent: true } } }));
   writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n');
@@ -50,6 +52,11 @@ try {
   for (const flags of [['--all'], ['--neon', '--d1'], ['--clerk', '--better-auth'], ['--better-auth'], ['--revenuecat'], ['--wxt', '--r2'], ['--expo', '--clerk'], ['--hono', '--hosting=vercel']]) {
     assert.throws(() => options('invalid', flags));
   }
+  for (const override of [{ layout: 'invalid' }, { layout: 'single' }, { extensionSurface: 'invalid' }, { extensionSurface: 'popup' }, { products: ['hono', 'hono'] }]) {
+    const invalidApi = { ...options('invalid-api'), ...override, dryRun: true };
+    await assert.rejects(scaffoldStandardProject(invalidApi, runner));
+    assert.equal(existsSync(invalidApi.root), false);
+  }
   const dry = { ...options('dry', ['--expo']), dryRun: true, json: true };
   await scaffoldStandardProject(dry, runner);
   assert.equal(existsSync(dry.root), false);
@@ -63,13 +70,15 @@ try {
   assert.equal(existsSync(path.join(web.root, 'apps/api')), false);
   assert.equal(read(web.root, 'package.json').scripts.audit, 'node scripts/audit.mjs');
   assert.equal(read(web.root, 'packages/ui/package.json').dependencies.shadcn, undefined);
-  assert.equal(read(web.root, 'packages/ui/package.json').devDependencies.shadcn, '4.21.1');
+  assert.equal(read(web.root, 'packages/ui/package.json').devDependencies.shadcn, '4.21.3');
   assert.match(read(web.root, 'package.json').scripts.check, /audit:deps/);
   assert.ok(read(web.root, '.fallowrc.json').ignorePatterns.includes('**/next-env.d.ts'));
   assert.equal(existsSync(path.join(web.root, 'pnpm-lock.yaml')), true);
   assert.match(readFileSync(path.join(web.root, 'AGENTS.md'), 'utf8'), /cloudflare\/security-audit-skill/);
-  assert.match(readFileSync(path.join(web.root, 'pnpm-workspace.yaml'), 'utf8'), /onlyBuiltDependencies/);
+  assert.match(readFileSync(path.join(web.root, 'pnpm-workspace.yaml'), 'utf8'), /allowBuilds/);
   assert.ok(calls[0].args.includes('--monorepo'));
+  assert.ok(calls[0].args.includes('shadcn@4.21.3'));
+  assert.equal(calls[0].args.includes('shadcn@latest'), false);
   assert.equal(calls.filter((call) => call.command === 'git').length, 0);
   const clerk = options('clerk', ['--clerk']);
   await scaffoldStandardProject(clerk, runner);
@@ -83,6 +92,7 @@ try {
     if (args[0] === 'dlx') writeFileSync(path.join(args[args.indexOf('--cwd') + 1], args[args.indexOf('--name') + 1], 'apps/web/app/layout.tsx'), 'export default function Layout() { return <main />; }\n');
   }), /must contain a body element/);
   assert.equal(existsSync(invalidLayout.root), false, 'invalid auth overlay must roll back');
+  const beforeNonWeb = calls.length;
   const extension = options('extension', ['--wxt']);
   await scaffoldStandardProject(extension, runner);
   assert.equal(existsSync(path.join(extension.root, 'apps/web')), false);
@@ -106,7 +116,24 @@ try {
   assert.equal(config.analytics_engine_datasets, undefined);
   assert.deepEqual(readdirSync(path.join(services.root, 'apps')).sort(), ['api', 'jobs', 'realtime', 'scheduled', 'workflows']);
   assert.ok(read(services.root, 'apps/api/package.json').dependencies['@hono/zod-openapi']);
-  assert.equal(read(services.root, 'packages/billing/package.json').dependencies.stripe, '^20.0.0');
+  assert.equal(read(services.root, 'packages/billing/package.json').dependencies.stripe, '23.0.0');
+  assert.equal(calls.slice(beforeNonWeb).some(({ args }) => args[0] === 'dlx'), false, 'non-web recipes never bootstrap unrelated Next UI');
+  const single = options('single-api', ['--hono', '--layout', 'single']);
+  await scaffoldStandardProject(single, runner);
+  assert.equal(read(single.root, 'anhedral.standard.json').layout, 'single');
+  assert.equal(read(single.root, 'package.json').scripts.dev, 'wrangler dev');
+  assert.equal(read(single.root, 'package.json').devDependencies.turbo, undefined);
+  assert.equal(read(single.root, 'package.json').devDependencies['eslint-plugin-react-hooks'], undefined);
+  for (const key of ['source-map-js@<1.2.2', 'baseline-browser-mapping@<2.11.0', 'browserslist@<4.28.7']) assert.equal(JSON.parse(readFileSync(path.join(single.root, 'pnpm-workspace.yaml'), 'utf8').match(/^overrides: (.+)$/m)[1])[key], undefined);
+  assert.equal(existsSync(path.join(single.root, 'src/index.ts')), true);
+  assert.equal(existsSync(path.join(single.root, 'apps')), false);
+  assert.equal(existsSync(path.join(single.root, 'packages')), false);
+  assert.doesNotMatch(readFileSync(path.join(single.root, 'pnpm-workspace.yaml'), 'utf8'), /^packages:/m);
+  assert.equal(inspectProject(single.root).localReady, true);
+  assert.throws(() => validateSetupPlan({ ...read(single.root, 'anhedral.setup.json'), layout: 'invalid' }), /Invalid layout/);
+  assert.throws(() => validateSetupPlan({ ...read(web.root, 'anhedral.setup.json'), layout: 'single' }), /Unsupported standalone/);
+  for (const flags of [['--layout=single'], ['--expo', '--layout=single'], ['--hono', '--neon', '--layout=single'], ['--layout=invalid'], ['--layout=single', '--layout=workspace'], ['--extension-surface=popup']]) assert.throws(() => options('invalid-layout-recipe', flags));
+  assert.equal(options('popup', ['--wxt', '--extension-surface=popup']).extensionSurface, 'popup');
   const auth = options('better-auth', ['--hono', '--better-auth', '--d1']);
   await scaffoldStandardProject(auth, runner);
   assert.match(readFileSync(path.join(auth.root, 'apps/api/src/index.ts'), 'utf8'), /\/api\/auth\/\*/);

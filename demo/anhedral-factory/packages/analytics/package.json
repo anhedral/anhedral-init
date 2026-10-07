@@ -10,12 +10,12 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "posthog-node": "^5.0.0"
+    "posthog-node": "5.55.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "@types/node": "^22.0.0",
-    "eslint": "^9.0.0",
+    "typescript": "6.0.3",
+    "@types/node": "22.20.5",
+    "eslint": "9.39.5",
     "@workspace/eslint-config": "workspace:*"
   }
 }

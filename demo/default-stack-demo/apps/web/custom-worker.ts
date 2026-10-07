@@ -1,5 +1,4 @@
-// OpenNext generates this JavaScript module during build.
-// @ts-ignore OpenNext generates the module at build time; it is absent in a clean checkout.
+// OpenNext generates this module; the exact Fallow specifier exception is verified by build:worker.
 import next from './.open-next/worker.js';
 export default {
  async fetch(request: Request, env: CloudflareEnv, context: ExecutionContext) {
