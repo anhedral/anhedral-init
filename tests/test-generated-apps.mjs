@@ -41,10 +41,14 @@ for (const profile of selected) {
       const types = path.join(root, profile === 'web' ? 'apps/web/cloudflare-env.d.ts' : 'apps/api/worker-configuration.d.ts');
       execFile('pnpm', ['typecheck'], root);
       unlinkSync(types);
-      const cached = spawnSync('pnpm', ['typecheck'], { cwd: root, encoding: 'utf8' });
+      const cached = spawnSync('pnpm', ['typecheck', '--summarize'], { cwd: root, encoding: 'utf8' });
       assert.equal(cached.status, 0, cached.stdout + cached.stderr);
       const appName = JSON.parse(readFileSync(path.join(path.dirname(types), 'package.json'), 'utf8')).name;
-      assert.ok(cached.stdout.includes(`${appName}:typecheck: cache hit`), 'The binding-type restoration must exercise a cache hit');
+      const runs = path.join(root, '.turbo/runs');
+      const summaries = readdirSync(runs).filter((file) => file.endsWith('.json'));
+      assert.equal(summaries.length, 1, 'Only the cached run should have a summary');
+      const summary = JSON.parse(readFileSync(path.join(runs, summaries[0]), 'utf8'));
+      assert.equal(summary.tasks.find((task) => task.taskId === `${appName}#typecheck`)?.cache.status, 'HIT', 'The binding-type restoration must exercise a cache hit');
       assert.ok(existsSync(types), 'A warm Turbo cache must restore generated binding types');
     }
     if (profile === 'api') assert.ok(existsSync(path.join(root, 'apps/api/dist/index.js')));
