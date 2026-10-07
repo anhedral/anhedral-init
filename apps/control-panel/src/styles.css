@@ -1,34 +1,22 @@
 @import "@openai/mcp-extensions/app/styles.css";
-/* Anhedral landing palette and typography; host controls light/dark mode. */
-@font-face {
-  font-family: "Noto Sans";
-  src: url("../../../assets/fonts/noto-sans-latin.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("../../../assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-}
+/* Current landing.css/site tokens from anhedral-landing main. */
 :root {
-  font-family: "Noto Sans", Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   color-scheme: light dark;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
-  --signal: #ccff00;
-  --small-signal: light-dark(#11110f, #ccff00);
-  --background: light-dark(#fff, #000);
-  --surface: light-dark(#f1f3f5, #121210);
-  --sidebar: light-dark(#fafafa, #0e0e0c);
-  --text: light-dark(#11110f, #fafafa);
-  --muted: light-dark(#595959, #b4b4b4);
-  --line: light-dark(#d8dadd, #30302e);
-  --hover: light-dark(#e8eaec, #20201e);
-  --green: light-dark(#237947, #80c89d);
-  --amber: light-dark(#80551b, #e9bd72);
+  --mono: ui-monospace, SFMono-Regular, monospace;
+  --background: light-dark(#1e293b, #000);
+  --surface: light-dark(#334155, #111);
+  --sidebar: var(--background);
+  --text: light-dark(#f8fafc, #ededed);
+  --foreground: var(--text);
+  --card-foreground: var(--text);
+  --strong: #fff;
+  --muted: light-dark(#cbd5e1, #999);
+  --line: light-dark(#ffffff29, #242424);
+  --line-strong: light-dark(#ffffff4d, #555);
+  --hover: light-dark(#ffffff20, #222);
+  --green: #80c89d;
+  --amber: #e9bd72;
   color: var(--text);
   background: var(--background);
   font-size: 14px;
@@ -67,7 +55,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--small-signal);
+  outline: 2px solid var(--strong);
 }
 button {
   color: inherit;
@@ -84,7 +72,7 @@ select {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 6px;
   padding: 9px 11px;
 }
 input {
@@ -102,11 +90,11 @@ p {
 }
 h2 {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 h3 {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 small {
   display: block;
@@ -129,17 +117,18 @@ small {
   flex-shrink: 0;
 }
 .brand {
+  position: relative;
   display: flex;
-  gap: 11px;
+  gap: 14px;
   align-items: center;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.6px;
 }
 .brand .brand-mark {
   display: block;
-  width: 28px;
-  height: 34px;
+  width: 24px;
+  height: 30px;
   margin: 0;
   background: var(--text);
   mask-size: contain;
@@ -147,7 +136,7 @@ small {
   mask-position: center;
   flex-shrink: 0;
 }
-.brand span {
+.brand .brand-caption {
   display: block;
   color: var(--muted);
   font-size: 11px;
@@ -155,12 +144,25 @@ small {
   font-weight: 400;
   margin-top: 4px;
 }
+.brand-divider {
+  height: 30px;
+  width: 2px;
+  background: var(--strong);
+  flex-shrink: 0;
+}
+.brand-wordmark {
+  display: block;
+  width: 124px;
+  height: 17px;
+  background: var(--strong);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: left center;
+}
 .workspace-label {
-  font-family: var(--mono);
   color: var(--muted);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1.3px;
+  font-weight: 500;
   margin: 35px 8px 11px;
 }
 .sidebar select {
@@ -193,21 +195,20 @@ small {
   gap: 12px;
   text-align: left;
   padding: 12px;
-  border-radius: 0;
+  border-radius: 6px;
   color: var(--muted);
 }
 .sidebar nav .active {
   background: var(--hover);
   color: var(--text);
-  box-shadow: inset 2px 0 var(--small-signal);
 }
 .nav-count {
   margin-left: auto;
   font-size: 11px;
-  background: var(--signal);
+  background: var(--hover);
   padding: 2px 6px;
-  border-radius: 0;
-  color: #11110f;
+  border-radius: 6px;
+  color: var(--text);
 }
 .sidebar-footer {
   margin-top: auto;
@@ -267,11 +268,9 @@ small {
   background: var(--surface);
   border: 1px solid var(--line);
   padding: 11px 16px;
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
   min-height: 40px;
   white-space: nowrap;
 }
@@ -280,12 +279,13 @@ small {
   height: 14px;
 }
 .primary {
-  background: var(--signal);
-  color: #11110f;
-  border-color: #11110f;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
 }
 .primary:hover:not(:disabled) {
-  background: #b8e600;
+  background: var(--hover);
+  border-color: var(--line-strong);
 }
 main {
   max-width: 1440px;
@@ -300,24 +300,21 @@ main {
   margin-bottom: 32px;
 }
 .eyebrow {
-  font-family: var(--mono);
-  color: var(--small-signal);
-  font-size: 10px;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
-  margin-bottom: 11px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
 }
 h1 {
   font-size: clamp(30px, 3.2vw, 48px);
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: -0.055em;
-  line-height: 1.08;
+  line-height: 1.2;
   max-width: 22ch;
 }
 .page-heading p {
   color: var(--muted);
-  font-size: 12px;
-  margin-top: 10px;
+  font-size: 14px;
+  margin-top: 16px;
   line-height: 1.7;
 }
 .stats {
@@ -325,7 +322,7 @@ h1 {
   grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 0;
+  border-radius: 8px;
   margin-bottom: 22px;
 }
 .stats > div {
@@ -336,16 +333,13 @@ h1 {
   border: 0;
 }
 .stats span {
-  font-family: var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   font-size: 12px;
   color: var(--muted);
 }
 .stats strong {
   display: block;
   font-size: 32px;
-  font-weight: 750;
+  font-weight: 500;
   letter-spacing: -1px;
   margin: 11px 0 6px;
 }
@@ -364,7 +358,7 @@ h1 {
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 8px;
   padding: 20px;
   margin-bottom: 23px;
 }
@@ -382,7 +376,7 @@ h1 {
   width: 34px;
   height: 34px;
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 6px;
   flex-shrink: 0;
 }
 .status-banner > .text-button {
@@ -411,10 +405,9 @@ h1 {
   gap: 20px;
 }
 .panel {
-  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 0;
+  border-radius: 8px;
   margin-bottom: 22px;
   overflow: hidden;
 }
@@ -445,7 +438,6 @@ h1 {
   min-width: 0;
 }
 .compact-row .badge {
-  font-family: var(--mono);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -457,7 +449,7 @@ h1 {
   width: 30px;
   height: 30px;
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 6px;
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -496,7 +488,7 @@ h1 {
 }
 .provider-mark {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 .panel-link {
   display: flex;
@@ -565,10 +557,9 @@ h1 {
   gap: 17px;
 }
 .resource-card {
-  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 8px;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -581,9 +572,6 @@ h1 {
   margin-bottom: 25px;
 }
 .resource-card small {
-  font-family: var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   font-size: 10px;
 }
 .resource-card h2 {
@@ -670,7 +658,7 @@ summary > .badge {
   display: flex;
   padding: 5px;
   border: 0;
-  border-radius: 0;
+  border-radius: 6px;
   background: none;
 }
 .icon-button svg {
@@ -715,7 +703,6 @@ code {
   overflow-wrap: anywhere;
 }
 .workspace-footer {
-  font-family: var(--mono);
   display: flex;
   justify-content: space-between;
   color: var(--muted);
@@ -731,13 +718,12 @@ code {
   color: var(--muted);
   border: 1px solid var(--line);
   background: var(--surface);
-  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
-  border-radius: 0;
+  border-radius: 8px;
   line-height: 1.8;
 }
 .empty h3 {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text);
   margin: 12px 0 8px;
 }
@@ -757,7 +743,7 @@ code {
   background: var(--surface);
   border: 1px solid var(--line);
   padding: 13px 16px;
-  border-radius: 0;
+  border-radius: 6px;
   margin-bottom: 25px;
   line-height: 1.6;
   font-size: 12px;
@@ -779,12 +765,10 @@ code {
   margin: auto;
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 8px;
   padding: 28px;
   background: var(--surface);
-  box-shadow:
-    0 20px 70px #0004,
-    inset 0 1px light-dark(#fff9, #ffffff0a);
+  box-shadow: 0 20px 70px #0004;
 }
 .modal h2 {
   font-size: 19px;
@@ -872,11 +856,12 @@ code {
     border-bottom: 1px solid var(--line);
   }
   .brand {
+    position: relative;
     font-size: 15px;
   }
   .workspace-label,
   .sidebar-footer,
-  .brand span {
+  .brand .brand-caption {
     display: none;
   }
   .sidebar select {

@@ -1,6 +1,7 @@
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
 import logo from "../../../assets/images/svg/logo-white-subtract.svg";
+import wordmark from "../../../assets/images/svg/anhedral-wordmark.svg";
 export function Sidebar({
   data,
   tab,
@@ -13,7 +14,7 @@ export function Sidebar({
 }: Controller) {
   return (
     <aside className="sidebar">
-      <div className="brand">
+      <div className="brand" aria-label="Anhedral">
         <span
           className="brand-mark"
           aria-hidden="true"
@@ -21,11 +22,19 @@ export function Sidebar({
             maskImage: `url("data:image/svg+xml,${encodeURIComponent(logo)}")`,
           }}
         />
+        <span className="brand-divider" aria-hidden="true" />
         <div>
-          Anhedral<span>Developer control panel</span>
+          <span
+            className="brand-wordmark"
+            aria-hidden="true"
+            style={{
+              maskImage: `url("data:image/svg+xml,${encodeURIComponent(wordmark)}")`,
+            }}
+          />
+          <span className="brand-caption">Developer control panel</span>
         </div>
       </div>
-      <div className="workspace-label">WORKSPACE</div>
+      <div className="workspace-label">Workspace</div>
       <label className="sr-only" htmlFor="project">
         Project
       </label>
