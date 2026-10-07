@@ -63,7 +63,7 @@ createServer(async (request, response) => {
   }
   if (
     request.method === "GET" &&
-    new URL(request.url || "/", origin).pathname === "/"
+    request.url?.split("?")[0] === "/"
   ) {
     response.setHeader(
       "Content-Security-Policy",
