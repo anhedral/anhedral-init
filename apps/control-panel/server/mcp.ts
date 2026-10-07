@@ -17,7 +17,6 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { OpenAIExtensions } from "@openai/mcp-extensions/server";
 import { z } from "zod";
-import { GENERATOR_VERSION } from "../../../src/version.js";
 import { environmentId } from "../shared/assembly.js";
 import { lifecycleActions } from "./actions.js";
 import { registerProject, snapshot, updateSettings } from "./status.js";
@@ -33,7 +32,7 @@ export function createControlServer() {
   ];
   const server = new McpServer({
     name: "anhedral",
-    version: GENERATOR_VERSION,
+    version: JSON.parse(readFileSync(new URL("./plugin.json", import.meta.url), "utf8")).version,
     icons,
   });
   new OpenAIExtensions(server);
