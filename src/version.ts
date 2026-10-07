@@ -1,1 +1,1 @@
-export const GENERATOR_VERSION = '0.8.3';
+export const GENERATOR_VERSION = '0.8.4';

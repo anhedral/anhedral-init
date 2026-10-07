@@ -10,7 +10,7 @@ export function PageHeading({
   return (
     <div className="page-heading">
       <div>
-        <div className="eyebrow">{project?.name || "WELCOME TO ANHEDRAL"}</div>
+        <div className="eyebrow">{project?.name || "Welcome to Anhedral"}</div>
         <h1>{tab === "Overview" ? "Your stack, in one place." : tab}</h1>
         <p>
           {tab === "Overview"
