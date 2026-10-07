@@ -1,6 +1,6 @@
 {
   "name": "anhedral",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Initialize client-owned applications with shadcn, pnpm, Turborepo, and Cloudflare-first services.",
   "type": "module",
   "exports": {
