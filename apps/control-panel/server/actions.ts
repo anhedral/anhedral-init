@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { planInput, progressInput, pieceInput } from "../shared/assembly.js";
+import {
+  planInput,
+  progressInput,
+  pieceInput,
+  environmentId,
+} from "../shared/assembly.js";
 import { draftInput } from "./projects.js";
 import {
   createDraft,
@@ -10,10 +15,7 @@ import {
 } from "./status.js";
 const scope = {
   projectId: z.string().regex(/^[a-f0-9]{16}$/),
-  environment: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]{1,40}$/)
-    .default("default"),
+  environment: environmentId.default("default"),
   revision: z.number().int().nonnegative(),
 };
 export const lifecycleActions = {

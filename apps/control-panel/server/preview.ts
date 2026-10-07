@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import { environmentId } from "../shared/assembly.js";
 import { lifecycleActions } from "./actions.js";
 import { registerProject, snapshot, updateSettings } from "./status.js";
 
@@ -8,10 +9,7 @@ const port = Number(process.env.ANHEDRAL_PANEL_PORT || 4317);
 const origin = `http://127.0.0.1:${port}`;
 const identifiers = {
   projectId: z.string().regex(/^[a-f0-9]{16}$/),
-  environment: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]{1,40}$/)
-    .default("default"),
+  environment: environmentId.default("default"),
 };
 const openInput = z
   .object({

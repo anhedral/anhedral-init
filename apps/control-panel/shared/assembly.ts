@@ -5,6 +5,14 @@ import {
 } from "../../../src/capabilities.js";
 import type { StandardProduct } from "../../../src/standard-products.js";
 
+export const environmentId = z
+  .string()
+  .regex(/^[a-zA-Z0-9_-]{1,40}$/)
+  .refine(
+    (name) => !["__proto__", "constructor", "prototype"].includes(name),
+    "Invalid environment name",
+  );
+
 const groups: Record<string, string[]> = {
   Interfaces: ["next", "expo", "electron", "wxt", "hono"],
   Data: ["neon", "d1", "local-data", "r2", "kv"],

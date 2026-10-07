@@ -15,6 +15,7 @@ import { z } from "zod";
 
 import {
   assemblySchema,
+  environmentId,
   validatePlan,
   planInput,
   progressInput,
@@ -62,12 +63,12 @@ const registrySchema = z
     assemblies: z
       .record(
         z.string().regex(/^[a-f0-9]{16}$/),
-        z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/), assemblySchema),
+        z.record(environmentId, assemblySchema),
       )
       .default({}),
     settings: z.record(
       z.string().regex(/^[a-f0-9]{16}$/),
-      z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/), environmentSchema),
+      z.record(environmentId, environmentSchema),
     ),
   })
   .strict();
@@ -203,8 +204,7 @@ export function updateSettings(
   settings: Environment,
 ): void {
   projectFor(id);
-  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(environment))
-    throw new Error("Invalid environment name.");
+  environmentId.parse(environment);
   const registry = readRegistry();
   registry.settings[id] ||= {};
   registry.settings[id][environment] = environmentSchema.parse(settings);
@@ -268,6 +268,7 @@ export function savePlan(
   input: Pick<Assembly, "selected" | "hosting">,
 ): void {
   projectFor(id);
+  environmentId.parse(environment);
   const plan = z.object(planInput).strict().parse(input);
   validatePlan(plan.selected, plan.hosting);
   const registry = readRegistry();
@@ -295,6 +296,7 @@ export function recordProgress(
   input: z.infer<z.ZodObject<typeof progressInput>>,
 ): void {
   projectFor(id);
+  environmentId.parse(environment);
   const data = z.object(progressInput).strict().parse(input);
   const registry = readRegistry();
   const current = registry.assemblies[id]?.[environment];
@@ -345,6 +347,7 @@ export function recordPiece(
   input: z.infer<z.ZodObject<typeof pieceInput>>,
 ): void {
   projectFor(id);
+  environmentId.parse(environment);
   const data = z.object(pieceInput).strict().parse(input);
   const registry = readRegistry();
   const current = registry.assemblies[id]?.[environment];

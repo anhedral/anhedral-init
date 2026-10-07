@@ -1,5 +1,6 @@
 import {
   CATALOG,
+  environmentId,
   checklist,
   needsCloudflare,
   type Assembly,
@@ -247,8 +248,7 @@ export async function snapshot(
   environment = "default",
   refresh = false,
 ) {
-  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(environment))
-    throw new Error("Invalid environment name.");
+  environmentId.parse(environment);
   const list = projects();
   if (!list.length)
     return {

@@ -28,6 +28,7 @@ test('control panel scopes local configuration and never exposes provider creden
     assert.equal((await snapshot(project.id, 'production')).resources.length, 1);
     assert.throws(() => updateSettings(project.id, 'default', { repository: '../outside' }));
     await assert.rejects(snapshot('f'.repeat(16)), /not registered/);
+    for (const environment of ['__proto__', 'constructor', 'prototype']) { await assert.rejects(snapshot(project.id, environment), /Invalid environment/); assert.throws(() => updateSettings(project.id, environment, {}), /Invalid environment/); }
     for (const url of ['https://example.com/', 'https://api.cloudflare.com:444/', ['https://user', 'api.cloudflare.com/'].join('@')]) await assert.rejects(providerGet(url), /not allowed/);
     let requests = 0;
     globalThis.fetch = async (url, options) => {

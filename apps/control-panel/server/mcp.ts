@@ -18,6 +18,7 @@ import {
 import { OpenAIExtensions } from "@openai/mcp-extensions/server";
 import { z } from "zod";
 import { GENERATOR_VERSION } from "../../../src/version.js";
+import { environmentId } from "../shared/assembly.js";
 import { lifecycleActions } from "./actions.js";
 import { registerProject, snapshot, updateSettings } from "./status.js";
 
@@ -67,10 +68,7 @@ export function createControlServer() {
       .string()
       .regex(/^[a-f0-9]{16}$/)
       .optional(),
-    environment: z
-      .string()
-      .regex(/^[a-zA-Z0-9_-]{1,40}$/)
-      .default("default"),
+    environment: environmentId.default("default"),
     refresh: z.boolean().default(false),
   };
   const open = registerAppTool(
@@ -136,7 +134,7 @@ export function createControlServer() {
         "Save non-secret resource identifiers for a registered project and environment. Does not provision resources or store credentials.",
       inputSchema: {
         projectId: z.string().regex(/^[a-f0-9]{16}$/),
-        environment: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),
+        environment: environmentId,
         cloudflareAccountId: z
           .string()
           .regex(/^[a-f0-9]{32}$/)
