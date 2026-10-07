@@ -67,7 +67,9 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
     assert.equal(open.icons[0].mimeType, 'image/svg+xml');
     assert.deepEqual(open.icons[0].sizes, ['any']);
     assert.ok(open.icons[0].src.startsWith('data:image/svg+xml;base64,'));
-    assert.equal(Buffer.from(open.icons[0].src.split(',')[1], 'base64').toString(), readFileSync('assets/anhedral.svg', 'utf8'));
+    const mark = Buffer.from(open.icons[0].src.split(',')[1], 'base64').toString();
+    assert.equal(mark, readFileSync('assets/images/svg/logo-white-subtract.svg', 'utf8'));
+    assert.equal(mark.includes('fill="black"'), false, 'Sidebar icon must not include the square background');
     assert.deepEqual(client.getServerVersion().icons, open.icons);
     assert.equal(open.inputSchema.properties.environment.default, 'default');
     assert.deepEqual(open._meta['openai/ui'].entrypoints, [{ type: 'global' }, { type: 'thread' }]);
