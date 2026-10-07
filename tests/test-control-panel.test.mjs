@@ -62,6 +62,7 @@ test('self-contained plugin performs an MCP round trip and publishes native UI e
   const transport = new StdioClientTransport({ command: process.execPath, args: [path.resolve('plugins/anhedral/server.mjs')], env: { PATH: process.env.PATH || '', ANHEDRAL_STATE_DIR: temporary }, stderr: 'pipe' });
   try {
     await client.connect(transport);
+    assert.equal(client.getServerVersion().version, JSON.parse(readFileSync("plugins/anhedral/plugin.json", "utf8")).version);
     const tools = await client.listTools();
     const open = tools.tools.find((tool) => tool.name === 'anhedral_open');
     assert.equal(tools.tools.length, 7);
