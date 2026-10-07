@@ -1,3 +1,10 @@
+import { Button } from "./components/ui/button.js";
+import { Input } from "./components/ui/input.js";
+import {
+  Disclosure,
+  DisclosureTrigger,
+  DisclosureContent,
+} from "./disclosure.js";
 import type { Snapshot, Project } from "../server/status.js";
 import { Icon, Badge, Empty } from "./components.js";
 type FullSnapshot = Extract<Snapshot, { project: Project }>;
@@ -38,7 +45,7 @@ export function Infrastructure({
           }{" "}
           need attention
         </span>
-        <input
+        <Input
           aria-label="Search infrastructure"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -48,8 +55,8 @@ export function Infrastructure({
       {!!matches.length && (
         <div className="resource-list">
           {matches.map((resource) => (
-            <details key={resource.id} className="resource-row">
-              <summary>
+            <Disclosure key={resource.id} className="resource-row">
+              <DisclosureTrigger>
                 <Icon name="infrastructure" />
                 <div>
                   <strong>{resource.name}</strong>
@@ -58,29 +65,33 @@ export function Infrastructure({
                   </span>
                 </div>
                 <Badge status={resource.status} />
-              </summary>
-              <div className="resource-detail">
-                <p>{resource.detail}</p>
-                <div className="card-actions">
-                  <button
-                    className="text-button"
-                    onClick={() => navigateProvider(resource.dashboard)}
-                  >
-                    Provider dashboard <Icon name="arrow" />
-                  </button>
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      request(
-                        `${context} Investigate and verify the ${resource.kind} resource ${resource.name}. Confirm the intended account before provider actions and update the lifecycle evidence.`,
-                      )
-                    }
-                  >
-                    Investigate with Anhedral →
-                  </button>
+              </DisclosureTrigger>
+              <DisclosureContent>
+                <div className="resource-detail">
+                  <p>{resource.detail}</p>
+                  <div className="card-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigateProvider(resource.dashboard)}
+                    >
+                      Provider dashboard <Icon name="arrow" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        request(
+                          `${context} Investigate and verify the ${resource.kind} resource ${resource.name}. Confirm the intended account before provider actions and update the lifecycle evidence.`,
+                        )
+                      }
+                    >
+                      Investigate with Anhedral →
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </details>
+              </DisclosureContent>
+            </Disclosure>
           ))}
         </div>
       )}

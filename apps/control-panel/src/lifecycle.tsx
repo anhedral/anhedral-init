@@ -1,3 +1,11 @@
+import { Button } from "./components/ui/button.js";
+import {
+  Disclosure,
+  DisclosureTrigger,
+  DisclosureContent,
+} from "./disclosure.js";
+import { Card } from "./components/ui/card.js";
+import { Progress } from "./components/ui/progress.js";
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
 import { StackEditor } from "./stack-editor.js";
@@ -10,11 +18,16 @@ export function NextAction({
 }: Controller) {
   const completed = steps.filter((step) => step.status === "done").length;
   return (
-    <section className="next-action" aria-label="Next action">
+    <Card className="next-action" aria-label="Next action">
       <div>
         <span className="eyebrow">
           {completed} / {steps.length} steps recorded complete
         </span>
+        <Progress
+          aria-label="Recorded checklist completion"
+          value={steps.length ? (completed / steps.length) * 100 : 0}
+          className="my-3 max-w-xs"
+        />
         <h2>{nextStep ? nextStep.title : "Release evidence recorded"}</h2>
         <p>
           {nextStep?.summary ||
@@ -23,20 +36,16 @@ export function NextAction({
         </p>
       </div>
       {nextStep && (
-        <button
-          className="button primary"
-          disabled={busy}
-          onClick={() => continueStep()}
-        >
+        <Button disabled={busy} onClick={() => continueStep()}>
           {nextStep.status === "blocked"
             ? "Resolve with Anhedral"
             : nextStep.status === "active"
               ? "Continue with Anhedral"
               : "Start with Anhedral"}
           <Icon name="arrow" />
-        </button>
+        </Button>
       )}
-    </section>
+    </Card>
   );
 }
 export function Checklist(controller: Controller) {
@@ -44,12 +53,12 @@ export function Checklist(controller: Controller) {
   return (
     <section className="lifecycle" aria-label="Project checklist">
       {steps.map((step, index) => (
-        <details
+        <Disclosure
           key={step.id}
           open={step.id === nextStep?.id}
           className={`lifecycle-step ${step.status}`}
         >
-          <summary>
+          <DisclosureTrigger>
             <span className="step-number">
               {step.status === "done"
                 ? "✓"
@@ -68,40 +77,42 @@ export function Checklist(controller: Controller) {
                     ? "Blocked"
                     : "In progress"}
             </span>
-          </summary>
-          <div className="step-body">
-            <ul>
-              {step.requirements.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            {!!step.evidence?.length && (
-              <div className="step-evidence">
-                <strong>Agent-recorded evidence</strong>
-                {step.evidence.map((item) => (
-                  <p key={item}>{item}</p>
+          </DisclosureTrigger>
+          <DisclosureContent>
+            <div className="step-body">
+              <ul>
+                {step.requirements.map((item) => (
+                  <li key={item}>{item}</li>
                 ))}
-                {step.updatedAt && (
-                  <small>
-                    Updated {new Date(step.updatedAt).toLocaleString()}
-                  </small>
-                )}
-              </div>
-            )}
-            <button
-              className="button"
-              disabled={busy}
-              onClick={() => continueStep(step.id)}
-            >
-              {step.status === "done"
-                ? "Review evidence"
-                : step.available
-                  ? "Work on this step"
-                  : "Review prerequisites"}
-              <Icon name="arrow" />
-            </button>
-          </div>
-        </details>
+              </ul>
+              {!!step.evidence?.length && (
+                <div className="step-evidence">
+                  <strong>Agent-recorded evidence</strong>
+                  {step.evidence.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                  {step.updatedAt && (
+                    <small>
+                      Updated {new Date(step.updatedAt).toLocaleString()}
+                    </small>
+                  )}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => continueStep(step.id)}
+              >
+                {step.status === "done"
+                  ? "Review evidence"
+                  : step.available
+                    ? "Work on this step"
+                    : "Review prerequisites"}
+                <Icon name="arrow" />
+              </Button>
+            </div>
+          </DisclosureContent>
+        </Disclosure>
       ))}
     </section>
   );
@@ -111,62 +122,64 @@ export function SelectedStack(controller: Controller) {
   const selected =
     data?.catalog.filter((item) => assembly?.selected.includes(item.id)) || [];
   return (
-    <details className="selected-stack">
-      <summary className="stack-summary">
+    <Disclosure className="selected-stack">
+      <DisclosureTrigger className="stack-summary">
         <strong>Selected stack</strong>
         <span>{selected.length} pieces · view or change</span>
-      </summary>
-      <div className="stack-content">
-        <div className="section-toolbar">
-          <h2>Application stack</h2>
-          <span>
-            {selected.length} selected pieces ·{" "}
-            {project?.planned ? "New project" : "Existing project"}
-          </span>
-        </div>
-        {selected.length ? (
-          <div className="stack-pieces">
-            <div className="stack-piece foundation">
-              <small>Foundation</small>
-              <strong>shadcn · pnpm · Turborepo</strong>
-              <span>
-                {assembly?.hosting === "cloudflare"
-                  ? "Cloudflare-first hosting"
-                  : "Vercel hosting exception"}
-              </span>
-            </div>
-            {selected.map((item) => (
-              <div key={item.id} className="stack-piece">
-                <small>{item.group}</small>
-                <strong>
-                  {item.id === "neon"
-                    ? "Neon + Hyperdrive"
-                    : item.id === "next"
-                      ? "Next.js"
-                      : item.id}
-                </strong>
-                <span>{item.purpose}</span>
-                <span className="piece-state">
-                  {assembly?.pieces[item.id]?.status || "planned"} · agent
-                  report
-                </span>
-                {assembly?.pieces[item.id]?.summary && (
-                  <small>{assembly.pieces[item.id]?.summary}</small>
-                )}
-              </div>
-            ))}
+      </DisclosureTrigger>
+      <DisclosureContent>
+        <div className="stack-content">
+          <div className="section-toolbar">
+            <h2>Application stack</h2>
+            <span>
+              {selected.length} selected pieces ·{" "}
+              {project?.planned ? "New project" : "Existing project"}
+            </span>
           </div>
-        ) : (
-          <p className="muted-copy">
-            Let Anhedral inspect the application and propose the pieces it
-            needs, or choose them below.
-          </p>
-        )}
-        <StackEditor
-          key={`${project?.id}-${controller.environment}-${assembly?.revision}`}
-          {...controller}
-        />
-      </div>
-    </details>
+          {selected.length ? (
+            <div className="stack-pieces">
+              <Card className="stack-piece foundation">
+                <small>Foundation</small>
+                <strong>shadcn · pnpm · Turborepo</strong>
+                <span>
+                  {assembly?.hosting === "cloudflare"
+                    ? "Cloudflare-first hosting"
+                    : "Vercel hosting exception"}
+                </span>
+              </Card>
+              {selected.map((item) => (
+                <Card key={item.id} className="stack-piece">
+                  <small>{item.group}</small>
+                  <strong>
+                    {item.id === "neon"
+                      ? "Neon + Hyperdrive"
+                      : item.id === "next"
+                        ? "Next.js"
+                        : item.id}
+                  </strong>
+                  <span>{item.purpose}</span>
+                  <span className="piece-state">
+                    {assembly?.pieces[item.id]?.status || "planned"} · agent
+                    report
+                  </span>
+                  {assembly?.pieces[item.id]?.summary && (
+                    <small>{assembly.pieces[item.id]?.summary}</small>
+                  )}
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="muted-copy">
+              Let Anhedral inspect the application and propose the pieces it
+              needs, or choose them below.
+            </p>
+          )}
+          <StackEditor
+            key={`${project?.id}-${controller.environment}-${assembly?.revision}`}
+            {...controller}
+          />
+        </div>
+      </DisclosureContent>
+    </Disclosure>
   );
 }

@@ -10,7 +10,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "react", "react-dom"]
+    "types": ["node", "react", "react-dom"],
+    "paths": {
+      "@panel/*": ["./src/*"]
+    }
   },
   "include": ["src", "server"]
 }

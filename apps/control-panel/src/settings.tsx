@@ -1,3 +1,6 @@
+import { Button } from "./components/ui/button.js";
+import { Input } from "./components/ui/input.js";
+import { Label } from "./components/ui/label.js";
 import type { Snapshot, Project } from "../server/status.js";
 import type { FormEvent } from "react";
 import { Icon, Panel } from "./components.js";
@@ -33,36 +36,36 @@ export function Settings({
           onSubmit={saveSettings}
           className="settings-form"
         >
-          <label>
+          <Label>
             Cloudflare account ID
-            <input
+            <Input
               name="cloudflareAccountId"
               defaultValue={settings?.cloudflareAccountId || ""}
               placeholder="32-character account ID"
               pattern="[a-f0-9]{32}"
             />
-          </label>
-          <label>
+          </Label>
+          <Label>
             Neon project ID
-            <input
+            <Input
               name="neonProjectId"
               defaultValue={settings?.neonProjectId || ""}
               placeholder="Project identifier"
               pattern="[a-zA-Z0-9_-]{1,100}"
             />
-          </label>
-          <label>
+          </Label>
+          <Label>
             GitHub repository
-            <input
+            <Input
               name="repository"
               defaultValue={settings?.repository || ""}
               placeholder="owner/repository"
               pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"
             />
-          </label>
-          <button className="button primary" disabled={busy}>
+          </Label>
+          <Button type="submit" disabled={busy}>
             Save settings
-          </button>
+          </Button>
         </form>
       </Panel>
       <Panel
@@ -81,8 +84,8 @@ export function Settings({
             server its credentials. Use scoped credentials in the intended
             client account.
           </p>
-          <button
-            className="button"
+          <Button
+            variant="outline"
             onClick={() =>
               request(
                 `${context} Help configure the recommended provider plugins and scoped read access for the Anhedral control panel. Do not put credential values into chat, source files, or project settings.`,
@@ -90,7 +93,7 @@ export function Settings({
             }
           >
             Set up developer access <Icon name="arrow" />
-          </button>
+          </Button>
         </div>
       </Panel>
       <div className="project-path">

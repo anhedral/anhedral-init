@@ -1,3 +1,30 @@
+import {
+  LayoutGrid,
+  Server,
+  ListChecks,
+  ShieldCheck,
+  ArrowRight,
+  Settings as SettingsIcon,
+  RefreshCw,
+  Plus,
+  ArrowUpRight,
+  type LucideIcon,
+} from "lucide-react";
+import { Badge as ShadcnBadge } from "./components/ui/badge.js";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "./components/ui/card.js";
+import {
+  Empty as ShadcnEmpty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "./components/ui/empty.js";
 import type { ReactNode } from "react";
 import type { Status } from "../server/status.js";
 const labels: Record<Status, string> = {
@@ -9,42 +36,27 @@ const labels: Record<Status, string> = {
 };
 export function Badge({ status }: { status: Status }) {
   return (
-    <span className={`badge ${status}`}>
+    <ShadcnBadge variant="outline" className={`badge ${status}`}>
       <i />
       {labels[status]}
-    </span>
+    </ShadcnBadge>
   );
 }
 export function Icon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    checklist: "M9 5h12M9 12h12M9 19h12M3 5h.01M3 12h.01M3 19h.01",
-    checks: "M9 12l2 2 4-4M12 3l9 4v6c0 5-9 9-9 9s-9-4-9-9V7z",
-    overview: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
-    infrastructure: "M4 3h16v7H4zM4 14h16v7H4zM7 6h.01M7 17h.01",
-    readiness: "M9 12l2 2 4-4M12 3l9 4v6c0 5-9 9-9 9s-9-4-9-9V7z",
-    delivery: "M5 12h14M13 6l6 6-6 6",
-    settings:
-      "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2",
-    refresh:
-      "M20 7v5h-5M4 17v-5h5M5 8a7 7 0 0 1 12-3l3 3M19 16a7 7 0 0 1-12 3l-3-3",
-    plus: "M12 5v14M5 12h14",
-    arrow: "M7 17L17 7M7 7h10v10",
+  const icons: Record<string, LucideIcon> = {
+    overview: LayoutGrid,
+    infrastructure: Server,
+    checklist: ListChecks,
+    checks: ShieldCheck,
+    readiness: ShieldCheck,
+    delivery: ArrowRight,
+    settings: SettingsIcon,
+    refresh: RefreshCw,
+    plus: Plus,
+    arrow: ArrowUpRight,
   };
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={paths[name] || paths.overview} />
-    </svg>
-  );
+  const Component = icons[name] || LayoutGrid;
+  return <Component size={16} strokeWidth={1.5} aria-hidden="true" />;
 }
 export function Empty({
   title,
@@ -54,11 +66,15 @@ export function Empty({
   children: ReactNode;
 }) {
   return (
-    <div className="empty">
-      <Icon name="infrastructure" />
-      <h3>{title}</h3>
-      <p>{children}</p>
-    </div>
+    <ShadcnEmpty className="empty">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon name="infrastructure" />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{children}</EmptyDescription>
+      </EmptyHeader>
+    </ShadcnEmpty>
   );
 }
 export function Panel({
@@ -71,12 +87,14 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2>{title}</h2>
-        {description && <p>{description}</p>}
-      </div>
-      {children}
-    </section>
+    <Card className="panel gap-0 py-0">
+      <CardHeader className="panel-heading">
+        <CardTitle>
+          <h2>{title}</h2>
+        </CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="p-0">{children}</CardContent>
+    </Card>
   );
 }

@@ -1,3 +1,11 @@
+import { SidebarProvider } from "./components/ui/sidebar.js";
+import { Alert, AlertDescription } from "./components/ui/alert.js";
+import { Button } from "./components/ui/button.js";
+import {
+  Disclosure,
+  DisclosureTrigger,
+  DisclosureContent,
+} from "./disclosure.js";
 import { ProjectDialog } from "./project-dialog.js";
 import { Sidebar } from "./sidebar.js";
 import { Toolbar } from "./toolbar.js";
@@ -34,21 +42,23 @@ function Dashboard() {
     saveSettings,
   } = controller;
   return (
-    <div className="app">
+    <SidebarProvider className="app">
       <Sidebar {...controller} />
       <div className="workspace">
         <Toolbar {...controller} />
         <main aria-busy={busy}>
           {notice && (
-            <div className="notice" role="status">
-              {notice}
-              <button
+            <Alert className="notice" role="status">
+              <AlertDescription>{notice}</AlertDescription>
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Dismiss notification"
                 onClick={() => setNotice("")}
               >
                 ×
-              </button>
-            </div>
+              </Button>
+            </Alert>
           )}
           <PageHeading {...controller} />
           {!data && (
@@ -61,12 +71,7 @@ function Dashboard() {
               Create an application or connect existing code. Choose the needed
               stack, then work through setup and delivery with Anhedral.
               <br />
-              <button
-                className="button primary"
-                onClick={() => setAdding(true)}
-              >
-                Start a project
-              </button>
+              <Button onClick={() => setAdding(true)}>Start a project</Button>
             </Empty>
           )}
           {project && (
@@ -85,45 +90,51 @@ function Dashboard() {
                       verification separately.
                     </p>
                     <Infrastructure {...controller} />
-                    <details className="provider-access">
-                      <summary>
+                    <Disclosure className="provider-access">
+                      <DisclosureTrigger>
                         <strong>Developer access</strong>
                         <span>
                           Selected provider credentials in this runtime
                         </span>
-                      </summary>
-                      <div>
-                        {controller.connections.map((connection) => (
-                          <div className="connection-row" key={connection.name}>
-                            <strong>{connection.name}</strong>
-                            <span>
-                              {connection.available
-                                ? "Credential available · scope not verified"
-                                : "Not configured in this runtime"}
-                            </span>
-                          </div>
-                        ))}
-                        <p className="muted-copy">
-                          Provider plugins may have separate authorization.
-                          Credential presence does not prove account access.
-                        </p>
-                        <button
-                          className="button"
-                          onClick={() => controller.continueStep("accounts")}
-                        >
-                          Set up access with Anhedral
-                        </button>
-                      </div>
-                    </details>
+                      </DisclosureTrigger>
+                      <DisclosureContent>
+                        <div>
+                          {controller.connections.map((connection) => (
+                            <div
+                              className="connection-row"
+                              key={connection.name}
+                            >
+                              <strong>{connection.name}</strong>
+                              <span>
+                                {connection.available
+                                  ? "Credential available · scope not verified"
+                                  : "Not configured in this runtime"}
+                              </span>
+                            </div>
+                          ))}
+                          <p className="muted-copy">
+                            Provider plugins may have separate authorization.
+                            Credential presence does not prove account access.
+                          </p>
+                          <Button
+                            variant="outline"
+                            onClick={() => controller.continueStep("accounts")}
+                          >
+                            Set up access with Anhedral
+                          </Button>
+                        </div>
+                      </DisclosureContent>
+                    </Disclosure>
                   </section>
                   <div className="workflow-link">
                     <span>From accounts to a verified release</span>
-                    <button
-                      className="text-button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => controller.setTab("Checklist")}
                     >
                       View the full checklist →
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -175,7 +186,7 @@ function Dashboard() {
         </main>
       </div>
       {adding && <ProjectDialog {...controller} />}
-    </div>
+    </SidebarProvider>
   );
 }
 createRoot(document.getElementById("root")!).render(<Dashboard />);

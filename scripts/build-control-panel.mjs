@@ -1,3 +1,5 @@
+import { compile } from "@tailwindcss/node";
+import { Scanner } from "@tailwindcss/oxide";
 import { build } from "esbuild";
 import {
   existsSync,
@@ -13,7 +15,31 @@ const aliases = {
   "jsonc-parser": path.resolve("node_modules/jsonc-parser/lib/esm/main.js"),
 };
 mkdirSync(`${output}/assets`, { recursive: true });
+mkdirSync(".artifacts/control-panel", { recursive: true });
+const stylesheet = "apps/control-panel/src/styles.css";
+const compiler = await compile(readFileSync(stylesheet, "utf8"), {
+  base: path.dirname(path.resolve(stylesheet)),
+  from: path.resolve(stylesheet),
+  onDependency() {},
+});
+const scanner = new Scanner({ sources: compiler.sources });
+const compiledCss = compiler.build(scanner.scan());
 const browser = await build({
+  tsconfig: "apps/control-panel/tsconfig.json",
+  plugins: [
+    {
+      name: "compiled-tailwind",
+      setup(builder) {
+        builder.onLoad(
+          { filter: /apps\/control-panel\/src\/styles\.css$/ },
+          () => ({
+            contents: compiledCss,
+            loader: "css",
+          }),
+        );
+      },
+    },
+  ],
   entryPoints: ["apps/control-panel/src/App.tsx"],
   bundle: true,
   write: false,
@@ -56,10 +82,17 @@ writeFileSync(
     .replaceAll("\r", "")
     .replace(/[ \t]+$/gm, ""),
 );
-const licenses = new Map();
+const licenses = new Map([
+  [
+    "shadcn@4.21.1 (generated components and CSS)",
+    readFileSync("apps/control-panel/src/components/ui/LICENSE.txt", "utf8"),
+  ],
+]);
 for (const input of [
   ...Object.keys(browser.metafile.inputs),
   ...Object.keys(server.metafile.inputs),
+  "node_modules/tw-animate-css/dist/tw-animate.css",
+  "node_modules/tailwindcss/index.css",
 ]) {
   if (!input.includes("node_modules/")) continue;
   let directory = path.dirname(path.resolve(input));

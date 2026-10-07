@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button.js";
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
 export function PageHeading({
@@ -19,8 +20,8 @@ export function PageHeading({
         </p>
       </div>
       {project && (
-        <button
-          className="button"
+        <Button
+          variant="outline"
           onClick={() =>
             request(
               `${context} Review the current setup and help me resolve its remaining gaps. Do not provision or deploy without the required authorization.`,
@@ -28,7 +29,7 @@ export function PageHeading({
           }
         >
           Ask Anhedral <Icon name="arrow" />
-        </button>
+        </Button>
       )}
     </div>
   );

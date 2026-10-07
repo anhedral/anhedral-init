@@ -1,3 +1,17 @@
+import { Button } from "./components/ui/button.js";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "./components/ui/native-select.js";
+import { Label } from "./components/ui/label.js";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb.js";
+import { Spinner } from "./components/ui/spinner.js";
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
 export function Toolbar({
@@ -10,14 +24,20 @@ export function Toolbar({
 }: Controller) {
   return (
     <header className="topbar">
-      <div className="breadcrumbs">
-        Anhedral <span>/</span> {tab}
-      </div>
+      <Breadcrumb className="breadcrumbs">
+        <BreadcrumbList>
+          <BreadcrumbItem>Anhedral</BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="capitalize">{tab}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <div className="top-actions">
-        <label className="sr-only" htmlFor="environment">
+        <Label className="sr-only" htmlFor="environment">
           Environment
-        </label>
-        <select
+        </Label>
+        <NativeSelect
           id="environment"
           disabled={busy || !project}
           value={environment}
@@ -39,13 +59,13 @@ export function Toolbar({
                 : []),
             ]),
           ].map((name) => (
-            <option key={name} value={name}>
+            <NativeSelectOption key={name} value={name}>
               {name === "default" ? "Default environment" : name}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
-        <button
-          className="button"
+        </NativeSelect>
+        <Button
+          variant="outline"
           disabled={busy || !project}
           onClick={() =>
             action("anhedral_open", {
@@ -55,11 +75,9 @@ export function Toolbar({
             })
           }
         >
-          <span className={busy ? "spinning" : ""}>
-            <Icon name="refresh" />
-          </span>
+          {busy ? <Spinner /> : <Icon name="refresh" />}
           {busy ? "Checking…" : "Refresh"}
-        </button>
+        </Button>
       </div>
     </header>
   );

@@ -286,6 +286,9 @@ try {
   const maintainerEmail = ['maintainer', 'package.invalid'].join('@');
   assert.deepEqual(scanText('pnpm-lock.yaml', Buffer.from(`    deprecated: Contact ${maintainerEmail}\n`)), []);
   assert.ok(scanText('pnpm-lock.yaml', Buffer.from(`secret: ${maintainerEmail}\n`)).length > 0);
+  assert.deepEqual(scanText('plugins/anhedral/THIRD_PARTY_NOTICES.txt', Buffer.from(`Copyright (c) Maintainer <${maintainerEmail}>\n`)), []);
+  assert.ok(scanText('plugins/anhedral/THIRD_PARTY_NOTICES.txt', Buffer.from(`Contact ${maintainerEmail}\n`)).length > 0);
+  assert.ok(scanText('debug.txt', Buffer.from(`Copyright (c) Maintainer <${maintainerEmail}>\n`)).length > 0);
   const localHomePath = ['', 'Users', 'local-developer', 'project', 'output.log'].join('/');
   const personalEmail = ['project-owner', 'private-domain.dev'].join('@');
   assert.equal(
