@@ -1,17 +1,18 @@
+import { architectureSchema } from "./architecture.js";
+import { nonSecretText } from "./non-secret.js";
+export { nonSecretText } from "./non-secret.js";
 import { z } from "zod";
+import { isProgressEnvironment } from "../../../src/evidence-validation.js";
 import {
   CAPABILITIES,
   resolveStandardProducts,
 } from "../../../src/capabilities.js";
 import type { StandardProduct } from "../../../src/standard-products.js";
 
-export const environmentId = z
-  .string()
-  .regex(/^[a-zA-Z0-9_-]{1,40}$/)
-  .refine(
-    (name) => !["__proto__", "constructor", "prototype"].includes(name),
-    "Invalid environment name",
-  );
+export const environmentId = z.string().min(1).max(80).refine(
+  isProgressEnvironment,
+  "Invalid environment name",
+);
 
 const groups: Record<string, string[]> = {
   Interfaces: ["next", "expo", "electron", "wxt", "hono"],
@@ -26,31 +27,36 @@ const groups: Record<string, string[]> = {
 };
 const extras = {
   domain: {
-    purpose: "Domain registration and Cloudflare DNS",
-    tools: ["GoDaddy access", "Cloudflare plugin + cf/API"],
+    purpose: "Client domain and selected Cloudflare DNS recipe",
+    tools: [
+      "Client registrar access",
+      "Cloudflare integration or API when DNS is selected",
+    ],
     access: [
-      "Client-owned GoDaddy registration, renewal and recovery; Cloudflare zone/DNS access",
+      "Client-owned registrar, renewal and recovery; selected Cloudflare zone/DNS access",
     ],
     credentials: [],
     resources: [
-      "Purchase or reuse the client's domain; set Cloudflare nameservers; verify an active zone before application domains or mail",
+      "Purchase or reuse the client's domain; preserve suitable registrar/DNS; set Cloudflare nameservers only when selected and verify zone activation",
     ],
     verify: ["Authoritative DNS, TLS and intended application domains"],
     selection: {},
   },
   "email-routing": {
-    purpose: "Inbound Cloudflare Email Routing",
+    purpose: "Inbound forwarding/processing via Cloudflare Email Routing",
     tools: ["Cloudflare plugin + cf/API"],
     access: ["Cloudflare Email Routing and verified destination access"],
     credentials: [],
-    resources: ["Domain DNS, verified destinations and routing rules"],
+    resources: [
+      "Domain DNS, verified destinations and routing rules; not a business mailbox",
+    ],
     verify: ["Inbound delivery to each intended destination"],
     selection: {},
   },
   "email-sending": {
-    purpose: "Outbound Cloudflare Email Sending",
+    purpose: "Transactional Cloudflare Email Sending beta",
     tools: ["Cloudflare plugin + cf/API"],
-    access: ["Cloudflare Email Sending access and a supported plan"],
+    access: ["Cloudflare Email Sending eligibility and Workers Paid"],
     credentials: ["Environment-specific sending credentials or bindings"],
     resources: [
       "Verified domain, sender authentication and sending integration",
@@ -142,15 +148,6 @@ export const STAGES = [
   },
 ] as const;
 export const stageId = z.enum(STAGES.map((stage) => stage.id));
-export const nonSecretText = z
-  .string()
-  .refine(
-    (value) =>
-      !/(?:postgres(?:ql)?:\/\/|Bearer\s+\S+|sk-(?:proj-|live_|test_)?[a-zA-Z0-9_-]{12,}|(?:API_KEY|SECRET|TOKEN|PASSWORD)\s*[=:]\s*\S+)/i.test(
-        value,
-      ),
-    "Use non-secret descriptions and evidence references, not credentials.",
-  );
 export const progressInput = {
   stage: stageId,
   status: z.enum(["pending", "active", "blocked", "done"]),
@@ -183,6 +180,7 @@ export const assemblySchema = z
   .object({
     ...planInput,
     revision: z.number().int().nonnegative(),
+    architecture: architectureSchema.optional(),
     pieces: z
       .record(
         z.string(),
@@ -277,14 +275,14 @@ export function checklist(assembly: Assembly, existing: boolean) {
       `Selected pieces: ${assembly.selected.join(", ") || "inspect and propose the necessary stack"}`,
     ],
     accounts: [
-      "Client-owned GitHub repository and CI permissions",
+      "Client-owned source repository and CI permissions",
       ...(cloudflare
         ? [
             "Cloudflare account ID, scoped plugin/OAuth or API access; service-compatible plan",
           ]
         : []),
       ...(assembly.hosting === "vercel"
-        ? ["Vercel project access and approved architecture exception"]
+        ? ["Client-owned Vercel project access"]
         : []),
       ...pieces.flatMap((item) => [
         ...item.access,
@@ -294,10 +292,14 @@ export function checklist(assembly: Assembly, existing: boolean) {
       ]),
     ],
     tools: [
-      "Anhedral, Computer Use, Control Chrome and GitHub plugins",
-      "Git, Node.js, pnpm, Turborepo and Fallow",
+      "Discover session-callable Anhedral/provider tools; browser/computer tools when useful",
+      "Git and the selected recipe runtime/toolchain; pinned audit tools",
       "Cloudflare security audit skill",
-      ...(cloudflare ? ["Cloudflare plugin + cf + Wrangler/API"] : []),
+      ...(cloudflare
+        ? [
+            "Cloudflare integration/API or project-compatible Wrangler; beta cf only after migration review",
+          ]
+        : []),
       ...(assembly.selected.includes("neon") ? ["Neon plugin or API"] : []),
       ...pieces.flatMap((item) => item.tools),
       "Discover available provider plugins; verify alternatives when unavailable",
@@ -315,7 +317,7 @@ export function checklist(assembly: Assembly, existing: boolean) {
     init: [
       existing
         ? "Inspect source, Git state and project instructions; preserve existing code and architecture; never reinitialize"
-        : "Initialize the shadcn pnpm/Turborepo monorepo; retain only selected apps",
+        : "Initialize the selected supported recipe and suitable single-app or shared-workspace foundation; generate only needed apps",
       "Record toolchain versions and lockfiles; configure environments and server-side secrets",
       ...pieces
         .filter((item) => !item.initializer)

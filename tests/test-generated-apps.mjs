@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { GENERATED_PROFILES } from './recipe-profiles.mjs';
 import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -25,11 +26,12 @@ function verifyMobileSecurityGate(root) {
   }
 }
 
-const profiles = { web: [], api: ['--hono', '--d1', '--better-auth', '--r2'], desktop: ['--electron'], extension: ['--wxt'], mobile: ['--expo'] };
+const profiles = GENERATED_PROFILES;
 const selected = process.argv[2] ? [process.argv[2]] : Object.keys(profiles);
 const cli = path.resolve(import.meta.dirname, '../dist/bin.js');
 process.env.WRANGLER_SEND_METRICS = 'false';
 process.env.NEXT_TELEMETRY_DISABLED = '1';
+process.env.EXPO_NO_TELEMETRY = '1';
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
 process.env.ANHEDRAL_VERBOSE = '1';
 for (const profile of selected) {
@@ -37,7 +39,7 @@ for (const profile of selected) {
   const temporary = realpathSync(mkdtempSync(path.join(tmpdir(), 'anhedral-core-')));
   const root = path.join(temporary, profile);
   try {
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' && profile === 'web') {
       const result = spawnSync(process.execPath, [cli, 'new', root, ...profiles[profile], '--no-git'], { cwd: temporary, encoding: 'utf8' });
       assert.equal(result.error, undefined);
       assert.notEqual(result.status, 0);
@@ -50,6 +52,7 @@ for (const profile of selected) {
     execFile(process.execPath, [cli, 'new', root, ...profiles[profile], '--no-git', '--verbose'], temporary);
     assert.equal(inspectProject(root).localReady, true);
     if (profile === 'mobile') {
+      execFile('pnpm', ['--dir', 'apps/mobile', 'exec', 'expo', 'install', '--check'], root);
       for (const task of ['lint', 'typecheck', 'audit', 'test', 'build']) execFile('pnpm', ['run', task], root);
       verifyMobileSecurityGate(root);
     } else {
@@ -57,7 +60,12 @@ for (const profile of selected) {
     }
     if (profile === 'web') assert.ok(existsSync(path.join(root, 'apps/web/.open-next/worker.js')));
     if (profile === 'api') assert.ok(existsSync(path.join(root, 'apps/api/dist/index.js')));
-    if (profile === 'extension') assert.ok(existsSync(path.join(root, 'apps/extension/.output/chrome-mv3/manifest.json')));
+    if (profile === 'extension' || profile === 'popup') assert.ok(existsSync(path.join(root, 'apps/extension/.output/chrome-mv3/manifest.json')));
+    if (profile === 'single') {
+      assert.ok(existsSync(path.join(root, 'dist/index.js')));
+      assert.equal(existsSync(path.join(root, 'pnpm-workspace.yaml')), false);
+      assert.equal(existsSync(path.join(root, 'apps')), false);
+    }
     if (profile === 'mobile') assert.ok(existsSync(path.join(root, 'apps/mobile/dist/index.html')));
     if (profile === 'desktop') {
       execFile('pnpm', ['exec', 'electron-builder', '--dir', '--publish', 'never', '--config.mac.identity=null'], path.join(root, 'apps/desktop'));

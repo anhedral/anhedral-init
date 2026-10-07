@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "cliVersion": "0.8.5",
+  "cliVersion": "0.8.6",
   "capabilities": {
     "next": {
-      "purpose": "Web application",
+      "purpose": "Web application with Next.js rendering, routing and server integration",
+      "delivery": "starter",
       "tools": [
-        "Browser control"
+        "Browser testing where applicable"
       ],
       "access": [],
       "credentials": [],
@@ -20,7 +21,8 @@
       }
     },
     "expo": {
-      "purpose": "Mobile application",
+      "purpose": "Experimental mobile starter; production release blocked by upstream dependency advisories",
+      "delivery": "starter",
       "tools": [
         "Expo/EAS CLI",
         "Xcode or Android SDK"
@@ -35,6 +37,7 @@
         "Expo app; native adapters, signing, store configuration"
       ],
       "verify": [
+        "Resolve blocking node-forge/braces dependency advisories before production release; compatibility checks do not waive the audit",
         "Native simulator/device flows and signed native build; web export alone is insufficient"
       ],
       "selection": {
@@ -42,7 +45,8 @@
       }
     },
     "electron": {
-      "purpose": "Desktop application",
+      "purpose": "Electron desktop starter for web UI reuse; assess memory, native integration, security and distribution",
+      "delivery": "starter",
       "tools": [
         "Electron tooling",
         "Platform packaging tools"
@@ -64,7 +68,8 @@
       }
     },
     "wxt": {
-      "purpose": "Chrome side-panel extension",
+      "purpose": "WXT Chrome extension starter; select sidepanel or popup for the task",
+      "delivery": "starter",
       "tools": [
         "Chrome",
         "WXT"
@@ -79,7 +84,7 @@
         "Extension app; minimal browser permissions and store package"
       ],
       "verify": [
-        "Installed side panel, background/content messaging and permission behavior"
+        "Installed selected surface, relevant messaging and minimal permission behavior"
       ],
       "selection": {
         "app": true
@@ -87,6 +92,7 @@
     },
     "hono": {
       "purpose": "Shared OpenAPI backend",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -106,6 +112,7 @@
     },
     "neon": {
       "purpose": "PostgreSQL persistence through Drizzle and Hyperdrive",
+      "delivery": "starter",
       "tools": [
         "Neon integration or API",
         "Wrangler"
@@ -117,7 +124,7 @@
         "DATABASE_URL for migrations; separate least-privilege Hyperdrive origin credentials"
       ],
       "resources": [
-        "Neon project/branches, database roles, migrations, HYPERDRIVE binding"
+        "Generated Drizzle + Hyperdrive recipe: schema/client factories, migration config and HYPERDRIVE binding; direct Neon serverless access is an existing-project adaptation"
       ],
       "verify": [
         "Migration and runtime connectivity; disable query caching for correctness-sensitive reads"
@@ -131,6 +138,7 @@
     },
     "d1": {
       "purpose": "SQLite-compatible hosted persistence",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -153,6 +161,7 @@
     },
     "local-data": {
       "purpose": "Device-local SQLite and files",
+      "delivery": "integration-boundary",
       "tools": [
         "Selected platform database/filesystem tooling"
       ],
@@ -168,6 +177,7 @@
     },
     "clerk": {
       "purpose": "Managed identity",
+      "delivery": "starter",
       "tools": [
         "Clerk integration or dashboard"
       ],
@@ -181,7 +191,7 @@
         "Identity project, allowed URLs, SDK setup and protected routes"
       ],
       "verify": [
-        "Sign-in/out, session expiry, resource authorization and selected native client flows"
+        "Sign-in/out, session expiry, server-side authorization and selected native flows; route-group names do not authorize requests"
       ],
       "selection": {
         "conflicts": [
@@ -195,6 +205,7 @@
     },
     "better-auth": {
       "purpose": "Application-managed identity",
+      "delivery": "starter",
       "tools": [
         "Selected database tooling"
       ],
@@ -223,6 +234,7 @@
     },
     "r2": {
       "purpose": "Private remote files",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -242,6 +254,7 @@
     },
     "kv": {
       "purpose": "Eventually consistent cache/configuration",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -261,6 +274,7 @@
     },
     "realtime": {
       "purpose": "Rooms and collaboration",
+      "delivery": "starter",
       "tools": [
         "Wrangler",
         "Browser control"
@@ -279,6 +293,7 @@
     },
     "queues": {
       "purpose": "Deferred jobs",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -296,6 +311,7 @@
     },
     "cron": {
       "purpose": "Scheduled work",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -313,6 +329,7 @@
     },
     "workflows": {
       "purpose": "Durable multi-step processing",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -330,6 +347,7 @@
     },
     "openai": {
       "purpose": "Direct OpenAI integration",
+      "delivery": "sdk-factory",
       "tools": [
         "OpenAI integration or API"
       ],
@@ -353,6 +371,7 @@
     },
     "ai-sdk": {
       "purpose": "Streaming AI and provider abstraction",
+      "delivery": "sdk-factory",
       "tools": [
         "Selected AI provider integration or API"
       ],
@@ -376,6 +395,7 @@
     },
     "workers-ai": {
       "purpose": "Cloudflare-hosted inference",
+      "delivery": "starter",
       "tools": [
         "Wrangler"
       ],
@@ -395,6 +415,7 @@
     },
     "resend": {
       "purpose": "Outbound application email",
+      "delivery": "sdk-factory",
       "tools": [
         "Resend integration or API"
       ],
@@ -414,6 +435,7 @@
     },
     "stripe": {
       "purpose": "Web payments and subscriptions",
+      "delivery": "sdk-factory",
       "tools": [
         "Stripe integration or CLI"
       ],
@@ -424,7 +446,7 @@
         "STRIPE_SECRET_KEY; STRIPE_WEBHOOK_SECRET"
       ],
       "resources": [
-        "Products/prices, signed webhooks and entitlement implementation"
+        "Server SDK factory; implement products/prices, signed webhooks and entitlements"
       ],
       "verify": [
         "Test purchase/cancellation, webhook replay and transactional idempotency"
@@ -433,6 +455,7 @@
     },
     "revenuecat": {
       "purpose": "Cross-store subscription entitlements alongside Stripe",
+      "delivery": "integration-boundary",
       "tools": [
         "RevenueCat integration or API",
         "Selected mobile store tooling"
@@ -457,6 +480,7 @@
     },
     "sentry": {
       "purpose": "Additional runtime/crash diagnostics",
+      "delivery": "integration-boundary",
       "tools": [
         "Sentry integration or API"
       ],
@@ -475,7 +499,8 @@
       "selection": {}
     },
     "basin": {
-      "purpose": "Cloudflare analytical events",
+      "purpose": "Basin ingestion and analytical SQL; product analytics needs its own event model and reports",
+      "delivery": "integration-boundary",
       "tools": [
         "Wrangler",
         "Cloudflare integration or API"
@@ -485,7 +510,7 @@
       ],
       "credentials": [],
       "resources": [
-        "Basin dataset/stream, ANALYTICS binding, optional private R2 sink and authorized sink writes"
+        "EventStream interface and ANALYTICS binding; provision Basin stream, pipeline/table, retention and reports separately; optional private R2 sink"
       ],
       "verify": [
         "Private ingestion, event delivery, query results and archive retrieval when selected"
@@ -496,6 +521,7 @@
     },
     "posthog": {
       "purpose": "Specialized product analytics",
+      "delivery": "sdk-factory",
       "tools": [
         "PostHog integration or API"
       ],
@@ -515,6 +541,7 @@
     },
     "styling": {
       "purpose": "Shared styling definitions",
+      "delivery": "integration-boundary",
       "tools": [],
       "access": [],
       "credentials": [],

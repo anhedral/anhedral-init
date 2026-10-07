@@ -157,7 +157,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        profile: [web, api, desktop, extension, mobile]
+        profile: [web, api, single, desktop, extension, popup, mobile]
         include:
           - { os: macos-latest, profile: desktop }
     env:

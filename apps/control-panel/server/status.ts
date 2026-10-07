@@ -1,3 +1,9 @@
+import { capabilityProvider, expectedScope } from "./progress-scope.js";
+import {
+  readProjectProgress,
+  projectFingerprint,
+  evaluateProjectProgress,
+} from "../../../src/progress.js";
 import {
   CATALOG,
   environmentId,
@@ -22,6 +28,7 @@ export {
   savePlan,
   recordProgress,
   recordPiece,
+  updateArchitecture,
 } from "./projects.js";
 export type Status =
   | "verified"
@@ -103,7 +110,7 @@ async function verifyResource(
   resource: Resource,
   settings: Environment,
 ): Promise<Resource> {
-  if (!resource.endpoint || !process.env.CLOUDFLARE_API_TOKEN) return resource;
+  if (resource.status === "error" || !resource.endpoint || !process.env.CLOUDFLARE_API_TOKEN) return resource;
   const account = settings.cloudflareAccountId || resource.account;
   if (!account || (resource.account && resource.account !== account))
     return {
@@ -196,11 +203,21 @@ async function checkResources(
   selected: Environment,
   refresh: boolean,
 ) {
+  const accounts = new Set(resources.flatMap(resource => resource.account ? [resource.account] : []));
+  const scoped = resources.map(resource => {
+    if (resource.provider !== "Cloudflare") return resource;
+    const mismatch = selected.cloudflareAccountId && resource.account && selected.cloudflareAccountId !== resource.account;
+    const ambiguous = !selected.cloudflareAccountId && accounts.size > 1;
+    return mismatch || ambiguous ? {
+      ...resource, status: "error" as Status,
+      detail: mismatch ? "Selected Cloudflare account does not match the project configuration." : "Multiple Cloudflare accounts are declared; select the intended environment account and resolve conflicting configuration before verification.",
+    } : resource;
+  });
   const checked = [];
-  for (let index = 0; index < resources.length; index += 4)
+  for (let index = 0; index < scoped.length; index += 4)
     checked.push(
       ...(await Promise.all(
-        resources
+        scoped
           .slice(index, index + 4)
           .map((resource) =>
             refresh && index < 24
@@ -248,6 +265,7 @@ export async function snapshot(
   environment = "default",
   refresh = false,
 ) {
+  const startedAt = new Date().toISOString();
   environmentId.parse(environment);
   const list = projects();
   if (!list.length)
@@ -258,10 +276,12 @@ export async function snapshot(
       environment,
       resources: [],
       capabilities: [],
+      startedAt,
       checkedAt: new Date().toISOString(),
     };
   const project = projectFor(id || list[0]!.id);
-  const settings = readRegistry().settings[project.id] || {};
+  const registry = readRegistry();
+  const settings = registry.settings[project.id] || {};
   const selected = settings[environment] || {};
   const standard = project.planned
     ? undefined
@@ -276,7 +296,7 @@ export async function snapshot(
     ...CAPABILITIES[id],
     status: "starter",
   }));
-  const storedAssembly = readRegistry().assemblies[project.id]?.[environment];
+  const storedAssembly = registry.assemblies[project.id]?.[environment];
   const assembly: Assembly = storedAssembly || {
     selected: products,
     hosting: standard?.hosting === "vercel" ? "vercel" : "cloudflare",
@@ -294,8 +314,83 @@ export async function snapshot(
     : ["anhedral.setup.json", "anhedral.standard.json"])
     readProjectFile(project.root, file);
   const checked = await checkResources(resources, selected, refresh);
+  const progress = project.planned ? null : readProjectProgress(project.root);
+  const configurationFingerprint = project.planned
+    ? null
+    : projectFingerprint(project.root);
+  const evaluatedProgress =
+    progress && configurationFingerprint
+      ? evaluateProjectProgress(progress, configurationFingerprint)
+      : null;
+  const progressEvaluation = evaluatedProgress
+    ? {
+        ...evaluatedProgress,
+        environments: evaluatedProgress.environments.map((env) => {
+          const scope = settings[env.id];
+          const configuredAccounts = [
+            ...new Set(
+              workerResources(project.root, env.id).flatMap((resource) =>
+                resource.account ? [resource.account] : [],
+              ),
+            ),
+          ];
+          const staleAccount = (
+            account: string | undefined,
+            provider: string,
+          ) => {
+            const expected =
+              expectedScope(scope, provider) ||
+              (provider.toLowerCase() === "cloudflare" &&
+              configuredAccounts.length === 1
+                ? configuredAccounts[0]
+                : undefined);
+            if (expected) return account !== expected;
+            // An account-scoped success cannot remain current after its known provider scope disappears.
+            return (
+              !!account &&
+              ["cloudflare", "neon"].includes(provider.toLowerCase())
+            );
+          };
+          return {
+            ...env,
+            observations: env.observations.map((item) => ({
+              ...item,
+              stale:
+                item.stale ||
+                !(
+                  registry.assemblies[project.id]?.[env.id]?.selected ||
+                  products
+                ).includes(item.capability) ||
+                ((!!item.accountRef ||
+                  ["provisioned", "connected", "deployed"].includes(
+                    item.milestone,
+                  )) &&
+                  staleAccount(
+                    item.accountRef,
+                    capabilityProvider(
+                      item.capability,
+                      registry.assemblies[project.id]?.[env.id]?.hosting ||
+                        assembly.hosting,
+                    ),
+                  )),
+            })),
+            discovery: env.discovery.map((item) => ({
+              ...item,
+              stale:
+                item.stale ||
+                ((!!item.accountRef ||
+                  ["authorized", "integration-tested"].includes(item.check)) &&
+                  staleAccount(item.accountRef, item.provider)),
+            })),
+          };
+        }),
+      }
+    : null;
   return {
     catalog: CATALOG,
+    progress,
+    progressEvaluation,
+    configurationFingerprint,
     assembly,
     checklist: checklist(assembly, !project.planned),
     projects: list,
@@ -305,7 +400,8 @@ export async function snapshot(
       ...new Set([
         "default",
         ...Object.keys(settings),
-        ...Object.keys(readRegistry().assemblies[project.id] || {}),
+        ...Object.keys(registry.assemblies[project.id] || {}),
+        ...(progress?.environments.map(env => env.id) || []),
       ]),
     ],
     settings: selected,
@@ -326,6 +422,7 @@ export async function snapshot(
           detail: "Refresh to retrieve repository checks.",
           runs: [],
         },
+    startedAt,
     checkedAt: new Date().toISOString(),
     refreshed: refresh,
   };

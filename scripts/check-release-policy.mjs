@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { GENERATED_PROFILES } from '../tests/recipe-profiles.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -266,6 +267,12 @@ function validatePluginRelease(root, version) {
   return failures;
 }
 
+export function validateRecipeCoverage(workflow, profiles = Object.keys(GENERATED_PROFILES)) {
+  const generated = workflow.slice(workflow.indexOf('  generated:'));
+  const matrix = generated.match(/profile:\s*\[([^\]]+)\]/)?.[1]?.split(',').map((name) => name.trim()) || [];
+  return profiles.filter((name) => !matrix.includes(name)).map((name) => `Generated recipe ${name} has no CI matrix coverage`);
+}
+
 export function checkReleasePolicy(root) {
   const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
   const versionSource = readFileSync(path.join(root, 'src', 'version.ts'), 'utf8');
@@ -275,6 +282,7 @@ export function checkReleasePolicy(root) {
     ...validateReleaseDeclaration(packageJson),
     ...validateGeneratorVersion(packageJson, versionSource),
     ...validateWorkflowPolicy(root),
+    ...validateRecipeCoverage(readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8')),
     ...validateRenovateExtraction(root, renovate),
   ];
 }

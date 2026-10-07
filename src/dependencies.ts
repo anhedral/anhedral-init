@@ -30,7 +30,7 @@ export const DESKTOP_DEPENDENCIES: DependencyGroup = {
     "electron": '43.7.8',
     // renovate: datasource=npm depName=electron-builder
     "electron-builder": '26.15.3',
-    "eslint": '10.0.3',
+    "eslint": '9.39.1',
     // renovate: datasource=npm depName=tailwindcss
     "tailwindcss": '4.1.18',
     // renovate: datasource=npm depName=postcss
@@ -84,11 +84,11 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=clsx
     "clsx": '2.1.1',
     // renovate: datasource=npm depName=expo
-    "expo": '57.0.8',
+    "expo": '57.0.27',
     // renovate: datasource=npm depName=expo-linking
-    "expo-linking": '57.0.4',
+    "expo-linking": '57.0.12',
     // renovate: datasource=npm depName=expo-router
-    "expo-router": '57.0.8',
+    "expo-router": '57.0.25',
     // renovate: datasource=npm depName=expo-status-bar
     "expo-status-bar": '57.0.1',
     // renovate: datasource=npm depName=react
@@ -96,15 +96,15 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=react-dom
     "react-dom": '19.2.3',
     // renovate: datasource=npm depName=react-native
-    "react-native": '0.86.0',
+    "react-native": '0.86.3',
     // renovate: datasource=npm depName=react-native-reanimated
-    "react-native-reanimated": '4.5.0',
+    "react-native-reanimated": '4.5.1',
     // renovate: datasource=npm depName=react-native-safe-area-context
     "react-native-safe-area-context": '5.7.0',
     // renovate: datasource=npm depName=react-native-screens
     "react-native-screens": '4.26.2',
     // renovate: datasource=npm depName=react-native-worklets
-    "react-native-worklets": '0.10.0',
+    "react-native-worklets": '0.10.1',
     // renovate: datasource=npm depName=react-native-web
     "react-native-web": '0.21.2',
     // renovate: datasource=npm depName=tailwind-merge
@@ -120,7 +120,7 @@ export const MOBILE_APP_DEPENDENCIES: DependencyGroup = {
     // renovate: datasource=npm depName=@testing-library/dom
     "@testing-library/dom": '10.4.1',
     // renovate: datasource=npm depName=@react-native/metro-config
-    "@react-native/metro-config": '0.86.0',
+    "@react-native/metro-config": '0.86.3',
     // renovate: datasource=npm depName=@types/react
     "@types/react": '19.2.10',
     // renovate: datasource=npm depName=typescript
@@ -143,3 +143,6 @@ export const PACKAGE_MANAGER = 'pnpm@10.34.5';
 
 // renovate: datasource=npm depName=eas-cli
 export const EAS_CLI_VERSION = '21.0.1';
+
+// renovate: datasource=npm depName=turbo
+export const TURBO_VERSION = '2.9.14';

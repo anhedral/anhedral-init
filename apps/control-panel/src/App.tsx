@@ -1,23 +1,19 @@
-import { SidebarProvider } from "./components/ui/sidebar.js";
+import { BuildProgress } from "./build-progress.js";
+import logo from "../../../assets/images/svg/logo-white-subtract.svg";
+import wordmark from "../../../assets/images/svg/anhedral-wordmark.svg";
+import { createRoot } from "react-dom/client";
+import { Plus, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
 import {
-  Disclosure,
-  DisclosureTrigger,
-  DisclosureContent,
-} from "./disclosure.js";
-import { ProjectDialog } from "./project-dialog.js";
-import { Sidebar } from "./sidebar.js";
-import { Toolbar } from "./toolbar.js";
-import { PageHeading } from "./pageheading.js";
-import { Infrastructure } from "./infrastructure.js";
-import { Readiness } from "./readiness.js";
-import { Delivery } from "./delivery.js";
-import { Settings } from "./settings.js";
+  NativeSelect,
+  NativeSelectOption,
+} from "./components/ui/native-select.js";
+import { Spinner } from "./components/ui/spinner.js";
 import { Empty } from "./components.js";
-import { NextAction, Checklist, SelectedStack } from "./lifecycle.js";
+import { ProjectDialog } from "./project-dialog.js";
+import { ArchitectureView } from "./architecture.js";
 import { useControlPanel } from "./use-control-panel.js";
-import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 function Dashboard() {
@@ -25,168 +21,155 @@ function Dashboard() {
   const {
     data,
     project,
-    tab,
+    environment,
     busy,
+    action,
     notice,
     setNotice,
-    setAdding,
     adding,
-    readiness,
-    capabilities,
+    setAdding,
     request,
     context,
-    delivery,
-    navigateProvider,
-    environment,
-    settings,
-    saveSettings,
   } = controller;
   return (
-    <SidebarProvider className="app">
-      <Sidebar {...controller} />
-      <div className="workspace">
-        <Toolbar {...controller} />
-        <main aria-busy={busy}>
-          {notice && (
-            <Alert className="notice" role="status">
-              <AlertDescription>{notice}</AlertDescription>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Dismiss notification"
-                onClick={() => setNotice("")}
-              >
-                ×
-              </Button>
-            </Alert>
+    <div className="architecture-app">
+      <header className="architecture-header">
+        <div className="architecture-brand" aria-label="Anhedral">
+          <span
+            className="brand-mark"
+            style={{
+              maskImage: `url("data:image/svg+xml,${encodeURIComponent(logo)}")`,
+            }}
+          />
+          <span
+            className="brand-wordmark"
+            style={{
+              maskImage: `url("data:image/svg+xml,${encodeURIComponent(wordmark)}")`,
+            }}
+          />
+        </div>
+        <NativeSelect
+          aria-label="Project"
+          value={project?.id || ""}
+          disabled={busy || !data?.projects.length}
+          onChange={(event) =>
+            action("anhedral_open", { projectId: event.target.value })
+          }
+        >
+          {!project && (
+            <NativeSelectOption value="">Choose a project</NativeSelectOption>
           )}
-          <PageHeading {...controller} />
-          {!data && (
-            <Empty title="Connecting to Anhedral">
-              Loading your project workspace…
-            </Empty>
-          )}
-          {data && !project && (
-            <Empty title="What are you building?">
-              Create an application or connect existing code. Choose the needed
-              stack, then work through setup and delivery with Anhedral.
-              <br />
-              <Button onClick={() => setAdding(true)}>Start a project</Button>
-            </Empty>
-          )}
+          {data?.projects.map((item) => (
+            <NativeSelectOption key={item.id} value={item.id}>
+              {item.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Start a project"
+          onClick={() => setAdding(true)}
+        >
+          <Plus />
+        </Button>
+        <div className="architecture-header-end">
           {project && (
-            <>
-              {(tab === "Infrastructure" || tab === "Checklist") && (
-                <NextAction {...controller} />
-              )}
-              {tab === "Infrastructure" && (
-                <>
-                  <SelectedStack {...controller} />
-                  <section className="infrastructure-section">
-                    <h2>Infrastructure status</h2>
-                    <p className="muted-copy">
-                      Configuration and live provider checks. Refresh to verify
-                      resource availability; checklist evidence records product
-                      verification separately.
-                    </p>
-                    <Infrastructure {...controller} />
-                    <Disclosure className="provider-access">
-                      <DisclosureTrigger>
-                        <strong>Developer access</strong>
-                        <span>
-                          Selected provider credentials in this runtime
-                        </span>
-                      </DisclosureTrigger>
-                      <DisclosureContent>
-                        <div>
-                          {controller.connections.map((connection) => (
-                            <div
-                              className="connection-row"
-                              key={connection.name}
-                            >
-                              <strong>{connection.name}</strong>
-                              <span>
-                                {connection.available
-                                  ? "Credential available · scope not verified"
-                                  : "Not configured in this runtime"}
-                              </span>
-                            </div>
-                          ))}
-                          <p className="muted-copy">
-                            Provider plugins may have separate authorization.
-                            Credential presence does not prove account access.
-                          </p>
-                          <Button
-                            variant="outline"
-                            onClick={() => controller.continueStep("accounts")}
-                          >
-                            Set up access with Anhedral
-                          </Button>
-                        </div>
-                      </DisclosureContent>
-                    </Disclosure>
-                  </section>
-                  <div className="workflow-link">
-                    <span>From accounts to a verified release</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => controller.setTab("Checklist")}
-                    >
-                      View the full checklist →
-                    </Button>
-                  </div>
-                </>
-              )}
-              {tab === "Checklist" && <Checklist {...controller} />}
-              {tab === "Checks" &&
-                (readiness ? (
-                  <Readiness
-                    readiness={readiness}
-                    capabilities={capabilities}
-                    request={request}
-                    context={context}
-                  />
-                ) : (
-                  <Empty title="Code has not been initialized">
-                    Work through the checklist to create the project before
-                    running code checks.
-                  </Empty>
-                ))}
-              {tab === "Delivery" && delivery && (
-                <Delivery
-                  delivery={delivery}
-                  navigateProvider={navigateProvider}
-                  request={request}
-                  context={context}
-                />
-              )}
-              {tab === "Settings" && settings && (
-                <Settings
-                  project={project}
-                  environment={environment}
-                  data={data}
-                  saveSettings={saveSettings}
-                  settings={settings}
-                  busy={busy}
-                  request={request}
-                  context={context}
-                />
-              )}
-              <footer className="workspace-footer">
-                <span>
-                  Updated{" "}
-                  {data && new Date(data.checkedAt).toLocaleTimeString()} ·{" "}
-                  {environment}
-                </span>
-                <span>Client-owned · Credentials stay server-side</span>
-              </footer>
-            </>
+            <NativeSelect
+              aria-label="Environment"
+              value={environment}
+              disabled={busy}
+              onChange={(event) =>
+                action("anhedral_open", {
+                  projectId: project.id,
+                  environment: event.target.value,
+                })
+              }
+            >
+              {[
+                ...new Set([
+                  "default",
+                  "development",
+                  "preview",
+                  "production",
+                  ...(data && "environments" in data
+                    ? data.environments || []
+                    : []),
+                ]),
+              ].map((name) => (
+                <NativeSelectOption key={name} value={name}>
+                  {name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           )}
-        </main>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={busy || !project}
+            aria-label="Refresh status"
+            onClick={() =>
+              action("anhedral_open", {
+                projectId: project?.id,
+                environment,
+                refresh: true,
+              })
+            }
+          >
+            {busy ? <Spinner /> : <RefreshCw />}
+          </Button>
+        </div>
+      </header>
+      <main className="architecture-main" aria-busy={busy}>
+        {notice && (
+          <Alert role="status" className="architecture-notice">
+            <AlertDescription>{notice}</AlertDescription>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Dismiss notification"
+              onClick={() => setNotice("")}
+            >
+              ×
+            </Button>
+          </Alert>
+        )}
+        {!data ? (
+          <Empty title="Connecting…">Loading your architecture</Empty>
+        ) : !project ? (
+          <Empty title="What are you building?">
+            Describe your app to Codex. Watch it take shape here.
+            <br />
+            <Button onClick={() => setAdding(true)}>
+              Start a project <Plus />
+            </Button>
+          </Empty>
+        ) : (
+          <>
+            <div className="architecture-heading">
+              <div>
+                <h1>Your app, connected.</h1>
+                <p>Architecture as it takes shape.</p>
+              </div>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  request(
+                    `${context} Continue building the app from its actual state. Manage setup and implementation using the stack standard, and keep its architecture diagram and shared progress current with anhedral_update_architecture and anhedral_report_project_progress. Recheck stale discovery, source and provider evidence before resuming, reuse existing resource references, and include preview/live URLs after actual delivery. Inspect existing code and preserve work. Respect current approvals; do not ship without authorization.`,
+                  )
+                }
+              >
+                Continue with Codex
+              </Button>
+            </div>
+            <BuildProgress {...controller} />
+            <ArchitectureView {...controller} />
+          </>
+        )}
+      </main>
       {adding && <ProjectDialog {...controller} />}
-    </SidebarProvider>
+    </div>
   );
 }
 createRoot(document.getElementById("root")!).render(<Dashboard />);

@@ -1,3 +1,4 @@
+import { releaseDirectory } from '../scripts/release-directory.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -7,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,6 +21,7 @@ import {
   validateGeneratorVersion,
   validateReleaseDeclaration,
   validateWorkflowPolicy,
+  validateRecipeCoverage,
 } from '../scripts/check-release-policy.mjs';
 import {
   compareStableVersions,
@@ -86,6 +89,24 @@ function makeTarEntry(name, contents) {
 }
 
 try {
+  const outputRoot = path.join(temporaryRoot, 'output-safety');
+  mkdirSync(outputRoot);
+  assert.equal(releaseDirectory(outputRoot, '.artifacts/release'), path.join(outputRoot, '.artifacts/release'));
+  assert.equal(releaseDirectory(outputRoot, '.artifacts/release-review'), path.join(outputRoot, '.artifacts/release-review'));
+  for (const output of ['src', '.', '..', '.artifacts', '.artifacts/control-panel', '.artifacts/release/nested']) {
+    assert.throws(() => releaseDirectory(outputRoot, output), /Release output must/);
+  }
+  const protectedDirectory = path.join(temporaryRoot, 'protected');
+  mkdirSync(protectedDirectory);
+  writeFileSync(path.join(protectedDirectory, 'keep.txt'), 'keep');
+  symlinkSync(protectedDirectory, path.join(outputRoot, '.artifacts'), 'junction');
+  assert.throws(() => releaseDirectory(outputRoot, '.artifacts/release'), /real directories/);
+  rmSync(path.join(outputRoot, '.artifacts'));
+  mkdirSync(path.join(outputRoot, '.artifacts'));
+  symlinkSync(protectedDirectory, path.join(outputRoot, '.artifacts/release'), 'junction');
+  assert.throws(() => releaseDirectory(outputRoot, '.artifacts/release'), /real directories/);
+  assert.equal(readFileSync(path.join(protectedDirectory, 'keep.txt'), 'utf8'), 'keep');
+
   for (const extension of ['jsonc', 'toml', 'svg']) {
     const credential = `gh${'p_'}${'x'.repeat(36)}`;
     assert.equal(scanText(`config.${extension}`, Buffer.from(credential))[0]?.pattern, 'github-token');
@@ -400,3 +421,7 @@ console.error(response.message || 'registry unavailable'); process.exit(response
 }
 
 console.log('Release tooling negative-path tests passed');
+
+assert.deepEqual(validateRecipeCoverage('  generated:\n    profile: [web, single, popup]', ['web', 'single', 'popup']), []);
+assert.deepEqual(validateRecipeCoverage('  generated:\n    profile: [web]', ['web', 'popup']), ['Generated recipe popup has no CI matrix coverage']);
+assert.equal(validateRecipeCoverage(readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'),'utf8')).length, 0);

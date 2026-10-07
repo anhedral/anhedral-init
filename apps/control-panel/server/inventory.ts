@@ -1,7 +1,9 @@
 import { bindings, readProjectFile } from "./projects.js";
+import { createHash } from "node:crypto";
 import type { Resource } from "./status.js";
 
 type Config = Record<string, any>;
+type ScopedResource = Resource & { inventoryScope: string };
 const cleanId = (value: unknown) =>
   typeof value === "string" &&
   /^[a-zA-Z0-9_-]{1,100}$/.test(value) &&
@@ -17,7 +19,10 @@ const declarations = [
   ["workflows", "Workflow", "name", ""],
 ] as const;
 
-function declaredBindings(worker: Config, base: Resource): Resource[] {
+function declaredBindings(
+  worker: Config,
+  base: ScopedResource,
+): ScopedResource[] {
   return declarations.flatMap(([key, kind, field, endpoint]) =>
     bindings(worker[key]).flatMap((binding) => {
       const value = cleanId(binding[field]);
@@ -39,7 +44,10 @@ function declaredBindings(worker: Config, base: Resource): Resource[] {
   );
 }
 
-function runtimeBindings(worker: Config, base: Resource): Resource[] {
+function runtimeBindings(
+  worker: Config,
+  base: ScopedResource,
+): ScopedResource[] {
   const declarations = [
     ...bindings(worker.queues?.producers).map((binding) => ({
       value: binding.queue,
@@ -48,15 +56,21 @@ function runtimeBindings(worker: Config, base: Resource): Resource[] {
     ...bindings(worker.durable_objects?.bindings).map((binding) => ({
       value: binding.class_name,
       kind: "Durable Object",
+      script: cleanId(binding.script_name) || base.name,
     })),
   ];
-  const resources = declarations.flatMap(({ value, kind }) => {
+  const resources = declarations.flatMap((declaration) => {
+    const { value, kind } = declaration;
     const name = cleanId(value);
     return name
       ? [
           {
             ...base,
             id: `${kind}:${name}`,
+            inventoryScope:
+              kind === "Durable Object"
+                ? `${base.inventoryScope}:${"script" in declaration ? declaration.script : base.name}`
+                : base.inventoryScope,
             name,
             kind,
             endpoint: undefined,
@@ -93,17 +107,23 @@ function configuredWorker(
   app: string,
   config: Config,
   environment: string,
-): Resource[] {
+): ScopedResource[] {
   const worker = environment === "default" ? config : config.env?.[environment];
-  if (!worker || typeof worker !== "object") return [];
-  const name = cleanId(worker.name);
+  if (!worker || typeof worker !== "object" || Array.isArray(worker)) return [];
+  const name = cleanId(
+    worker.name ??
+      (environment !== "default" && cleanId(config.name)
+        ? `${config.name}-${environment}`
+        : undefined),
+  );
   if (!name) return [];
   const candidate = worker.account_id || config.account_id;
   const account =
     typeof candidate === "string" && /^[a-f0-9]{32}$/.test(candidate)
       ? candidate
       : undefined;
-  const base: Resource = {
+  const base: ScopedResource = {
+    inventoryScope: account || `unknown:${name}`,
     id: `worker:${app}`,
     name,
     kind: "Worker",
@@ -119,23 +139,43 @@ function configuredWorker(
   return [
     base,
     ...declaredBindings(worker, base),
-    ...runtimeBindings(worker, base),
+    ...runtimeBindings(
+      { ...worker, triggers: worker.triggers ?? config.triggers },
+      base,
+    ),
   ];
 }
 
 export function workerResources(root: string, environment: string): Resource[] {
+  const standalone =
+    readProjectFile(root, "wrangler.jsonc") ||
+    readProjectFile(root, "wrangler.json");
   const resources = [
-    "web",
-    "api",
-    "jobs",
-    "scheduled",
-    "workflows",
-    "realtime",
-  ].flatMap((app) => {
-    const config = readProjectFile(root, `apps/${app}/wrangler.jsonc`);
-    return config ? configuredWorker(app, config, environment) : [];
-  });
-  return [
-    ...new Map(resources.map((resource) => [resource.id, resource])).values(),
+    ...(standalone ? configuredWorker("root", standalone, environment) : []),
+    ...["web", "api", "jobs", "scheduled", "workflows", "realtime"].flatMap(
+      (app) => {
+        const config =
+          readProjectFile(root, `apps/${app}/wrangler.jsonc`) ||
+          readProjectFile(root, `apps/${app}/wrangler.json`);
+        return config ? configuredWorker(app, config, environment) : [];
+      },
+    ),
   ];
+  // Shared account resources deduplicate; equal names in different accounts or DO namespaces do not.
+  // Preserve existing IDs while unambiguous, and scope every colliding ID deterministically.
+  const groups = new Map<string, Map<string, ScopedResource>>();
+  for (const resource of resources) {
+    const group = groups.get(resource.id) || new Map<string, ScopedResource>();
+    group.set(resource.inventoryScope, resource);
+    groups.set(resource.id, group);
+  }
+  return [...groups.values()].flatMap((group) =>
+    [...group.values()].map(({ inventoryScope, ...resource }) => ({
+      ...resource,
+      id:
+        group.size > 1
+          ? `${resource.id}:${createHash("sha256").update(inventoryScope).digest("hex").slice(0, 16)}`
+          : resource.id,
+    })),
+  );
 }

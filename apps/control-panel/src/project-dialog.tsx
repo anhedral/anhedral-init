@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from "react";
 import type { Controller } from "./use-control-panel.js";
-import { StackChoices } from "./stack-editor.js";
-import { validatePlan } from "../shared/assembly.js";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";
 import { Textarea } from "./components/ui/textarea.js";
@@ -15,36 +13,25 @@ import {
 } from "./components/ui/dialog.js";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs.js";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
-import {
-  Disclosure,
-  DisclosureTrigger,
-  DisclosureContent,
-} from "./disclosure.js";
 
 export function ProjectDialog({
   setAdding,
   addProject,
-  action,
+  request,
   busy,
   notice,
 }: Controller) {
   const [mode, setMode] = useState("new");
-  const [selected, setSelected] = useState(["next"]);
   const [error, setError] = useState("");
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
-      validatePlan(selected, "cloudflare");
       setError("");
       const form = new FormData(event.currentTarget);
       if (
-        await action("anhedral_create_project", {
-          name: form.get("name"),
-          folder: form.get("folder"),
-          brief: form.get("brief"),
-          selected,
-          hosting: "cloudflare",
-        })
+        await request(
+          `Use Anhedral to build this app: ${form.get("brief")}. Infer the app name and only the stack it needs. Establish an unused target folder within the user's selected workspace; if the workspace is unavailable, ask for its location. Create the plan with anhedral_create_project and map it with anhedral_update_architecture before generating code. Discover callable tools and verify the intended provider accounts separately from installed plugins or local credentials. Use the Anhedral npm package to dry-run and initialize only the new empty target. Reuse or provision selected resources through available provider tools, implement and test the product, and keep anhedral_report_project_progress and the architecture current with non-secret evidence and preview links. Respect existing approvals. Do not publish or deploy production without authorization.`,
+        )
       )
         setAdding(false);
     } catch (failure) {
@@ -60,7 +47,7 @@ export function ProjectDialog({
           <DialogTitle>Start a project</DialogTitle>
           <DialogDescription>
             {mode === "new"
-              ? "Describe the app and select its starting pieces. Anhedral guides setup before creating code."
+              ? "Describe your app. Codex assembles the stack."
               : "Connect a local folder. Anhedral inspects the project and preserves existing code."}
           </DialogDescription>
         </DialogHeader>
@@ -88,57 +75,34 @@ export function ProjectDialog({
           {mode === "new" && (
             <>
               <div className="form-field">
-                <Label htmlFor="new-project-name">Project name</Label>
-                <Input
-                  id="new-project-name"
-                  name="name"
-                  required
-                  maxLength={100}
-                  placeholder="My application"
-                />
-              </div>
-              <div className="form-field">
                 <Label htmlFor="project-brief">What are you building?</Label>
                 <Textarea
                   id="project-brief"
                   name="brief"
                   required
                   maxLength={2000}
-                  rows={3}
-                  placeholder="Users, workflows and what the app needs to do"
+                  rows={5}
+                  placeholder="I want an app where people can…"
                 />
               </div>
             </>
           )}
-          <div className="form-field">
-            <Label htmlFor="project-folder">
-              {mode === "new"
-                ? "New project folder"
-                : "Existing project folder"}
-            </Label>
-            <Input
-              id="project-folder"
-              name="folder"
-              required
-              placeholder="/absolute/path/to/project"
-            />
-          </div>
-          {mode === "new" && (
-            <Disclosure>
-              <DisclosureTrigger>
-                <strong>Starting stack</strong>
-                <span>{selected.length} selected · customize</span>
-              </DisclosureTrigger>
-              <DisclosureContent>
-                <StackChoices selected={selected} setSelected={setSelected} />
-              </DisclosureContent>
-            </Disclosure>
+          {mode === "existing" && (
+            <div className="form-field">
+              <Label htmlFor="project-folder">Existing project folder</Label>
+              <Input
+                id="project-folder"
+                name="folder"
+                required
+                placeholder="/absolute/path/to/project"
+              />
+            </div>
           )}
           <Button type="submit" disabled={busy}>
             {busy
-              ? "Saving…"
+              ? "Sending…"
               : mode === "new"
-                ? "Create project plan"
+                ? "Build with Codex"
                 : "Connect project"}
           </Button>
         </form>

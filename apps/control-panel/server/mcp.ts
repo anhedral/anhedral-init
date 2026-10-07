@@ -76,7 +76,7 @@ export function createControlServer() {
     {
       title: "Anhedral",
       description:
-        "Open the Anhedral developer control panel: projects, infrastructure, access requirements, local readiness and delivery checks.",
+        "Open the app architecture, shared milestone evidence, next action and preview/live links. Configuration, agent reports and independent provider checks remain separate.",
       inputSchema,
       annotations: {
         readOnlyHint: true,
@@ -130,7 +130,7 @@ export function createControlServer() {
     {
       title: "Update project connection settings",
       description:
-        "Save non-secret resource identifiers for a registered project and environment. Does not provision resources or store credentials.",
+        "Replace the complete non-secret connection settings for a registered project and environment. Omitted identifiers are cleared; include identifiers you intend to preserve from the latest snapshot. Does not provision resources or store credentials.",
       inputSchema: {
         projectId: z.string().regex(/^[a-f0-9]{16}$/),
         environment: environmentId,
