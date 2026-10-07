@@ -31,7 +31,7 @@ const browser = await build({
       name: "compiled-tailwind",
       setup(builder) {
         builder.onLoad(
-          { filter: /apps\/control-panel\/src\/styles\.css$/ },
+          { filter: /apps[\\/]control-panel[\\/]src[\\/]styles\.css$/ },
           () => ({
             contents: compiledCss,
             loader: "css",
