@@ -13,6 +13,20 @@ import path from "node:path";
 import { parse, type ParseError } from "jsonc-parser";
 import { z } from "zod";
 
+import {
+  assemblySchema,
+  environmentId,
+  validatePlan,
+  planInput,
+  progressInput,
+  pieceInput,
+  nonSecretText,
+  STAGES,
+  PREREQUISITES,
+  dependsOn,
+  type Assembly,
+} from "../shared/assembly.js";
+
 import type { Project, Environment } from "./status.js";
 const environmentSchema = z
   .object({
@@ -40,13 +54,21 @@ const registrySchema = z
             id: z.string().regex(/^[a-f0-9]{16}$/),
             name: z.string().max(100),
             root: z.string().max(4096),
+            planned: z.boolean().optional(),
+            brief: z.string().max(2000).optional(),
           })
           .strict(),
       )
       .max(50),
+    assemblies: z
+      .record(
+        z.string().regex(/^[a-f0-9]{16}$/),
+        z.record(environmentId, assemblySchema),
+      )
+      .default({}),
     settings: z.record(
       z.string().regex(/^[a-f0-9]{16}$/),
-      z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/), environmentSchema),
+      z.record(environmentId, environmentSchema),
     ),
   })
   .strict();
@@ -64,16 +86,20 @@ export const bindings = (value: unknown): Record<string, any>[] =>
     : [];
 
 export function readRegistry(): Registry {
-  if (!existsSync(registryPath())) return { projects: [], settings: {} };
+  if (!existsSync(registryPath()))
+    return { projects: [], settings: {}, assemblies: {} };
   if (statSync(registryPath()).size > 1024 * 1024)
     throw new Error("Project registry is too large.");
   return registrySchema.parse(JSON.parse(readFileSync(registryPath(), "utf8")));
 }
 
 function saveRegistry(data: Registry): void {
+  const serialized = JSON.stringify(registrySchema.parse(data), null, 2) + "\n";
+  if (Buffer.byteLength(serialized) > 1024 * 1024)
+    throw new Error("Project registry is too large.");
   mkdirSync(stateDirectory(), { recursive: true, mode: 0o700 });
   const temporary = `${registryPath()}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify(data, null, 2) + "\n", {
+  writeFileSync(temporary, serialized, {
     mode: 0o600,
   });
   renameSync(temporary, registryPath());
@@ -118,9 +144,29 @@ function describeProject(folder: string): Project {
   return project;
 }
 
-export function registerProject(folder: string): Project {
+export function registerProject(folder: string, draftId?: string): Project {
   const project = describeProject(folder);
   const registry = readRegistry();
+  if (draftId) {
+    const draft = registry.projects.find((item) => item.id === draftId);
+    if (!draft?.planned || path.resolve(draft.root) !== project.root)
+      throw new Error("The initialized folder must match the planned project.");
+    if (
+      registry.projects.some(
+        (item) => item.id !== draftId && item.root === project.root,
+      )
+    )
+      throw new Error("This folder already belongs to another project.");
+    draft.planned = false;
+    saveRegistry(registry);
+    return draft;
+  }
+  const existing = registry.projects.find((item) => item.root === project.root);
+  if (existing?.planned)
+    throw new Error(
+      "Register the initialized folder with its draftId to preserve the plan.",
+    );
+  if (existing) return existing;
   if (!registry.projects.some(({ id }) => id === project.id)) {
     if (registry.projects.length >= 50)
       throw new Error("At most 50 projects can be registered.");
@@ -137,9 +183,9 @@ export function projects(): Project[] {
   return [
     ...new Map(
       [
-        ...readRegistry().projects,
         ...roots.slice(0, 50).map(describeProject),
-      ].map((project) => [project.id, project]),
+        ...readRegistry().projects,
+      ].map((project) => [project.root, project]),
     ).values(),
   ];
 }
@@ -147,7 +193,7 @@ export function projects(): Project[] {
 export function projectFor(id: string): Project {
   const project = projects().find((project) => project.id === id);
   if (!project) throw new Error("Project is not registered.");
-  if (realpathSync(project.root) !== project.root)
+  if (!project.planned && realpathSync(project.root) !== project.root)
     throw new Error("Project location changed; register it again.");
   return project;
 }
@@ -158,10 +204,172 @@ export function updateSettings(
   settings: Environment,
 ): void {
   projectFor(id);
-  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(environment))
-    throw new Error("Invalid environment name.");
+  environmentId.parse(environment);
   const registry = readRegistry();
   registry.settings[id] ||= {};
   registry.settings[id][environment] = environmentSchema.parse(settings);
+  saveRegistry(registry);
+}
+
+export const draftInput = {
+  name: nonSecretText.pipe(z.string().trim().min(1).max(100)),
+  folder: z.string().min(1).max(4096),
+  brief: nonSecretText.pipe(z.string().trim().min(1).max(2000)),
+  ...planInput,
+};
+export function createDraft(
+  input: z.infer<z.ZodObject<typeof draftInput>>,
+): Project {
+  const data = z.object(draftInput).strict().parse(input);
+  validatePlan(data.selected, data.hosting);
+  if (!path.isAbsolute(data.folder) || existsSync(data.folder))
+    throw new Error(
+      "Choose an absolute path for a new folder. Add existing projects instead.",
+    );
+  const registry = readRegistry();
+  let ancestor = path.resolve(data.folder);
+  const segments: string[] = [];
+  while (!existsSync(ancestor)) {
+    segments.unshift(path.basename(ancestor));
+    ancestor = path.dirname(ancestor);
+  }
+  if (!statSync(ancestor).isDirectory())
+    throw new Error("The target parent must be a directory.");
+  const root = path.join(realpathSync(ancestor), ...segments);
+  if (
+    registry.projects.length >= 50 ||
+    registry.projects.some((item) => item.root === root)
+  )
+    throw new Error("Project limit reached or folder already planned.");
+  const project = {
+    id: randomUUID().replaceAll("-", "").slice(0, 16),
+    name: data.name,
+    root,
+    brief: data.brief,
+    planned: true,
+  };
+  registry.projects.push(project);
+  registry.assemblies[project.id] = {
+    default: {
+      selected: data.selected,
+      hosting: data.hosting,
+      revision: 1,
+      pieces: {},
+      progress: {},
+    },
+  };
+  saveRegistry(registry);
+  return project;
+}
+export function savePlan(
+  id: string,
+  environment: string,
+  revision: number,
+  input: Pick<Assembly, "selected" | "hosting">,
+): void {
+  projectFor(id);
+  environmentId.parse(environment);
+  const plan = z.object(planInput).strict().parse(input);
+  validatePlan(plan.selected, plan.hosting);
+  const registry = readRegistry();
+  const current = registry.assemblies[id]?.[environment];
+  if ((current?.revision || 0) !== revision)
+    throw new Error("The plan changed. Refresh before saving.");
+  registry.assemblies[id] ||= {};
+  // Changed scope invalidates prior lifecycle evidence. An identical plan keeps it.
+  const same =
+    current &&
+    current.hosting === plan.hosting &&
+    [...current.selected].sort().join() === [...plan.selected].sort().join();
+  registry.assemblies[id][environment] = {
+    ...plan,
+    revision: revision + 1,
+    progress: same ? current.progress : {},
+    pieces: same ? current.pieces : {},
+  };
+  saveRegistry(registrySchema.parse(registry));
+}
+export function recordProgress(
+  id: string,
+  environment: string,
+  revision: number,
+  input: z.infer<z.ZodObject<typeof progressInput>>,
+): void {
+  projectFor(id);
+  environmentId.parse(environment);
+  const data = z.object(progressInput).strict().parse(input);
+  const registry = readRegistry();
+  const current = registry.assemblies[id]?.[environment];
+  if (!current || current.revision !== revision)
+    throw new Error(
+      "The plan changed. Open the project and use its current revision.",
+    );
+  if (data.status === "done" && !data.evidence.length)
+    throw new Error("Completed steps require non-secret evidence references.");
+  if (data.status === "done" || data.status === "active") {
+    if (
+      PREREQUISITES[data.stage].some(
+        (id) => current.progress[id]?.status !== "done",
+      )
+    )
+      throw new Error(
+        "Resolve earlier checklist prerequisites before advancing. Record verified existing work instead of repeating it.",
+      );
+  }
+  if (
+    data.stage === "verify" &&
+    data.status === "done" &&
+    Object.values(current.pieces).some((piece) => piece.status === "blocked")
+  )
+    throw new Error(
+      "Resolve blocked stack pieces before completing release verification.",
+    );
+  // Independent local development can proceed while provider access is blocked.
+  if (data.status !== "done") {
+    for (const stage of STAGES)
+      if (dependsOn(stage.id, data.stage)) delete current.progress[stage.id];
+    for (const piece of Object.values(current.pieces))
+      if (piece.status === "released") piece.status = "blocked";
+  }
+  const { stage, ...progress } = data;
+  current.progress[stage] = {
+    ...progress,
+    updatedAt: new Date().toISOString(),
+  };
+  current.revision++;
+  saveRegistry(registrySchema.parse(registry));
+}
+
+export function recordPiece(
+  id: string,
+  environment: string,
+  revision: number,
+  input: z.infer<z.ZodObject<typeof pieceInput>>,
+): void {
+  projectFor(id);
+  environmentId.parse(environment);
+  const data = z.object(pieceInput).strict().parse(input);
+  const registry = readRegistry();
+  const current = registry.assemblies[id]?.[environment];
+  if (!current || current.revision !== revision)
+    throw new Error("The plan changed. Use its current revision.");
+  if (!current.selected.includes(data.piece))
+    throw new Error("This piece is not selected for this environment.");
+  if (!["planned", "blocked"].includes(data.status) && !data.evidence.length)
+    throw new Error("Stack progress requires non-secret evidence references.");
+  if (data.status === "released" && current.progress.verify?.status !== "done")
+    throw new Error(
+      "Record release verification before marking a piece released.",
+    );
+  const { piece, ...progress } = data;
+  current.pieces[piece] = { ...progress, updatedAt: new Date().toISOString() };
+  if (data.status === "blocked")
+    current.progress.verify = {
+      status: "blocked",
+      summary: `${piece}: ${data.summary}`,
+      evidence: data.evidence,
+      updatedAt: new Date().toISOString(),
+    };
+  current.revision++;
   saveRegistry(registry);
 }

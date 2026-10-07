@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button.js";
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
 export function PageHeading({
@@ -11,16 +12,16 @@ export function PageHeading({
     <div className="page-heading">
       <div>
         <div className="eyebrow">{project?.name || "Welcome to Anhedral"}</div>
-        <h1>{tab === "Overview" ? "Your stack, in one place." : tab}</h1>
+        <h1>{tab === "Infrastructure" ? "Build your stack." : tab}</h1>
         <p>
-          {tab === "Overview"
-            ? "Infrastructure, access, and delivery. Know what is ready and what needs attention."
+          {tab === "Infrastructure"
+            ? "Choose the pieces. Set up the infrastructure. Ship a verified application."
             : `Manage ${tab.toLowerCase()} for the ${environment} environment.`}
         </p>
       </div>
       {project && (
-        <button
-          className="button"
+        <Button
+          variant="outline"
           onClick={() =>
             request(
               `${context} Review the current setup and help me resolve its remaining gaps. Do not provision or deploy without the required authorization.`,
@@ -28,7 +29,7 @@ export function PageHeading({
           }
         >
           Ask Anhedral <Icon name="arrow" />
-        </button>
+        </Button>
       )}
     </div>
   );

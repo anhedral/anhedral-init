@@ -1,10 +1,12 @@
+import { Button } from "./components/ui/button.js";
+import { Alert, AlertTitle, AlertDescription } from "./components/ui/alert.js";
 import type { Snapshot, Project } from "../server/status.js";
 import { Icon, Panel, Empty } from "./components.js";
 type FullSnapshot = Extract<Snapshot, { project: Project }>;
 type Props = {
   delivery: FullSnapshot["delivery"];
   navigateProvider: (value: string) => void;
-  request: (text: string) => Promise<void>;
+  request: (text: string) => Promise<boolean>;
   context: string;
 };
 export function Delivery({
@@ -15,16 +17,14 @@ export function Delivery({
 }: Props) {
   return (
     <>
-      <div className="status-banner">
+      <Alert className="mb-6">
         <Icon name="readiness" />
-        <div>
-          <h3>Release readiness requires evidence.</h3>
-          <p>
-            CI results and available infrastructure are inputs to a release
-            decision. This panel does not claim production readiness.
-          </p>
-        </div>
-      </div>
+        <AlertTitle>Release readiness requires evidence.</AlertTitle>
+        <AlertDescription>
+          CI results and available infrastructure are inputs to a release
+          decision. This panel does not claim production readiness.
+        </AlertDescription>
+      </Alert>
       <Panel title="Recent workflow runs" description={delivery?.detail}>
         {delivery?.runs.length ? (
           delivery.runs.map(
@@ -46,13 +46,14 @@ export function Delivery({
                 <span className={`run-status ${run.status}`}>
                   {run.status.replaceAll("_", " ")}
                 </span>
-                <button
-                  className="icon-button"
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label={`Open ${run.name}`}
                   onClick={() => navigateProvider(run.url)}
                 >
                   <Icon name="arrow" />
-                </button>
+                </Button>
               </div>
             ),
           )
@@ -63,8 +64,7 @@ export function Delivery({
           </Empty>
         )}
       </Panel>
-      <button
-        className="button primary"
+      <Button
         onClick={() =>
           request(
             `${context} Review release readiness, required checks, security, approvals, rollback, and deployed acceptance evidence before proposing a release.`,
@@ -72,7 +72,7 @@ export function Delivery({
         }
       >
         Review delivery with Anhedral <Icon name="arrow" />
-      </button>
+      </Button>
     </>
   );
 }

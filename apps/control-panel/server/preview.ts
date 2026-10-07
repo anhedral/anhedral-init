@@ -1,16 +1,15 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import { environmentId } from "../shared/assembly.js";
+import { lifecycleActions } from "./actions.js";
 import { registerProject, snapshot, updateSettings } from "./status.js";
 
 const port = Number(process.env.ANHEDRAL_PANEL_PORT || 4317);
 const origin = `http://127.0.0.1:${port}`;
 const identifiers = {
   projectId: z.string().regex(/^[a-f0-9]{16}$/),
-  environment: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]{1,40}$/)
-    .default("default"),
+  environment: environmentId.default("default"),
 };
 const openInput = z
   .object({
@@ -37,16 +36,24 @@ const settingsInput = z
   })
   .strict();
 async function dispatch(name: string, input: unknown) {
+  if (Object.hasOwn(lifecycleActions, name))
+    return lifecycleActions[name as keyof typeof lifecycleActions].run(input);
   if (name === "anhedral_open") {
     const data = openInput.parse(input);
     return snapshot(data.projectId, data.environment, data.refresh);
   }
   if (name === "anhedral_register_project") {
     const data = z
-      .object({ folder: z.string().min(1).max(4096) })
+      .object({
+        folder: z.string().min(1).max(4096),
+        draftId: z
+          .string()
+          .regex(/^[a-f0-9]{16}$/)
+          .optional(),
+      })
       .strict()
       .parse(input);
-    return snapshot(registerProject(data.folder).id);
+    return snapshot(registerProject(data.folder, data.draftId).id);
   }
   if (name === "anhedral_update_settings") {
     const { projectId, environment, ...settings } = settingsInput.parse(input);
@@ -61,10 +68,7 @@ createServer(async (request, response) => {
     response.writeHead(403).end();
     return;
   }
-  if (
-    request.method === "GET" &&
-    request.url?.split("?")[0] === "/"
-  ) {
+  if (request.method === "GET" && request.url?.split("?")[0] === "/") {
     response.setHeader(
       "Content-Security-Policy",
       "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; frame-ancestors 'none'",

@@ -9,6 +9,10 @@ import type { Snapshot } from "../server/status.js";
 const host = new App({ name: "Anhedral", version: "1.0.0" });
 new OpenAIExtensions(host);
 const preview = window.parent === window;
+function setTheme(theme: "light" | "dark") {
+  applyDocumentTheme(theme);
+  document.documentElement.classList.toggle("dark", theme === "dark");
+}
 export async function call(
   name: string,
   args: Record<string, unknown> = {},
@@ -35,7 +39,7 @@ export async function connect(receive: (data: Snapshot) => void) {
   if (preview) {
     const previewTheme = new URLSearchParams(location.search).get("theme");
     if (previewTheme === "light" || previewTheme === "dark")
-      applyDocumentTheme(previewTheme);
+      setTheme(previewTheme);
     receive(await call("anhedral_open"));
     return;
   }
@@ -43,7 +47,7 @@ export async function connect(receive: (data: Snapshot) => void) {
     if (result.structuredContent) receive(result.structuredContent as Snapshot);
   };
   const theme = (context: ReturnType<App["getHostContext"]>) => {
-    if (context?.theme) applyDocumentTheme(context.theme);
+    if (context?.theme) setTheme(context.theme);
     if (context?.styles?.variables)
       applyHostStyleVariables(context.styles.variables);
   };
