@@ -1,6 +1,6 @@
 import type { Controller } from "./use-control-panel.js";
 import { Icon } from "./components.js";
-import logo from "../../../assets/anhedral.svg";
+import logo from "../../../assets/images/svg/logo-white-subtract.svg";
 export function Sidebar({
   data,
   tab,
@@ -14,7 +14,13 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img src={`data:image/svg+xml,${encodeURIComponent(logo)}`} alt="" />
+        <span
+          className="brand-mark"
+          aria-hidden="true"
+          style={{
+            maskImage: `url("data:image/svg+xml,${encodeURIComponent(logo)}")`,
+          }}
+        />
         <div>
           Anhedral<span>Developer control panel</span>
         </div>

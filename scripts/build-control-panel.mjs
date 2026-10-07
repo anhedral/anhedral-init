@@ -21,7 +21,7 @@ const browser = await build({
   format: "iife",
   target: "es2022",
   outfile: "control-panel.js",
-  loader: { ".svg": "text" },
+  loader: { ".svg": "text", ".woff2": "dataurl" },
   metafile: true,
 });
 const javascript = browser.outputFiles
@@ -57,6 +57,13 @@ writeFileSync(
     .replace(/[ \t]+$/gm, ""),
 );
 const licenses = new Map();
+for (const font of ["noto-sans", "jetbrains-mono"])
+  licenses.set(
+    font,
+    readFileSync(`assets/fonts/${font}-LICENSE.txt`, "utf8")
+      .replaceAll("\r", "")
+      .replace(/[ \t]+$/gm, ""),
+  );
 for (const input of [
   ...Object.keys(browser.metafile.inputs),
   ...Object.keys(server.metafile.inputs),
