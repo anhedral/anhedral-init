@@ -38,7 +38,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.34.5
+          version: 12.9.1
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -81,7 +81,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.34.5
+          version: 12.9.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.18.0'
@@ -104,7 +104,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 10.34.5
+          version: 12.9.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
@@ -132,7 +132,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
         with:
-          version: 10.34.5
+          version: 12.9.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.18.0'
@@ -157,7 +157,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        profile: [web, api, desktop, extension, mobile]
+        profile: [web, api, single, desktop, extension, popup, mobile]
         include:
           - { os: macos-latest, profile: desktop }
     env:
@@ -170,7 +170,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
         with:
-          version: 10.34.5
+          version: 12.9.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.18.0'

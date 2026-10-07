@@ -35,16 +35,19 @@ export async function call(
   return response.structuredContent as Snapshot;
 }
 
-export async function connect(receive: (data: Snapshot) => void) {
+export async function connect(
+  receive: (data: Snapshot, origin: "initial" | "notification") => void,
+) {
   if (preview) {
     const previewTheme = new URLSearchParams(location.search).get("theme");
     if (previewTheme === "light" || previewTheme === "dark")
       setTheme(previewTheme);
-    receive(await call("anhedral_open"));
+    receive(await call("anhedral_open"), "initial");
     return;
   }
   host.ontoolresult = (result) => {
-    if (result.structuredContent) receive(result.structuredContent as Snapshot);
+    if (result.structuredContent)
+      receive(result.structuredContent as Snapshot, "notification");
   };
   const theme = (context: ReturnType<App["getHostContext"]>) => {
     if (context?.theme) setTheme(context.theme);
@@ -61,22 +64,28 @@ export async function ask(text: string) {
     await navigator.clipboard.writeText(text);
     return "Copied the request. Paste it into Anhedral in ChatGPT.";
   }
-  await host.sendMessage({ role: "user", content: [{ type: "text", text }] });
+  const result = await host.sendMessage({
+    role: "user",
+    content: [{ type: "text", text }],
+  });
+  if (result.isError) throw new Error("The host rejected the request.");
   return "Sent to the conversation.";
 }
 
-export async function openDashboard(url: string) {
+export async function openApp(url: string) {
   const target = new URL(url);
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(
+    target.hostname,
+  );
   if (
     target.username ||
     target.password ||
-    target.port ||
-    target.protocol !== "https:" ||
-    !["dash.cloudflare.com", "console.neon.tech", "github.com"].includes(
-      target.hostname,
-    )
+    (target.protocol !== "https:" && !(loopback && target.protocol === "http:"))
   )
-    throw new Error("Dashboard host is not allowed.");
-  if (preview) window.open(url, "_blank", "noopener,noreferrer");
-  else await host.openLink({ url });
+    throw new Error("Invalid app URL.");
+  if (preview) window.open(target.href, "_blank", "noopener,noreferrer");
+  else {
+    const result = await host.openLink({ url: target.href });
+    if (result.isError) throw new Error("The host rejected the app link.");
+  }
 }

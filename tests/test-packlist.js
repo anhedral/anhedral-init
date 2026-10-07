@@ -22,6 +22,11 @@ const requiredFiles = new Set([
   'assets/anhedral-cli-init-technical.svg',
   'assets/images/svg/logo-white-subtract.svg',
   'docs/application-stack-standard.md',
+  'assets/security/audit-deps.mjs',
+  'assets/security/manifest.json',
+  'assets/security/braces@3.0.3.patch',
+  'assets/security/node-forge@1.4.0.patch',
+  'assets/security/decode-uri-component@0.2.2.patch',
 ]);
 const allowedRootFiles = new Set([
   'LICENSE',
@@ -150,7 +155,8 @@ try {
       || file.path === 'assets/anhedral-cli-init-technical.svg'
       || file.path === 'assets/images/svg/logo-white-subtract.svg'
       || file.path === 'docs/application-stack-standard.md';
-    const allowed = allowedRootFiles.has(file.path) || allowedDist || allowedDocumentation;
+    const allowedSecurity = /^assets\/security\/(?:audit-deps\.mjs|manifest\.json|LICENSES\.txt|(?:braces|forge|decoder)-regression\.mjs|(?:braces@3\.0\.3|node-forge@1\.4\.0|decode-uri-component@0\.2\.2)\.patch)$/.test(file.path);
+    const allowed = allowedRootFiles.has(file.path) || allowedDist || allowedDocumentation || allowedSecurity;
     assert.ok(allowed, `unexpected published path: ${file.path}`);
     if (!allowedDocumentation) assert.doesNotMatch(file.path, /(^|\/)(?:\.env|src|tests?|scripts?|\.github|node_modules|\.git)(?:\/|$)/);
     assert.doesNotMatch(file.path, /\.(?:map|tgz|tsbuildinfo)$/);

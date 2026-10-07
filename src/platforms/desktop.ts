@@ -143,8 +143,8 @@ function stop(child) {
   if (child && child.exitCode === null && !child.killed) child.kill('SIGTERM');
 }
 
-async function isServerReady(url) {
-  try { return (await fetch(url)).ok; }
+async function isServerReady(url, timeoutMs) {
+  try { return (await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })).ok; }
   catch { return false; }
 }
 
@@ -152,7 +152,7 @@ async function waitForServer(server, url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (server.exitCode !== null) throw new Error('Vite exited before the dev server was ready.');
-    if (await isServerReady(url)) return;
+    if (await isServerReady(url, Math.max(1, Math.min(1000, deadline - Date.now())))) return;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   throw new Error('Timed out waiting for Vite at ' + url + '.');

@@ -15,7 +15,9 @@
         "!.next/cache/**",
         ".open-next/**",
         "dist/**",
-        ".output/**"
+        ".output/**",
+        "cloudflare-env.d.ts",
+        "worker-configuration.d.ts"
       ]
     },
     "lint": {
@@ -31,6 +33,10 @@
     "typecheck": {
       "dependsOn": [
         "^typecheck"
+      ],
+      "outputs": [
+        "cloudflare-env.d.ts",
+        "worker-configuration.d.ts"
       ]
     },
     "dev": {

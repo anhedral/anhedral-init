@@ -67,6 +67,8 @@ function isAllowedMatch(id, relativePath, match, text) {
     id === 'email-address'
     && /@(?:users\.noreply\.github\.com|(?:[A-Z0-9-]+\.)*example\.(?:com|net|org))$/i.test(match[0])
   ) return true;
+  // Semver-named patch assets are package coordinates, not email addresses.
+  if (id === 'email-address' && /^[a-z0-9._-]+@\d+\.\d+\.\d+\.patch$/i.test(match[0])) return true;
   // Explicitly published project contact; not a private address or credential.
   if (id === 'email-address' && /^support@anhedral\.com$/i.test(match[0])) return true;
   const assignedValue = match[0].match(/[:=]\s*["']?([^"'\s]+)["']?$/)?.[1];
@@ -77,7 +79,7 @@ function isAllowedMatch(id, relativePath, match, text) {
     && /^local-demo-[a-z0-9-]+$/.test(assignedValue ?? '')) return true;
   const sourceLine = text.slice(0, match.index).split('\n').at(-1);
   // Preserve public copyright attribution from bundled dependency licenses.
-  if (id === 'email-address' && path.basename(relativePath) === 'THIRD_PARTY_NOTICES.txt'
+  if (id === 'email-address' && ['THIRD_PARTY_NOTICES.txt', 'LICENSES.txt'].includes(path.basename(relativePath))
     && /^\s*Copyright\s+\(c\)\s+/i.test(sourceLine)) return true;
   // Package deprecation notices carry public maintainer contact addresses.
   if (id === 'email-address' && path.basename(relativePath) === 'pnpm-lock.yaml'

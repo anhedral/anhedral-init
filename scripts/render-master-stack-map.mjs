@@ -323,7 +323,7 @@ function dxTool(x, y, {
 
 svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="title description">`);
 svg.push(`<title id="title">${technical ? 'Anhedral Application service contracts' : 'Anhedral Init Stack'}</title>`);
-svg.push('<desc id="description">Client-owned shadcn, pnpm and Turborepo monorepo. Next.js uses OpenNext on Cloudflare Workers; Hono and OpenAPI provide optional shared APIs. Select Neon with Drizzle and Hyperdrive or D1, authentication, private R2, KV, realtime, jobs, workflows, AI, email, billing, observability and analytics only when required. Dashed yellow lines show publication; white lines show application runtime and service bindings.</desc>');
+svg.push('<desc id="description">Client-owned, selected application recipes. A workspace is used for shared packages and multiple apps; a single API recipe is also supported. Next.js uses OpenNext on Cloudflare Workers; Hono and OpenAPI provide optional shared APIs. Select Neon with Drizzle and Hyperdrive or D1, authentication, private R2, KV, realtime, jobs, workflows, AI, email, billing, observability and analytics only when required. Dashed yellow lines show publication; white lines show application runtime and service bindings.</desc>');
 svg.push(`<defs>
   <linearGradient id="card-fill" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#0d1b29"/>
@@ -355,7 +355,7 @@ text(brandRuleX + 22, 80, 'ANHEDRAL', { size: 27, weight: 500, spacing: 1.3 });
   line(x + 1, 195, underlineEnd, 195, { stroke: palette.yellow, width: 6 });
 });
 text(34, 240, 'Client-owned apps. Cloudflare-first. Add only what you need.', { size: 24 });
-text(34, 274, 'shadcn monorepo init → pnpm + Turborepo → apps/* + packages/*', { size: 24 });
+text(34, 274, 'Select the recipe → initialize source → connect only needed services', { size: 24 });
 
 const dxToolStartX = 1187;
 const dxToolY = 76;
@@ -372,7 +372,7 @@ heading(dxToolStartX, 52, 676, 'DX TOOLS');
 ].forEach((tool, index) => dxTool(dxToolStartX + index * dxToolGap, dxToolY, tool));
 text(dxToolStartX, 210, 'macOS · OpenAI / Codex · Computer Use + Control Chrome', { size: 17, fill: palette.muted });
 text(dxToolStartX, 240, 'GitHub Actions · Fallow audit · Cloudflare plugin + cf + API/MCP', { size: 16, fill: palette.muted });
-text(dxToolStartX, 270, 'Cloudflare-first · free-first · client-owned delivery', { size: 17, fill: palette.muted });
+text(dxToolStartX, 270, 'Suitable workloads · economical operation · client-owned delivery', { size: 17, fill: palette.muted });
 
 const deployX = 54;
 const deployW = 396;
@@ -412,7 +412,7 @@ const clientRows = Array.from({ length: 4 }, (_, index) => architectureCardTop +
   },
   { title: 'Expo Native', subtitle: 'React Native Reusables', detail: 'iOS + Android', icon: siExpo, iconColor: palette.text, iconScale: 58 },
   { title: 'WXT Extension', subtitle: 'Chrome · Firefox · Edge', detail: 'MV3 background + side panel', icon: siWxt, iconColor: palette.lime, iconScale: 58 },
-  { title: 'Electron Desktop', subtitle: 'macOS · Windows · Linux', detail: 'shadcn/ui · GPUI / Rust by choice', icon: siElectron, iconColor: palette.cyan, iconScale: 58 },
+  { title: 'Electron Desktop', subtitle: 'macOS · Windows · Linux', detail: 'Native alternatives are project adaptations', icon: siElectron, iconColor: palette.cyan, iconScale: 58 },
 ].forEach((item, index) => card(clientX, clientRows[index], clientW, 112, item));
 
 // Workers hosts the web runtime and optional shared API; no mandatory API app.
@@ -444,9 +444,9 @@ const services = [
   { title: 'Queues + Cron Triggers', subtitle: 'Async jobs + scheduled work', detail: 'Retries · idempotency · failure handling', icon: siCloudflare, iconColor: palette.orange },
   { title: 'Cloudflare Workflows', subtitle: 'Durable multi-step processes', detail: 'Resumable steps · retries · recovery', icon: siCloudflare, iconColor: palette.orange },
   { title: 'OpenAI SDK / AI SDK', subtitle: 'AI integrations · streaming · tools', detail: 'Workers AI when advantageous', customIcon: 'ai' },
-  { title: 'Domain + Mail', subtitle: 'GoDaddy broker · Cloudflare nameservers', detail: 'Cloudflare Routing + Sending / Resend alternative', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Domain + Mail', subtitle: 'Client registrar · selected DNS provider', detail: 'Routing ≠ mailbox · selected transactional mail', icon: siCloudflare, iconColor: palette.orange },
   { title: 'Cloudflare Observability', subtitle: 'Logs · errors · traces · latency', detail: 'Sentry for additional runtime diagnostics', icon: siCloudflare, iconColor: palette.orange },
-  { title: 'Basin Analytics', subtitle: 'Product events · datasets · queries', detail: 'Pipelines → R2 / PostHog when required', icon: siCloudflare, iconColor: palette.orange },
+  { title: 'Basin', subtitle: 'Pipelines · tables · distributed SQL', detail: 'Define event model, reports and retention', icon: siCloudflare, iconColor: palette.orange },
 ];
 const serviceRows = services.map((_, index) => architectureCardTop + index * 88);
 const serviceCardHeight = 80;

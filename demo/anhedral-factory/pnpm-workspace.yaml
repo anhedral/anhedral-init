@@ -2,8 +2,48 @@ packages:
   - "apps/*"
   - "packages/*"
 
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
-  - unrs-resolver
-  - workerd
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  workerd: true
+  core-js: false
+
+minimumReleaseAgeExclude:
+  - electron-to-chromium@1.5.446
+  - "@ai-sdk/gateway@4.0.106"
+  - "@ai-sdk/openai@4.0.86"
+  - "@ai-sdk/provider-utils@5.0.56"
+  - "@ai-sdk/provider@4.0.24"
+  - "@next/env@16.4.0"
+  - "@next/eslint-plugin-next@16.4.0"
+  - "@next/swc-darwin-arm64@16.4.0"
+  - "@next/swc-darwin-x64@16.4.0"
+  - "@next/swc-linux-arm64-gnu@16.4.0"
+  - "@next/swc-linux-arm64-musl@16.4.0"
+  - "@next/swc-linux-x64-gnu@16.4.0"
+  - "@next/swc-linux-x64-musl@16.4.0"
+  - "@next/swc-win32-arm64-msvc@16.4.0"
+  - "@next/swc-win32-x64-msvc@16.4.0"
+  - "@opennextjs/cloudflare@1.20.9"
+  - "@shadcn/registry@0.1.2"
+  - ai@7.0.130
+  - miniflare@5.20261006.0-alpha
+  - next@16.4.0
+  - resend@6.32.1
+  - shadcn@4.21.3
+  - wrangler@4.148.0
+
+overrides:
+  "sharp@<0.35.5": "0.35.5"
+  "source-map-js@<1.2.2": "1.2.2"
+  "baseline-browser-mapping@<2.11.0": "2.11.27"
+  "browserslist@<4.28.7": "4.29.3"
+  "esbuild@<0.25.0": "0.25.12"
+  "brace-expansion@<2": "1.1.21"
+  "brace-expansion@>=2 <3": "2.1.7"
+  "brace-expansion@>=3 <4": "3.0.9"
+  "brace-expansion@>=4 <5.0.12": "5.0.12"
+
+patchedDependencies:
+  "braces@3.0.3": "scripts/security/braces@3.0.3.patch"
