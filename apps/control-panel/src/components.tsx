@@ -17,6 +17,8 @@ export function Badge({ status }: { status: Status }) {
 }
 export function Icon({ name }: { name: string }) {
   const paths: Record<string, string> = {
+    checklist: "M9 5h12M9 12h12M9 19h12M3 5h.01M3 12h.01M3 19h.01",
+    checks: "M9 12l2 2 4-4M12 3l9 4v6c0 5-9 9-9 9s-9-4-9-9V7z",
     overview: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
     infrastructure: "M4 3h16v7H4zM4 14h16v7H4zM7 6h.01M7 17h.01",
     readiness: "M9 12l2 2 4-4M12 3l9 4v6c0 5-9 9-9 9s-9-4-9-9V7z",

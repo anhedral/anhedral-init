@@ -9,7 +9,7 @@ type Props = {
   saveSettings: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   settings: FullSnapshot["settings"];
   busy: boolean;
-  request: (text: string) => Promise<void>;
+  request: (text: string) => Promise<boolean>;
   context: string;
 };
 export function Settings({

@@ -18,6 +18,7 @@ import {
 import { OpenAIExtensions } from "@openai/mcp-extensions/server";
 import { z } from "zod";
 import { GENERATOR_VERSION } from "../../../src/version.js";
+import { lifecycleActions } from "./actions.js";
 import { registerProject, snapshot, updateSettings } from "./status.js";
 
 export const UI_URI = "ui://anhedral/control-panel.html";
@@ -106,15 +107,21 @@ export function createControlServer() {
       title: "Add a project to Anhedral",
       description:
         "Register a local project folder the user selected. Saves only its path and package name in the local Anhedral registry.",
-      inputSchema: { folder: z.string().min(1).max(4096) },
+      inputSchema: {
+        folder: z.string().min(1).max(4096),
+        draftId: z
+          .string()
+          .regex(/^[a-f0-9]{16}$/)
+          .optional(),
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: false,
       },
     },
-    async ({ folder }) => {
-      const project = registerProject(folder);
+    async ({ folder, draftId }) => {
+      const project = registerProject(folder, draftId);
       return {
         content: [{ type: "text", text: "Project added." }],
         structuredContent: await snapshot(project.id),
@@ -165,6 +172,34 @@ export function createControlServer() {
     ["anhedral_register_project", register],
     ["anhedral_update_settings", settings],
   ];
+  for (const [name, action] of Object.entries(lifecycleActions)) {
+    tools.push([
+      name,
+      server.registerTool(
+        name,
+        {
+          title: action.title,
+          description: action.description,
+          inputSchema: action.schema,
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: false,
+          },
+          _meta: { ui: { resourceUri: UI_URI } },
+        },
+        async (input: unknown) => ({
+          content: [
+            {
+              type: "text" as const,
+              text: "Project lifecycle updated. Progress reports and provider verification are separate.",
+            },
+          ],
+          structuredContent: await action.run(input),
+        }),
+      ),
+    ]);
+  }
   server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: tools
       .filter(([, tool]) => tool.enabled)

@@ -4,7 +4,7 @@ type FullSnapshot = Extract<Snapshot, { project: Project }>;
 type Props = {
   readiness: FullSnapshot["readiness"];
   capabilities: FullSnapshot["capabilities"];
-  request: (text: string) => Promise<void>;
+  request: (text: string) => Promise<boolean>;
   context: string;
 };
 export function Readiness({

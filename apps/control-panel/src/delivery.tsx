@@ -4,7 +4,7 @@ type FullSnapshot = Extract<Snapshot, { project: Project }>;
 type Props = {
   delivery: FullSnapshot["delivery"];
   navigateProvider: (value: string) => void;
-  request: (text: string) => Promise<void>;
+  request: (text: string) => Promise<boolean>;
   context: string;
 };
 export function Delivery({

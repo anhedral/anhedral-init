@@ -1,3 +1,9 @@
+import {
+  CATALOG,
+  checklist,
+  needsCloudflare,
+  type Assembly,
+} from "../shared/assembly.js";
 import { CAPABILITIES } from "../../../src/capabilities.js";
 import { inspectProject } from "../../../src/readiness.js";
 import {
@@ -8,9 +14,20 @@ import {
   readProjectFile,
 } from "./projects.js";
 import { workerResources } from "./inventory.js";
-export { registerProject, updateSettings } from "./projects.js";
+export {
+  registerProject,
+  updateSettings,
+  createDraft,
+  savePlan,
+  recordProgress,
+  recordPiece,
+} from "./projects.js";
 export type Status =
-  "verified" | "configured" | "missing" | "unverified" | "error";
+  | "verified"
+  | "configured"
+  | "missing"
+  | "unverified"
+  | "error";
 export type Resource = {
   id: string;
   name: string;
@@ -22,7 +39,13 @@ export type Resource = {
   endpoint?: string;
   account?: string;
 };
-export type Project = { id: string; name: string; root: string };
+export type Project = {
+  id: string;
+  name: string;
+  root: string;
+  planned?: boolean;
+  brief?: string;
+};
 export type Environment = {
   cloudflareAccountId?: string;
   neonProjectId?: string;
@@ -188,7 +211,7 @@ async function checkResources(
   return checked;
 }
 
-function connections(products: string[]) {
+function connections(products: string[], cloudflare: boolean) {
   const providers = [
     ["cloudflare", "Cloudflare", "CLOUDFLARE_API_TOKEN"],
     ["neon", "Neon", "NEON_API_KEY"],
@@ -203,7 +226,9 @@ function connections(products: string[]) {
     ...providers
       .filter(
         ([id]) =>
-          id === "cloudflare" || id === "neon" || products.includes(id!),
+          (id === "cloudflare" && cloudflare) ||
+          products.includes(id!) ||
+          (id === "openai" && products.includes("ai-sdk")),
       )
       .map(([, name, credential]) => ({
         name: name!,
@@ -227,6 +252,7 @@ export async function snapshot(
   const list = projects();
   if (!list.length)
     return {
+      catalog: CATALOG,
       projects: list,
       project: null,
       environment,
@@ -237,7 +263,9 @@ export async function snapshot(
   const project = projectFor(id || list[0]!.id);
   const settings = readRegistry().settings[project.id] || {};
   const selected = settings[environment] || {};
-  const standard = readProjectFile(project.root, "anhedral.standard.json");
+  const standard = project.planned
+    ? undefined
+    : readProjectFile(project.root, "anhedral.standard.json");
   const products = Array.isArray(standard?.products)
     ? (standard.products.filter((id: string) =>
         Object.hasOwn(CAPABILITIES, id),
@@ -248,24 +276,49 @@ export async function snapshot(
     ...CAPABILITIES[id],
     status: "starter",
   }));
-  const resources = workerResources(project.root, environment);
+  const storedAssembly = readRegistry().assemblies[project.id]?.[environment];
+  const assembly: Assembly = storedAssembly || {
+    selected: products,
+    hosting: standard?.hosting === "vercel" ? "vercel" : "cloudflare",
+    revision: 0,
+    progress: {},
+    pieces: {},
+  };
+  const resources = project.planned
+    ? []
+    : workerResources(project.root, environment);
   resources.push(...(await neonResources(selected, refresh)));
   // Preflight the files read by the CLI inspector to enforce the same project boundary.
-  for (const file of ["anhedral.setup.json", "anhedral.standard.json"])
+  for (const file of project.planned
+    ? []
+    : ["anhedral.setup.json", "anhedral.standard.json"])
     readProjectFile(project.root, file);
   const checked = await checkResources(resources, selected, refresh);
   return {
+    catalog: CATALOG,
+    assembly,
+    checklist: checklist(assembly, !project.planned),
     projects: list,
     project,
     environment,
-    environments: [...new Set(["default", ...Object.keys(settings)])],
+    environments: [
+      ...new Set([
+        "default",
+        ...Object.keys(settings),
+        ...Object.keys(readRegistry().assemblies[project.id] || {}),
+      ]),
+    ],
     settings: selected,
     resources: checked.map(
       ({ endpoint: _endpoint, account: _account, ...resource }) => resource,
     ),
     capabilities,
-    readiness: inspectProject(project.root),
-    connections: connections(products),
+    readiness: project.planned ? undefined : inspectProject(project.root),
+    connections: connections(
+      assembly.selected,
+      needsCloudflare(assembly.selected, assembly.hosting) ||
+        resources.some((item) => item.provider === "Cloudflare"),
+    ),
     delivery: refresh
       ? await delivery(selected.repository)
       : {

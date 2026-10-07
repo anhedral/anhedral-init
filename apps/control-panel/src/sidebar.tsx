@@ -31,7 +31,6 @@ export function Sidebar({
               maskImage: `url("data:image/svg+xml,${encodeURIComponent(wordmark)}")`,
             }}
           />
-          <span className="brand-caption">Developer control panel</span>
         </div>
       </div>
       <div className="workspace-label">Workspace</div>
@@ -58,29 +57,25 @@ export function Sidebar({
       </select>
       <button className="add-project" onClick={() => setAdding(true)}>
         <Icon name="plus" />
-        Add project
+        Start project
       </button>
       <nav aria-label="Control panel">
-        {[
-          "Overview",
-          "Infrastructure",
-          "Readiness",
-          "Delivery",
-          "Settings",
-        ].map((item) => (
-          <button
-            aria-current={tab === item ? "page" : undefined}
-            className={tab === item ? "active" : ""}
-            key={item}
-            onClick={() => setTab(item)}
-          >
-            <Icon name={item.toLowerCase()} />
-            {item}
-            {item === "Readiness" && failed.length > 0 && (
-              <span className="nav-count">{failed.length}</span>
-            )}
-          </button>
-        ))}
+        {["Infrastructure", "Checklist", "Checks", "Delivery", "Settings"].map(
+          (item) => (
+            <button
+              aria-current={tab === item ? "page" : undefined}
+              className={tab === item ? "active" : ""}
+              key={item}
+              onClick={() => setTab(item)}
+            >
+              <Icon name={item.toLowerCase()} />
+              {item}
+              {item === "Checks" && failed.length > 0 && (
+                <span className="nav-count">{failed.length}</span>
+              )}
+            </button>
+          ),
+        )}
       </nav>
       <div className="sidebar-footer">
         <span className="live-dot" />
