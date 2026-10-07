@@ -61,10 +61,13 @@ createServer(async (request, response) => {
     response.writeHead(403).end();
     return;
   }
-  if (request.method === "GET" && request.url === "/") {
+  if (
+    request.method === "GET" &&
+    request.url?.split("?")[0] === "/"
+  ) {
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; frame-ancestors 'none'",
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'self'; frame-ancestors 'none'",
     );
     response.setHeader("Content-Type", "text/html; charset=utf-8");
     response.end(readFileSync("plugins/anhedral/assets/control-panel.html"));

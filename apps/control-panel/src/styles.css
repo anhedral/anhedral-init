@@ -1,32 +1,49 @@
 @import "@openai/mcp-extensions/app/styles.css";
+/* Anhedral landing palette and typography; host controls light/dark mode. */
+@font-face {
+  font-family: "Noto Sans";
+  src: url("../../../assets/fonts/noto-sans-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../../../assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
 :root {
-  font-family: var(
-    --font-sans,
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif
-  );
+  font-family: "Noto Sans", Arial, sans-serif;
   color-scheme: light dark;
-  --background: light-dark(#f8f9fa, #18191c);
-  --surface: light-dark(#fff, #1f2024);
-  --sidebar: light-dark(#f0f1f3, #151619);
-  --text: light-dark(#21242a, #ededf0);
-  --muted: light-dark(#757b85, #92949e);
-  --line: light-dark(#e4e6eb, #303137);
-  --hover: light-dark(#e9ebef, #2a2b31);
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --signal: #ccff00;
+  --small-signal: light-dark(#11110f, #ccff00);
+  --background: light-dark(#fff, #000);
+  --surface: light-dark(#f1f3f5, #121210);
+  --sidebar: light-dark(#fafafa, #0e0e0c);
+  --text: light-dark(#11110f, #fafafa);
+  --muted: light-dark(#595959, #b4b4b4);
+  --line: light-dark(#d8dadd, #30302e);
+  --hover: light-dark(#e8eaec, #20201e);
   --green: light-dark(#237947, #80c89d);
-  --amber: light-dark(#926526, #d7b77d);
+  --amber: light-dark(#80551b, #e9bd72);
   color: var(--text);
   background: var(--background);
-  font-size: 13px;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
+
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
+  font-family: inherit;
+}
+#root {
+  font-family: inherit;
 }
 button,
 input,
@@ -50,7 +67,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid #8c9bb6;
+  outline: 2px solid var(--small-signal);
 }
 button {
   color: inherit;
@@ -67,7 +84,7 @@ select {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 0;
   padding: 9px 11px;
 }
 input {
@@ -81,27 +98,29 @@ h2,
 h3,
 p {
   margin: 0;
+  font-family: inherit;
 }
 h2 {
   font-size: 14px;
   font-weight: 600;
 }
 h3 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .app {
   display: flex;
   min-height: 100vh;
+  background: var(--background);
 }
 .sidebar {
-  width: 225px;
+  width: 244px;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   padding: 28px 18px 20px;
@@ -115,31 +134,38 @@ small {
   align-items: center;
   font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.6px;
 }
-.brand img {
-  width: 34px;
+.brand .brand-mark {
+  display: block;
+  width: 28px;
   height: 34px;
-  border-radius: 8px;
+  margin: 0;
+  background: var(--text);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  flex-shrink: 0;
 }
 .brand span {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1px;
   font-weight: 400;
   margin-top: 4px;
 }
 .workspace-label {
+  font-family: var(--mono);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.3px;
   margin: 35px 8px 11px;
 }
 .sidebar select {
   width: 100%;
-  font-size: 11px;
+  font-size: 12px;
 }
 .add-project {
   display: flex;
@@ -150,7 +176,7 @@ small {
   margin: 10px 0 21px;
   padding: 7px 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .add-project svg {
   width: 14px;
@@ -167,30 +193,31 @@ small {
   gap: 12px;
   text-align: left;
   padding: 12px;
-  border-radius: 7px;
+  border-radius: 0;
   color: var(--muted);
 }
 .sidebar nav .active {
   background: var(--hover);
   color: var(--text);
+  box-shadow: inset 2px 0 var(--small-signal);
 }
 .nav-count {
   margin-left: auto;
-  font-size: 10px;
-  background: var(--surface);
+  font-size: 11px;
+  background: var(--signal);
   padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--amber);
+  border-radius: 0;
+  color: #11110f;
 }
 .sidebar-footer {
   margin-top: auto;
   padding: 32px 8px 0;
-  font-size: 10px;
+  font-size: 11px;
 }
 .sidebar-footer > span:last-child {
   display: block;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   margin: 7px 0 0 12px;
 }
 .live-dot {
@@ -202,6 +229,7 @@ small {
   margin-right: 7px;
 }
 .workspace {
+  background: var(--background);
   flex: 1;
   min-width: 0;
 }
@@ -215,7 +243,7 @@ small {
   gap: 20px;
 }
 .breadcrumbs {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .breadcrumbs span {
@@ -228,7 +256,7 @@ small {
   gap: 10px;
 }
 .top-actions select {
-  font-size: 10px;
+  font-size: 11px;
   padding: 7px;
 }
 .button {
@@ -238,9 +266,13 @@ small {
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
-  padding: 8px 12px;
-  border-radius: 7px;
+  padding: 11px 16px;
+  border-radius: 0;
   font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  min-height: 40px;
   white-space: nowrap;
 }
 .button svg {
@@ -248,13 +280,12 @@ small {
   height: 14px;
 }
 .primary {
-  background: var(--text);
-  color: var(--background);
-  border-color: var(--text);
+  background: var(--signal);
+  color: #11110f;
+  border-color: #11110f;
 }
 .primary:hover:not(:disabled) {
-  opacity: 0.85;
-  background: var(--text);
+  background: #b8e600;
 }
 main {
   max-width: 1440px;
@@ -269,21 +300,23 @@ main {
   margin-bottom: 32px;
 }
 .eyebrow {
-  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--small-signal);
+  font-size: 10px;
   letter-spacing: 1.3px;
-  color: var(--muted);
   text-transform: uppercase;
   margin-bottom: 11px;
 }
 h1 {
-  font-size: 29px;
-  font-weight: 500;
-  letter-spacing: -1px;
-  line-height: 1.2;
+  font-size: clamp(30px, 3.2vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  max-width: 22ch;
 }
 .page-heading p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 10px;
   line-height: 1.7;
 }
@@ -292,7 +325,7 @@ h1 {
   grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: 0;
   margin-bottom: 22px;
 }
 .stats > div {
@@ -303,13 +336,16 @@ h1 {
   border: 0;
 }
 .stats span {
-  font-size: 11px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
   color: var(--muted);
 }
 .stats strong {
   display: block;
   font-size: 32px;
-  font-weight: 500;
+  font-weight: 750;
   letter-spacing: -1px;
   margin: 11px 0 6px;
 }
@@ -320,7 +356,7 @@ h1 {
   letter-spacing: 0;
 }
 .stats small {
-  font-size: 10px;
+  font-size: 11px;
 }
 .status-banner {
   display: flex;
@@ -328,12 +364,12 @@ h1 {
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 20px;
   margin-bottom: 23px;
 }
 .status-banner p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 7px;
   line-height: 1.6;
@@ -346,7 +382,7 @@ h1 {
   width: 34px;
   height: 34px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 0;
   flex-shrink: 0;
 }
 .status-banner > .text-button {
@@ -356,7 +392,7 @@ h1 {
 .text-button {
   border: 0;
   background: none;
-  font-size: 10px;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -375,9 +411,10 @@ h1 {
   gap: 20px;
 }
 .panel {
+  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: 0;
   margin-bottom: 22px;
   overflow: hidden;
 }
@@ -386,7 +423,7 @@ h1 {
   border-bottom: 1px solid var(--line);
 }
 .panel-heading p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 7px;
   line-height: 1.6;
@@ -400,7 +437,7 @@ h1 {
 }
 .compact-row strong,
 .connection-row strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -408,6 +445,7 @@ h1 {
   min-width: 0;
 }
 .compact-row .badge {
+  font-family: var(--mono);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -419,7 +457,7 @@ h1 {
   width: 30px;
   height: 30px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 0;
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -430,7 +468,7 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -468,7 +506,7 @@ h1 {
   color: var(--muted);
   background: none;
   border: 0;
-  font-size: 10px;
+  font-size: 11px;
 }
 .attention-row,
 .check-row {
@@ -484,14 +522,14 @@ h1 {
 }
 .attention-row strong,
 .check-row strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   text-transform: capitalize;
 }
 .attention-row p,
 .check-row p {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 5px;
   line-height: 1.6;
 }
@@ -514,11 +552,11 @@ h1 {
   align-items: center;
   margin: 0 0 20px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   gap: 20px;
 }
 .section-toolbar input {
-  font-size: 11px;
+  font-size: 12px;
   width: 220px;
 }
 .resource-grid {
@@ -527,9 +565,10 @@ h1 {
   gap: 17px;
 }
 .resource-card {
+  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -542,15 +581,18 @@ h1 {
   margin-bottom: 25px;
 }
 .resource-card small {
-  font-size: 9px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
 }
 .resource-card h2 {
-  font-size: 13px;
+  font-size: 14px;
   margin-top: 6px;
   overflow-wrap: anywhere;
 }
 .resource-card p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   line-height: 1.7;
   margin: 12px 0 18px;
@@ -581,10 +623,10 @@ summary div {
   gap: 5px;
 }
 summary strong {
-  font-size: 11px;
+  font-size: 12px;
 }
 summary span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 summary > .badge {
@@ -597,7 +639,7 @@ summary > .badge {
   gap: 20px;
 }
 .requirements h3 {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: capitalize;
   color: var(--muted);
   margin-bottom: 8px;
@@ -605,11 +647,11 @@ summary > .badge {
 .requirements ul {
   padding-left: 16px;
   margin: 0;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.8;
 }
 .requirements p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .requirements .button {
@@ -618,7 +660,7 @@ summary > .badge {
 .run-status {
   margin-left: auto;
   text-transform: capitalize;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--amber);
 }
 .run-status.success {
@@ -628,7 +670,7 @@ summary > .badge {
   display: flex;
   padding: 5px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: none;
 }
 .icon-button svg {
@@ -642,7 +684,7 @@ summary > .badge {
 }
 .settings-form label,
 .modal label {
-  font-size: 11px;
+  font-size: 12px;
   display: grid;
   gap: 9px;
   color: var(--muted);
@@ -656,12 +698,12 @@ summary > .badge {
 }
 .settings-copy p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.9;
   margin-bottom: 18px;
 }
 code {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--mono);
   font-size: 0.95em;
   color: var(--text);
 }
@@ -669,14 +711,15 @@ code {
   display: grid;
   gap: 10px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   overflow-wrap: anywhere;
 }
 .workspace-footer {
+  font-family: var(--mono);
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   gap: 20px;
   border-top: 1px solid var(--line);
   padding-top: 20px;
@@ -684,18 +727,22 @@ code {
 }
 .empty {
   text-align: center;
-  padding: 55px 25px;
+  padding: 68px 28px;
   color: var(--muted);
-  border: 1px dashed var(--line);
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: inset 0 1px light-dark(#fff9, #ffffff0a);
+  border-radius: 0;
   line-height: 1.8;
 }
 .empty h3 {
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text);
   margin: 12px 0 8px;
 }
 .empty p {
-  font-size: 11px;
+  font-size: 12px;
 }
 .empty .button {
   margin-top: 20px;
@@ -710,10 +757,10 @@ code {
   background: var(--surface);
   border: 1px solid var(--line);
   padding: 13px 16px;
-  border-radius: 8px;
+  border-radius: 0;
   margin-bottom: 25px;
   line-height: 1.6;
-  font-size: 11px;
+  font-size: 12px;
 }
 .notice button,
 .modal-close {
@@ -732,10 +779,12 @@ code {
   margin: auto;
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 28px;
   background: var(--surface);
-  box-shadow: 0 20px 70px #0004;
+  box-shadow:
+    0 20px 70px #0004,
+    inset 0 1px light-dark(#fff9, #ffffff0a);
 }
 .modal h2 {
   font-size: 19px;
@@ -743,7 +792,7 @@ code {
 .modal p {
   margin: 14px 0 25px;
   line-height: 1.8;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .modal form {
@@ -803,7 +852,7 @@ code {
     align-items: flex-start;
   }
   h1 {
-    font-size: 25px;
+    font-size: 32px;
   }
   .stats > div {
     padding: 20px 16px;
@@ -840,7 +889,7 @@ code {
   }
   .sidebar nav button {
     padding: 9px;
-    font-size: 10px;
+    font-size: 11px;
     gap: 5px;
     white-space: nowrap;
   }
@@ -903,10 +952,10 @@ code {
     display: block;
   }
   .connection-row .badge {
-    font-size: 8px;
+    font-size: 9px;
   }
   .badge {
-    font-size: 8px;
+    font-size: 9px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -33,6 +33,9 @@ export async function call(
 
 export async function connect(receive: (data: Snapshot) => void) {
   if (preview) {
+    const previewTheme = new URLSearchParams(location.search).get("theme");
+    if (previewTheme === "light" || previewTheme === "dark")
+      applyDocumentTheme(previewTheme);
     receive(await call("anhedral_open"));
     return;
   }

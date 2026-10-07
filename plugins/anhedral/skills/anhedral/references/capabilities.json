@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "cliVersion": "0.8.2",
+  "cliVersion": "0.8.3",
   "capabilities": {
     "next": {
       "purpose": "Web application",
