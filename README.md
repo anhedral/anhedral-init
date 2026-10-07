@@ -1,18 +1,46 @@
-# Anhedral
+# Anhedral Init
 
 [![CI](https://github.com/anhedral/anhedral-init/actions/workflows/ci.yml/badge.svg)](https://github.com/anhedral/anhedral-init/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/anhedral)](https://www.npmjs.com/package/anhedral)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Anhedral guides the development lifecycle through a ChatGPT/Codex plugin: planning, developer setup, infrastructure, implementation, verification, delivery, and operations. The CLI initializes the repository foundation using the [Anhedral Application Stack & Delivery Standard](docs/application-stack-standard.md).
+**Create a shadcn/Turborepo app for Cloudflare. Add mobile, desktop, APIs, and services when you need them.**
 
-The plugin source lives in `plugins/anhedral`. It guides recommended plugins, CLI tooling, client-owned accounts, infrastructure and scoped permissions for the selected stack. It uses available integrations and documented alternatives; installation does not grant provider access. Install the repository plugin with `codex plugin marketplace add anhedral/anhedral-init`, then `codex plugin add anhedral@anhedral`. Releases include a self-contained plugin ZIP with the same version as the CLI. A public ChatGPT directory listing requires separate submission.
+Anhedral initializes a TypeScript workspace with Next.js, React, Tailwind, and shadcn/ui, configured for Cloudflare Workers through OpenNext. Choose the application surfaces and provider starters your product needs; the generated source stays yours to edit.
 
-The plugin includes a native control panel with Overview, Infrastructure, Readiness, Delivery, and Settings. Open Anhedral from the plugin menu or ask it to open the control panel, then register an existing project folder. The self-contained Node MCP server reads configuration and checks supported Cloudflare resources, Neon project access, and GitHub Actions on refresh. Provider credentials stay server-side; selected environment identifiers are saved locally. Resource availability, local readiness, and released product behavior remain separate states. Local desktop plugins support this panel; a public ChatGPT directory app requires a separately hosted HTTPS MCP service and submission.
+## Try it
+
+Use Node.js 22.13+ and pnpm 10.34.5 for generated workspaces. Generate on Linux, macOS, or WSL.
+
+```sh
+# Inspect a plan first: no project files or cloud resources are created
+pnpm dlx anhedral@latest new my-app --dry-run --json
+
+# Generate the default Next.js workspace
+pnpm dlx anhedral@latest new my-app
+cd my-app
+pnpm dev
+```
+
+The first command downloads the CLI through pnpm; the CLI's dry run performs no writes or network calls. Generation needs network access for the official shadcn bootstrap. The default selects Next.js only. Follow the generated README for provider setup, Worker builds, and preview deployment.
+
+**If Anhedral is useful to you, [star the repository](https://github.com/anhedral/anhedral-init) to help other developers discover it.**
+
+## Why Anhedral?
+
+| Need | What Anhedral generates |
+| --- | --- |
+| A web app on Cloudflare | Next.js + OpenNext in a shadcn pnpm/Turborepo workspace |
+| More application surfaces | Optional Expo, Electron, WXT, and Hono applications |
+| Provider integration foundations | Selected database, auth, storage, AI, billing, and other starters |
+| A clear handoff | Setup requirements, generated documentation, and a read-only `doctor` check |
+| Repeatable local checks | Build, lint, types, tests, Fallow audit, and GitHub Actions PR checks |
+
+Provider integrations are starters: configure resources and implement product behavior before release. Initialization creates source and setup requirements; it does not provision infrastructure or deploy your app.
+
+## Choose your stack
 
 Every new project starts from the official **shadcn pnpm/Turborepo monorepo**. The default creates **Next.js + React + TypeScript + Tailwind + shadcn/ui**, hosted on **Cloudflare Workers through OpenNext**. Select additional apps and services only when needed.
-
-![Anhedral CLI init stack](assets/anhedral-cli-init.svg)
 
 ```sh
 pnpm dlx anhedral@latest new my-app
@@ -22,6 +50,8 @@ pnpm dlx anhedral@latest init --wxt
 ```
 
 To use a local checkout, run `pnpm build`, then `node dist/bin.js new <directory>`.
+
+![Anhedral CLI init stack](assets/anhedral-cli-init.svg)
 
 Applications: `next`, `expo`, `electron`, `wxt`, `hono`.
 
@@ -39,11 +69,21 @@ Generated projects include `dev`, `build`, `lint`, `typecheck`, `test`, `audit`,
 
 Provider packages and services are **starters**, not finished product features. Generated READMEs identify the remaining setup: resource IDs, migrations, product authorization, webhooks, native adapters and runtime SDK initialization. Initialization does not create cloud resources, activate billing, or deploy. Human approval is required for paid activation, material spending, architecture exceptions and production releases.
 
+## Inspect setup and compatibility
+
 The CLI supports `new`, `init`, `doctor`, `--help`, and `--version`. `anhedral doctor <directory> --json` checks local setup requirements without writes; provider access and production readiness remain unverified. Use `anhedral --help` for options. Its JSON plan includes versioned setup requirements, and generated projects include `anhedral.setup.json`. Requirements do not imply that accounts or resources are configured. The CLI and plugin registry share one source in `src/capabilities.ts`; `pnpm build` refreshes the plugin's bundled registry and stack standard.
 
 Requires Node.js 20.19+ in the 20 series or 22.12+ and pnpm 10.34.5. Version 0.6 replaces the legacy generator and builder with the Cloudflare-first initializer; earlier generator commands and templates are retired. Existing applications are not automatically migrated. Pin the CLI version and commit the generated lockfile. The `shadcn@latest` bootstrap can change between generation dates; review upgrades before use.
 
 Initialize from Linux, macOS, or WSL. Native Windows initialization fails before writes because upstream shadcn currently resolves monorepo component paths outside the project; planning and `doctor` remain portable. Expo's release gate currently blocks unpatched `node-forge` and `braces` advisories in its CLI/Metro dependencies. Application releases require resolving or explicitly reviewing those risks; the initializer does not waive them.
+
+## Use with ChatGPT and Codex
+
+Anhedral guides the development lifecycle through a ChatGPT/Codex plugin: planning, developer setup, infrastructure, implementation, verification, delivery, and operations. The CLI initializes the repository foundation using the [Anhedral Application Stack & Delivery Standard](docs/application-stack-standard.md).
+
+The plugin source lives in `plugins/anhedral`. It guides recommended plugins, CLI tooling, client-owned accounts, infrastructure and scoped permissions for the selected stack. It uses available integrations and documented alternatives; installation does not grant provider access. Install the repository plugin with `codex plugin marketplace add anhedral/anhedral-init`, then `codex plugin add anhedral@anhedral`. Releases include a self-contained plugin ZIP with the same version as the CLI. A public ChatGPT directory listing requires separate submission.
+
+The plugin includes a native control panel with Overview, Infrastructure, Readiness, Delivery, and Settings. Open Anhedral from the plugin menu or ask it to open the control panel, then register an existing project folder. The self-contained Node MCP server reads configuration and checks supported Cloudflare resources, Neon project access, and GitHub Actions on refresh. Provider credentials stay server-side; selected environment identifiers are saved locally. Resource availability, local readiness, and released product behavior remain separate states. Local desktop plugins support this panel; a public ChatGPT directory app requires a separately hosted HTTPS MCP service and submission.
 
 ## Contributing and security
 
