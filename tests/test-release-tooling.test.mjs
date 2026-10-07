@@ -310,6 +310,10 @@ try {
   assert.deepEqual(scanText('plugins/anhedral/THIRD_PARTY_NOTICES.txt', Buffer.from(`Copyright (c) Maintainer <${maintainerEmail}>\n`)), []);
   assert.ok(scanText('plugins/anhedral/THIRD_PARTY_NOTICES.txt', Buffer.from(`Contact ${maintainerEmail}\n`)).length > 0);
   assert.ok(scanText('debug.txt', Buffer.from(`Copyright (c) Maintainer <${maintainerEmail}>\n`)).length > 0);
+  assert.deepEqual(scanText('LICENSES.txt', Buffer.from(`Copyright (c) Maintainer <${maintainerEmail}>\n`)), []);
+  assert.ok(scanText('LICENSES.txt', Buffer.from(`Contact ${maintainerEmail}\n`)).length > 0);
+  assert.deepEqual(scanText('manifest.json', Buffer.from('braces@3.0.3.patch')), []);
+  assert.ok(scanText('manifest.json', Buffer.from(['braces', 'private.patch'].join('@'))).length > 0);
   const localHomePath = ['', 'Users', 'local-developer', 'project', 'output.log'].join('/');
   const personalEmail = ['project-owner', 'private-domain.dev'].join('@');
   assert.equal(

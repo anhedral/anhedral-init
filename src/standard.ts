@@ -5,6 +5,8 @@ import { assertProjectName, jsString, packageNameFromText, resourceName } from '
 import { spawnSync } from 'node:child_process';
 import { scaffoldFoundation, flattenSingleApi, SHADCN_VERSION } from './foundation.js';
 import { PACKAGE_MANAGER, TURBO_VERSION } from './dependencies.js';
+import { setPnpmPolicy } from './pnpm-policy.js';
+import { configureSecurityBackports, writeSecurityBackports } from './security-backports.js';
 import { runStagedTransaction } from './transaction.js';
 import { scaffoldDesktop } from './platforms/desktop.js';
 import { scaffoldMobile } from './platforms/mobile.js';
@@ -153,7 +155,7 @@ function worker(root: string, app: string, config: Json, source: string, depende
   json(root, `apps/${app}/package.json`, { name: `@workspace/${app}`, private: true, type: 'module', scripts: {
     dev: 'wrangler dev', build: 'wrangler deploy --dry-run --outdir dist', deploy: 'wrangler deploy',
     typecheck: 'wrangler types && tsc --noEmit', lint: 'eslint . --max-warnings 0',
-  }, dependencies, devDependencies: { wrangler: '4.147.0', typescript: '^5.9.3', '@types/node': '^22.0.0', eslint: '^9.0.0', '@workspace/eslint-config': 'workspace:*' } });
+  }, dependencies, devDependencies: { wrangler: '4.148.0', typescript: '6.0.3', '@types/node': '22.20.5', eslint: '9.39.5', '@workspace/eslint-config': 'workspace:*' } });
   json(root, `apps/${app}/wrangler.jsonc`, config);
   json(root, `apps/${app}/tsconfig.json`, { compilerOptions: { target: 'ES2022', lib: ['ES2022'], module: 'ESNext', moduleResolution: 'Bundler', strict: true, noUnusedLocals: true, noUnusedParameters: true, skipLibCheck: true, noEmit: true, types: ['node'] }, include: ['src/**/*.ts', 'worker-configuration.d.ts'] });
   put(root, `apps/${app}/eslint.config.mjs`, 'import { config } from "@workspace/eslint-config/base";\nexport default [...config, { ignores: ["dist/**", ".wrangler/**", "worker-configuration.d.ts"] }, { files: ["**/*.ts"], rules: { "no-undef": "off", "no-unused-vars": "off" } }];\n');
@@ -162,7 +164,7 @@ function worker(root: string, app: string, config: Json, source: string, depende
 function sharedPackage(root: string, name: string, source: string, dependencies: Json): void {
   json(root, `packages/${name}/package.json`, { name: `@workspace/${name}`, private: true, type: 'module', exports: { '.': './src/index.ts' },
     scripts: { typecheck: 'tsc --noEmit', lint: 'eslint . --max-warnings 0' }, dependencies,
-    devDependencies: { typescript: '^5.9.3', '@types/node': '^22.0.0', eslint: '^9.0.0', '@workspace/eslint-config': 'workspace:*' } });
+    devDependencies: { typescript: '6.0.3', '@types/node': '22.20.5', eslint: '9.39.5', '@workspace/eslint-config': 'workspace:*' } });
   json(root, `packages/${name}/tsconfig.json`, { compilerOptions: { target: 'ES2022', lib: ['ES2022', 'DOM'], module: 'ESNext', moduleResolution: 'Bundler', strict: true, noUnusedLocals: true, noUnusedParameters: true, skipLibCheck: true, noEmit: true, types: ['node'] }, include: ['src/**/*.ts'] });
   put(root, `packages/${name}/eslint.config.mjs`, 'import { config } from "@workspace/eslint-config/base";\nexport default [...config, { ignores: ["dist/**", ".wrangler/**", "worker-configuration.d.ts"] }, { files: ["**/*.ts"], rules: { "no-undef": "off", "no-unused-vars": "off" } }];\n');
   put(root, `packages/${name}/src/index.ts`, source);
@@ -187,7 +189,7 @@ function cleanWorkspaceManifest(root: string, directory: string): void {
   }
   if (directory === 'packages/ui') {
     if (!sources.some((source) => source.includes('@turbo/gen')) && !Object.values(manifest.scripts ?? {}).some((script) => String(script).includes('turbo gen'))) delete manifest.devDependencies?.['@turbo/gen'];
-    manifest.devDependencies = { ...manifest.devDependencies, 'postcss-load-config': '^6.0.1' };
+    manifest.devDependencies = { ...manifest.devDependencies, 'postcss-load-config': '6.0.1' };
     if (manifest.dependencies?.shadcn) {
       manifest.devDependencies.shadcn = manifest.dependencies.shadcn;
       delete manifest.dependencies.shadcn;
@@ -241,15 +243,18 @@ function addWebApplication(root: string, options: StandardOptions, bindings: Jso
   if (has('next')) {
     cleanShadcnStarter(root);
     put(root, 'apps/web/eslint.config.js', 'import { nextJsConfig } from "@workspace/eslint-config/next-js";\nexport default [...nextJsConfig, { ignores: [".open-next/**", ".wrangler/**", "cloudflare-env.d.ts"] }];\n');
-    patchPackage(root, 'apps/web/package.json', { dependencies: { next: '16.3.8' }, scripts: { typecheck: 'tsc --noEmit', lint: 'eslint . --max-warnings 0' } });
+    patchPackage(root, 'apps/web/package.json', { dependencies: { next: '16.4.0' }, scripts: { typecheck: 'tsc --noEmit', lint: 'eslint . --max-warnings 0' } });
     if (options.hosting === 'cloudflare') {
-      patchPackage(root, 'apps/web/package.json', { dependencies: { '@opennextjs/cloudflare': '1.20.8', next: '16.3.8' }, devDependencies: { wrangler: '4.147.0' }, scripts: {
-        preview: 'opennextjs-cloudflare build && opennextjs-cloudflare preview', deploy: 'opennextjs-cloudflare build && opennextjs-cloudflare deploy',
-        'build:worker': 'opennextjs-cloudflare build', 'cf:typegen': 'wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts',
+      patchPackage(root, 'apps/web/package.json', { dependencies: { '@opennextjs/cloudflare': '1.20.9', next: '16.4.0' }, devDependencies: { wrangler: '4.148.0' }, scripts: {
+        preview: 'pnpm cf:typegen && opennextjs-cloudflare build && opennextjs-cloudflare preview', deploy: 'pnpm cf:typegen && opennextjs-cloudflare build && opennextjs-cloudflare deploy',
+        'build:worker': 'pnpm cf:typegen && opennextjs-cloudflare build', typecheck: 'pnpm cf:typegen && tsc --noEmit', 'cf:typegen': 'wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts',
       } });
       json(root, 'apps/web/wrangler.jsonc', { ...workerConfig(resourceName(options.name, 'web')), main: '.open-next/worker.js',
         assets: { directory: '.open-next/assets', binding: 'ASSETS' }, services: [{ binding: 'WORKER_SELF_REFERENCE', service: resourceName(options.name, 'web') }],
         ...(runtimeApp === 'web' ? bindings : {}) });
+      const tsconfig = readJson(root, 'apps/web/tsconfig.json');
+      tsconfig.exclude = [...new Set([...(tsconfig.exclude ?? []), '.open-next', '.wrangler'])];
+      json(root, 'apps/web/tsconfig.json', tsconfig);
       put(root, 'apps/web/open-next.config.ts', 'import { defineCloudflareConfig } from "@opennextjs/cloudflare";\nexport default defineCloudflareConfig();\n');
       put(root, 'apps/web/public/_headers', '/_next/static/*\n  Cache-Control: public,max-age=31536000,immutable\n');
       put(root, 'apps/web/.dev.vars.example', 'NEXTJS_ENV=development\n');
@@ -267,7 +272,7 @@ const app = new OpenAPIHono<{ Bindings: Env }>();
 app.openapi(createRoute({ method: 'get', path: '/health', responses: { 200: { description: 'Healthy', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } } } }), (c) => c.json({ ok: true as const }, 200));
 app.doc('/openapi.json', { openapi: '3.0.0', info: { title: ${jsString(options.name)}, version: '1.0.0' } });
 export default app;
-`, { hono: '^4.0.0', '@hono/zod-openapi': '^1.0.0' });
+`, { hono: '4.13.13', '@hono/zod-openapi': '1.6.3' });
   }
 }
 
@@ -285,14 +290,14 @@ export function createDatabase(connectionString: string) {
 ` : `import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './schema.js';
 export function createDatabase(binding: Parameters<typeof drizzle>[0]) { return drizzle(binding, { schema }); }
-`, { 'drizzle-orm': '^0.45.3', ...(has('neon') ? { postgres: '^3.4.0' } : {}) });
+`, { 'drizzle-orm': '0.45.3', ...(has('neon') ? { postgres: '3.4.9' } : {}) });
     put(root, 'packages/db/src/schema.ts', '// Define product tables here; generate and review SQL before migration.\nexport {};\n');
     put(root, 'packages/db/drizzle.config.ts', has('neon') ? `import { defineConfig } from 'drizzle-kit';
 export default defineConfig({ dialect: 'postgresql', schema: './src/schema.ts', out: './migrations', dbCredentials: { url: process.env.DATABASE_URL! } });
 ` : `import { defineConfig } from 'drizzle-kit';
 export default defineConfig({ dialect: 'sqlite', schema: './src/schema.ts', out: './migrations' });
 `);
-    patchPackage(root, 'packages/db/package.json', { devDependencies: { 'drizzle-kit': '^0.31.0' }, scripts: { 'db:generate': 'drizzle-kit generate' } });
+    patchPackage(root, 'packages/db/package.json', { devDependencies: { 'drizzle-kit': '0.31.11' }, scripts: { 'db:generate': 'drizzle-kit generate' } });
     patchPackage(root, `apps/${runtimeApp}/package.json`, { dependencies: { '@workspace/db': 'workspace:*' } });
   }
 }
@@ -306,7 +311,7 @@ import type { createDatabase } from '@workspace/db';
 export function createAuth(db: ReturnType<typeof createDatabase>${has('neon') ? "['db']" : ''}, secret: string, baseURL: string) {
   return betterAuth({ database: drizzleAdapter(db, { provider: '${has('neon') ? 'pg' : 'sqlite'}' }), secret, baseURL, emailAndPassword: { enabled: true } });
 }
-`, { 'better-auth': '^1.0.0', '@workspace/db': 'workspace:*' });
+`, { 'better-auth': '1.7.7', '@workspace/db': 'workspace:*' });
   patchPackage(root, `apps/${runtimeApp}/package.json`, { dependencies: { '@workspace/auth': 'workspace:*' } });
   const dbInit = has('neon') ? 'database.db' : 'database';
   const connection = has('neon') ? 'createDatabase(env.HYPERDRIVE.connectionString)' : 'createDatabase(env.DB)';
@@ -328,7 +333,7 @@ async function handler(request: Request) {
 export { handler as GET, handler as POST };
 `);
     put(root, 'apps/web/cloudflare-env.d.ts', `interface CloudflareEnv { ${has('neon') ? 'HYPERDRIVE: { connectionString: string };' : "DB: Parameters<typeof import('drizzle-orm/d1').drizzle>[0];"} }\n`);
-    patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '^0.45.3' } });
+    patchPackage(root, 'apps/web/package.json', { dependencies: { 'drizzle-orm': '0.45.3' } });
   }
   put(root, `apps/${runtimeApp}/.dev.vars.example`, 'BETTER_AUTH_SECRET=\nBETTER_AUTH_URL=http://localhost:8787\n');
   if (has('hono')) put(root, 'apps/api/src/secrets.d.ts', 'interface Env { BETTER_AUTH_SECRET: string }\n');
@@ -338,7 +343,7 @@ function addClerk(root: string, options: StandardOptions): void {
   const has = (product: StandardProduct) => options.products.includes(product);
   if (!has('clerk')) return;
   if (has('next')) {
-    patchPackage(root, 'apps/web/package.json', { dependencies: { '@clerk/nextjs': '^7.0.0' } });
+    patchPackage(root, 'apps/web/package.json', { dependencies: { '@clerk/nextjs': '7.9.11' } });
     const layoutPath = path.join(root, 'apps/web/app/layout.tsx');
     if (existsSync(layoutPath)) {
       const layout = readFileSync(layoutPath, 'utf8');
@@ -357,7 +362,7 @@ export const config = { matcher: ['/((?!_next|[^?]*\\\\.(?:html?|css|js(?!on)|jp
     // Middleware makes auth available; product routes must explicitly require identity and authorization.
   }
   if (has('hono')) {
-    patchPackage(root, 'apps/api/package.json', { dependencies: { '@clerk/backend': '^3.0.0' } });
+    patchPackage(root, 'apps/api/package.json', { dependencies: { '@clerk/backend': '3.23.0' } });
     put(root, 'apps/api/src/identity.ts', `import { createClerkClient } from '@clerk/backend';
 export async function authenticate(request: Request, secretKey: string, authorizedParties: string[]) {
   return createClerkClient({ secretKey }).authenticateRequest(request, { authorizedParties });
@@ -434,12 +439,12 @@ export default { async fetch() { return new Response('Use an authorized server b
 function addProviderPackages(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   const providers: Partial<Record<StandardProduct, [string, string, Json]>> = {
-    openai: ['ai', "import OpenAI from 'openai';\nexport function createAI(apiKey: string) { return new OpenAI({ apiKey }); }\n", { openai: '^6.0.0' }],
-    'ai-sdk': ['ai', "export { generateText, streamText } from 'ai';\nexport { createOpenAI } from '@ai-sdk/openai';\n", { ai: '^6.0.0', '@ai-sdk/openai': '^3.0.0' }],
-    resend: ['email', "import { Resend } from 'resend';\nexport function createEmail(apiKey: string) { return new Resend(apiKey); }\n", { resend: '^6.0.0' }],
-    stripe: ['billing', "import Stripe from 'stripe';\nexport function createBilling(apiKey: string) { return new Stripe(apiKey); }\n", { stripe: '^20.0.0' }],
+    openai: ['ai', "import OpenAI from 'openai';\nexport function createAI(apiKey: string) { return new OpenAI({ apiKey }); }\n", { openai: '7.30.0' }],
+    'ai-sdk': ['ai', "export { generateText, streamText } from 'ai';\nexport { createOpenAI } from '@ai-sdk/openai';\n", { ai: '7.0.130', '@ai-sdk/openai': '4.0.86' }],
+    resend: ['email', "import { Resend } from 'resend';\nexport function createEmail(apiKey: string) { return new Resend(apiKey); }\n", { resend: '6.32.1' }],
+    stripe: ['billing', "import Stripe from 'stripe';\nexport function createBilling(apiKey: string) { return new Stripe(apiKey); }\n", { stripe: '23.0.0' }],
     sentry: ['observability', "// Initialize the platform-specific Sentry SDK in each application's runtime entrypoint.\nexport const redactFields = ['authorization', 'cookie', 'password', 'token'];\n", {}],
-    posthog: ['analytics', "import { PostHog } from 'posthog-node';\nexport function createAnalytics(apiKey: string, host: string) { return new PostHog(apiKey, { host }); }\n", { 'posthog-node': '^5.0.0' }],
+    posthog: ['analytics', "import { PostHog } from 'posthog-node';\nexport function createAnalytics(apiKey: string, host: string) { return new PostHog(apiKey, { host }); }\n", { 'posthog-node': '5.55.0' }],
     styling: ['styling', "export const styling = { colors: { foreground: '#171717', background: '#ffffff' }, spacing: { small: 4, medium: 8, large: 16 } } as const;\n", {}],
     'local-data': ['local-data', "// Device-local SQLite and filesystem need platform-specific adapters.\nexport interface LocalDataStore { read(key: string): Promise<string | null>; write(key: string, value: string): Promise<void>; }\n", {}],
   };
@@ -461,8 +466,9 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
   const has = (value: StandardProduct) => options.products.includes(value);
   const existing = readJson(root, 'package.json');
   const securityOverrides = {
-    ...(has('wxt') ? { '@wxt-dev/module-react>@vitejs/plugin-react': '5.2.0' } : {}),
-    ...(has('next') ? { "sharp@<0.35.5": "0.35.5" } : {}),
+    ...(has('wxt') ? { '@wxt-dev/module-react>@vitejs/plugin-react': '6.1.2' } : {}),
+    "sharp@<0.35.5": "0.35.5",
+    ...(has('expo') ? { 'xcode>uuid': '11.1.1', 'tailwindcss@3.4.19>postcss-selector-parser': '7.1.6', 'postcss-nested>postcss-selector-parser': '7.1.6' } : {}),
     ...(has('next') || has('expo') || has('electron') || has('wxt') ? { "source-map-js@<1.2.2": "1.2.2" } : {}),
     "baseline-browser-mapping@<2.11.0": "2.11.27",
     "browserslist@<4.28.7": "4.29.3",
@@ -472,38 +478,39 @@ function writeStandardRoot(root: string, options: StandardOptions): void {
     "brace-expansion@>=3 <4": "3.0.9",
     "brace-expansion@>=4 <5.0.12": "5.0.12"
   };
-  patchPackage(root, 'package.json', { name: options.name, packageManager: PACKAGE_MANAGER, engines: { node: '>=22.13.0' },
+  patchPackage(root, 'package.json', { name: options.name, packageManager: PACKAGE_MANAGER, engines: { node: '>=22.22.0' },
     scripts: { dev: 'turbo dev', build: 'turbo build', ...(has('next') && options.hosting === 'cloudflare' ? { 'build:worker': 'pnpm --dir apps/web run build:worker' } : {}), lint: 'turbo lint', typecheck: 'turbo typecheck',
-      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'pnpm audit --prod --audit-level high', check: `pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build${workerBuildSuffix(options)}` },
+      test: 'turbo test', audit: 'node scripts/audit.mjs', 'audit:full': 'fallow --fail-on-issues', 'audit:deps': 'node scripts/security/audit-deps.mjs', check: `pnpm lint && pnpm typecheck && pnpm run audit && pnpm audit:deps && pnpm test && pnpm build${workerBuildSuffix(options)}` },
     devDependencies: { fallow: '3.31.0', turbo: TURBO_VERSION },
     // Upstream starter lockfiles can retain vulnerable transitive versions. Keep fixes within compatible majors.
-    pnpm: { ...existing.pnpm, overrides: { ...existing.pnpm?.overrides, ...securityOverrides } } });
+    pnpm: undefined });
+  writeSecurityBackports(root);
   put(root, 'scripts/audit.mjs', `import { spawnSync } from 'node:child_process';
 const base = process.env.AUDIT_BASE;
 const hasBase = base || ['origin/main', 'main'].find((ref) => spawnSync('git', ['rev-parse', '--verify', ref], { stdio: 'ignore' }).status === 0);
 const args = hasBase ? ['exec', 'fallow', 'audit', '--base', hasBase] : ['exec', 'fallow', '--fail-on-issues'];
 const entry = process.env.npm_execpath;
 if (!entry) throw new Error('Run this check through pnpm run audit.');
-const result = spawnSync(process.execPath, [entry, ...args], { stdio: 'inherit', shell: false });
+const javascript = /\\.[cm]?js$/i.test(entry);
+const result = spawnSync(javascript ? process.execPath : entry, javascript ? [entry, ...args] : args, { stdio: 'inherit', shell: false });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
 `);
   json(root, '.fallowrc.json', { ...(has('electron') ? { entry: ['apps/desktop/src/main/preload.cts'] } : {}),
-    // Expo web export and NativeWind load these runtime dependencies dynamically.
-    ...(has('expo') ? { ignoreDependencies: ['react-native-web', 'react-native-css-interop', 'react-native-reanimated', 'react-native-worklets'] } : {}),
+    // Expo web export and NativeWind load these dependencies dynamically, including the native JSX Babel transform.
+    ...(has('expo') ? { ignoreDependencies: ['@babel/plugin-transform-react-jsx', 'react-native-web', 'react-native-css-interop', 'react-native-reanimated', 'react-native-worklets'] } : {}),
     ignorePatterns: ['**/next-env.d.ts', '**/.next/**', '**/.open-next/**', '**/.wrangler/**', '**/dist/**', '**/worker-configuration.d.ts', '**/cloudflare-env.d.ts'] });
   const turbo = readJson(root, 'turbo.json');
   turbo.globalEnv = ['DATABASE_URL', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'OPENAI_API_KEY', 'RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'POSTHOG_API_KEY', 'POSTHOG_HOST', 'SENTRY_DSN'];
-  turbo.tasks = { ...turbo.tasks, test: { dependsOn: ['^build'], outputs: ['coverage/**'] },
+  turbo.tasks = { ...turbo.tasks, typecheck: { ...turbo.tasks.typecheck, outputs: ['cloudflare-env.d.ts', 'worker-configuration.d.ts'] }, test: { dependsOn: ['^build'], outputs: ['coverage/**'] },
     build: { ...turbo.tasks.build, outputs: ['.next/**', '!.next/cache/**', '.open-next/**', 'dist/**', '.output/**'] } };
   json(root, 'turbo.json', turbo);
-  const workspaceFile = path.join(root, 'pnpm-workspace.yaml');
-  const workspace = readFileSync(workspaceFile, 'utf8');
-  // Keep the upstream package globs and other policies; translate only the build approval section for pnpm 10.
-  const policy = 'onlyBuiltDependencies:\n' + ['esbuild', 'sharp', 'unrs-resolver', 'workerd', ...(has('electron') ? ['electron'] : [])].map((name) => `  - ${name}\n`).join('');
-  const section = /(?:allowBuilds|onlyBuiltDependencies):\n(?:[ \t]+[^\n]*\n|[ \t]*\n)*/;
-  put(root, 'pnpm-workspace.yaml', section.test(workspace) ? workspace.replace(section, policy) : workspace + '\n' + policy);
-  appendGitignore(root, ['node_modules/', '.open-next/', '.wrangler/', '.dev.vars', '.dev.vars.*', '!.dev.vars.example', '.env', '.env.*', '!.env.example', '.fallow/']);
+  setPnpmPolicy(root, {
+    onlyBuiltDependencies: undefined,
+    allowBuilds: Object.fromEntries(['esbuild', 'sharp', 'unrs-resolver', 'workerd', ...(has('electron') ? ['electron'] : [])].map((name) => [name, true]).concat([['core-js', false], ...(has('electron') ? [['electron-winstaller', false] as [string, boolean]] : [])])),
+    overrides: { ...existing.pnpm?.overrides, ...securityOverrides },
+  });
+  appendGitignore(root, ['node_modules/', '.turbo/', '.next/', 'dist/', '.output/', '.wxt/', '.expo/', '*.tsbuildinfo', 'cloudflare-env.d.ts', 'worker-configuration.d.ts', '.open-next/', '.wrangler/', '.dev.vars', '.dev.vars.*', '!.dev.vars.example', '.env', '.env.*', '!.env.example', '.fallow/', '.anhedral-audit-report.json']);
   writeEnvironmentExample(root, options);
   json(root, 'anhedral.standard.json', { schemaVersion: 1, standard: 'anhedral-application-stack', products: options.products,
     hosting: has('next') ? options.hosting : null, layout: options.layout ?? 'workspace', ...(has('wxt') ? { extensionSurface: options.extensionSurface ?? 'sidepanel' } : {}), bootstrap: { command: has('next') ? `pnpm dlx shadcn@${SHADCN_VERSION} init --monorepo --template next` : 'anhedral direct foundation', upstreamPackageManager: existing.packageManager },
@@ -560,7 +567,7 @@ Run pnpm install, preserve pnpm-lock.yaml, then pnpm dev. Run pnpm check for lin
 
 Cloudflare bindings contain REPLACE_WITH_* IDs. Create separate preview/production resources in client-owned accounts, replace IDs, and generate Worker types before development. Workers expose local dev and explicit deploy scripts. Next.js uses pnpm --filter web preview to exercise the Workers runtime (use the actual package name from apps/web/package.json). No infrastructure or production deployment is performed by init. Preserve suitable existing apps rather than automatically switching frameworks or hosts.
 
-${has('expo') ? 'Experimental Expo recipe: upstream node-forge/braces advisories currently block the production dependency gate. Local compatibility checks do not waive the audit or certify native release readiness.\n' : ''}
+${has('expo') ? 'Expo requires simulator/device verification and a signed native build. The dependency gate verifies reviewed local backports against exact installed bytes and retains the raw upstream advisory report; unknown high/critical findings block delivery.\n' : ''}
 ${has('next') && options.hosting === 'cloudflare' ? 'OpenNext is configured without a provisioned incremental-cache bucket. Choose and configure a cache adapter before using ISR or cache features that require shared persistence.\n' : ''}
 ${has('neon') ? 'Create Hyperdrive against Neon; disable query caching for correctness-sensitive reads. DATABASE_URL is for reviewed migration tooling, while Workers use the HYPERDRIVE binding. Close direct PostgreSQL clients after use.\n' : ''}
 ${has('better-auth') ? 'Generate Better Auth tables into the Drizzle schema, review and apply migrations before using /api/auth. Configure BETTER_AUTH_SECRET, BETTER_AUTH_URL and trusted origins for the correct environment.\n' : ''}
@@ -651,6 +658,7 @@ export async function scaffoldStandardProject(options: StandardOptions, run: Sta
         await applyStandardOverlays(stageRoot, options);
         if (options.layout === 'single') flattenSingleApi(stageRoot, options.name);
         run('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile'], stageRoot);
+        if (configureSecurityBackports(stageRoot)) run('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile'], stageRoot);
         commitPaths.push(...readdirSync(stageRoot).filter((name) => name !== 'node_modules'));
       },
       afterCommit: () => {

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "name": "node-forge",
+      "version": "1.4.0",
+      "advisoryIds": [
+        "GHSA-86w9-cpqp-85rv"
+      ],
+      "patch": "node-forge@1.4.0.patch",
+      "patchSha256": "1b5e41ae73d70d18d2541c50e67d5b408eda4cdd52a426c3d085ec17b8f9b2a9",
+      "installedTreeSha256": "bb76d231d6aba9cad2da5f1ec1dee54b64c6720c5fb0b0c6aa0119b661d541c0",
+      "provenanceUrls": [
+        "https://github.com/digitalbazaar/forge/pull/1152",
+        "https://github.com/digitalbazaar/forge/commit/ceba34402e329f0365134f23fe19898756527d65",
+        "https://github.com/advisories/GHSA-86w9-cpqp-85rv"
+      ],
+      "origin": "Upstream PR1152 cardinality backport plus Anhedral strict DER NULL payload validation"
+    },
+    {
+      "name": "braces",
+      "version": "3.0.3",
+      "advisoryIds": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ],
+      "patch": "braces@3.0.3.patch",
+      "patchSha256": "7274fa48b0167311b25a1ef8cf34f4bfe45f6ef58a0cc2813712fb7bb26e2e6a",
+      "installedTreeSha256": "c3d6d7c5bc0b6a578effc6d0e4bf6b384cbf04c6a81cfd2c8af10c185acdb0fb",
+      "provenanceUrls": [
+        "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+        "https://github.com/micromatch/braces/commit/74b2db2938fad48a2ea54a9c8bf27a37a62c350d",
+        "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz"
+      ],
+      "origin": "Anhedral local guarded backport; upstream advisory still lists no patched release"
+    },
+    {
+      "name": "decode-uri-component",
+      "version": "0.2.2",
+      "advisoryIds": [
+        "GHSA-vcc3-ghjq-m6fr"
+      ],
+      "patch": "decode-uri-component@0.2.2.patch",
+      "patchSha256": "f6a891bfb1a3d59b5b72602d4f6e5de5b6f5ee64467a9a24a1e182a3b07f8c54",
+      "installedTreeSha256": "821832e5d3622308a9159706eebb0b9ac702576b39e0cd4ea4fcb15cb9d7cbfb",
+      "provenanceUrls": [
+        "https://github.com/SamVerschueren/decode-uri-component/commit/fa479dafeede7bedf04e5c89aa78f2a78c664005",
+        "https://github.com/SamVerschueren/decode-uri-component/releases/tag/v0.5.0",
+        "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr"
+      ],
+      "origin": "Official 0.5.0 security scanner backported to 0.2.2 while preserving its CommonJS API and plus-to-space behavior"
+    }
+  ]
+}

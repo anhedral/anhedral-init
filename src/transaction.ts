@@ -797,8 +797,8 @@ export class PostCommitError extends Error {
   constructor(committedPaths: readonly string[], cause: unknown) {
     const causeMessage = cause instanceof Error ? cause.message : String(cause);
     super(
-      `Changes were committed successfully, but the post-commit action failed: ${causeMessage}. `
-      + 'The generated files were kept; resolve the failure and rerun the post-commit command.',
+      `Generated files were saved, but the follow-up action failed: ${causeMessage}. `
+      + 'The generated files were kept; resolve the failure and rerun the failed command.',
       { cause },
     );
     this.name = 'PostCommitError';

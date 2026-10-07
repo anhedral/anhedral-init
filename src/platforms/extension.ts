@@ -13,7 +13,6 @@ export async function scaffoldExtension(root: string, options: ProjectOptions): 
     writeWxtConfig(dir, displayName, extensionSurface);
     writeEnvExample(dir);
     writePostcssConfig(dir);
-    writeTailwindConfig(dir);
     writeShadcnConfig(dir);
     writeReadme(dir, displayName, extensionSurface);
     writeCnUtil(dir);
@@ -39,7 +38,7 @@ function writePackageJson(dir: string, projectName: string): void {
             lint: 'eslint src --max-warnings 0',
         },
         dependencies: EXTENSION_DEPENDENCIES.dependencies,
-        devDependencies: { ...EXTENSION_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*', eslint: '9.39.1' },
+        devDependencies: { ...EXTENSION_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*', eslint: '9.39.5' },
     }, null, 2) + '\n');
 }
 function writeWxtConfig(dir: string, displayName: string, surface: 'sidepanel' | 'popup'): void {
@@ -91,8 +90,7 @@ function writeEnvExample(dir: string): void {
 function writePostcssConfig(dir: string): void {
     writeFile(path.join(dir, 'postcss.config.cjs'), `module.exports = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    "@tailwindcss/postcss": {},
   },
 };
 `);
@@ -164,58 +162,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = 'Button';
 `);
 }
-function writeTailwindConfig(dir: string): void {
-    writeFile(path.join(dir, 'tailwind.config.cjs'), `/** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: ['./src/**/*.{ts,tsx,html}'],
-  theme: {
-    extend: {
-      colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-      },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-    },
-  },
-  plugins: [],
-};
-`);
-}
 function writeReadme(dir: string, displayName: string, surface: 'sidepanel' | 'popup'): void {
     writeFile(path.join(dir, 'README.md'), `# ${markdownHeading(displayName)} Chrome Extension
 
@@ -240,16 +186,12 @@ ${surface === 'sidepanel' ? "The browser action opens the Side Panel API surface
 `);
 }
 function writeBackground(dir: string): void {
-    writeFile(path.join(dir, 'src/entrypoints/background.ts'), `type ChromeWithSidePanel = typeof chrome & {
-  sidePanel: {
-    setPanelBehavior: (behavior: { openPanelOnActionClick: boolean }) => Promise<void>;
-  };
-};
+    writeFile(path.join(dir, 'src/entrypoints/background.ts'), `import { browser } from 'wxt/browser';
 
 export default defineBackground(() => {
 
   // Open the side panel when the extension icon is clicked.
-  (chrome as ChromeWithSidePanel).sidePanel
+  browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch(() => {});
 });
@@ -289,6 +231,7 @@ function writeSurfaceHtml(dir: string, displayName: string, surface: 'sidepanel'
 }
 function writeSurfaceApp(dir: string, surface: 'sidepanel' | 'popup'): void {
     writeFile(path.join(dir, `src/entrypoints/${surface}/app.tsx`), `import * as React from 'react';
+import { browser } from 'wxt/browser';
 import { Button } from '../../components/ui/button';
 
 type PageSnapshot = {
@@ -297,14 +240,18 @@ type PageSnapshot = {
 };
 
 async function readPageSnapshot(): Promise<PageSnapshot> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error('No active tab is available.');
-  const [{ result }] = await chrome.scripting.executeScript({
+  const [injection] = await browser.scripting.executeScript({
     target: { tabId: tab.id },
     func: () => ({ title: document.title, location: window.location.href }),
   });
+  return requireSnapshot(injection?.result);
+}
+
+function requireSnapshot(result: PageSnapshot | undefined): PageSnapshot {
   if (!result) throw new Error('The active page did not return a snapshot.');
-  return result as PageSnapshot;
+  return result;
 }
 
 export function ExtensionApp() {
@@ -338,9 +285,32 @@ export function ExtensionApp() {
 `);
 }
 function writeStyles(dir: string): void {
-    writeFile(path.join(dir, 'src/styles/main.css'), `@tailwind base;
-@tailwind components;
-@tailwind utilities;
+    writeFile(path.join(dir, 'src/styles/main.css'), `@import "tailwindcss";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
 
 @layer base {
   :root {

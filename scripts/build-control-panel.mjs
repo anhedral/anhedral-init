@@ -52,10 +52,10 @@ const browser = await build({
 });
 const javascript = browser.outputFiles
   .find((file) => file.path.endsWith(".js"))
-  .text.replaceAll("</script", "<\\/script");
+  .text.replaceAll("</script", "<\\/script").replace(/[ \t]+$/gm, "");
 const css = browser.outputFiles
   .find((file) => file.path.endsWith(".css"))
-  .text.replaceAll("</style", "<\\/style");
+  .text.replaceAll("</style", "<\\/style").replace(/[ \t]+$/gm, "");
 writeFileSync(
   `${output}/assets/control-panel.html`,
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Anhedral</title><style>${css}</style></head><body><div id="root"></div><script>${javascript}</script></body></html>\n`,
@@ -84,7 +84,7 @@ writeFileSync(
 );
 const licenses = new Map([
   [
-    "shadcn@4.21.1 (generated components and CSS)",
+    "shadcn@4.21.3 (generated components and CSS)",
     readFileSync("apps/control-panel/src/components/ui/LICENSE.txt", "utf8"),
   ],
 ]);

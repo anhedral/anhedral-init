@@ -14,6 +14,7 @@ function seed(root) {
   for (const dir of ['apps/web/app', 'packages/ui', 'packages/eslint-config']) mkdirSync(path.join(root, dir), { recursive: true });
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'fixture', packageManager: 'pnpm@10.34.5', devDependencies: { turbo: '^2' }, scripts: {} }));
   writeFileSync(path.join(root, 'apps/web/package.json'), JSON.stringify({ name: 'web', scripts: { build: 'next build' }, dependencies: { next: '16.3.6' } }));
+  writeFileSync(path.join(root, 'apps/web/tsconfig.json'), JSON.stringify({ exclude: ['node_modules'] }));
   writeFileSync(path.join(root, 'apps/web/app/layout.tsx'), 'export default function Layout({ children }: { children: React.ReactNode }) { return <html><body>{children}</body></html>; }');
   writeFileSync(path.join(root, 'packages/ui/package.json'), JSON.stringify({ name: '@workspace/ui', dependencies: { shadcn: '4.21.1' } }));
   writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n  - "packages/*"\n');

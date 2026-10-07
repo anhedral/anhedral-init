@@ -146,6 +146,6 @@
   "securityMaintenance": {
     "date": "2026-10-06",
     "originalRelease": "v0.6.0",
-    "changes": "Patched dependencies, development-only shadcn, disabled public sign-up, and production dependency checks."
+    "changes": "Current stable compatible dependencies; pnpm 12 YAML policy; verified-byte braces 3.0.3 backport with raw advisory reporting; production and development dependency checks; strict TypeScript lint; cached binding types and verified Cloudflare worker builds."
   }
 }

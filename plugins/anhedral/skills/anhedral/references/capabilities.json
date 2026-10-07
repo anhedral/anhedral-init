@@ -21,7 +21,7 @@
       }
     },
     "expo": {
-      "purpose": "Experimental mobile starter; production release blocked by upstream dependency advisories",
+      "purpose": "Mobile application starter with Expo and native platform adapters",
       "delivery": "starter",
       "tools": [
         "Expo/EAS CLI",
@@ -37,7 +37,7 @@
         "Expo app; native adapters, signing, store configuration"
       ],
       "verify": [
-        "Resolve blocking node-forge/braces dependency advisories before production release; compatibility checks do not waive the audit",
+        "Pass the installed-byte dependency gate; maintain reviewed backports until supported upstream replacements are available",
         "Native simulator/device flows and signed native build; web export alone is insufficient"
       ],
       "selection": {

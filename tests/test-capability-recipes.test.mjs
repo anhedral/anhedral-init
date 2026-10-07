@@ -15,7 +15,7 @@ test('recipe requirements distinguish starter delivery, provider choice and web 
   assert.deepEqual(mobile.bootstrap, []);
   assert.equal(mobile.setup.tools.includes('Cloudflare security audit skill'), false);
   const web = plan('--next');
-  assert.ok(web.bootstrap.includes('shadcn@4.21.1'));
+  assert.ok(web.bootstrap.includes('shadcn@4.21.3'));
   assert.equal(web.bootstrap.some((argument) => argument.includes('@latest')), false);
   const alternative = plan('--next', '--hosting=vercel');
   assert.equal(alternative.setup.access.some((requirement) => /exception|approval/i.test(requirement)), false);

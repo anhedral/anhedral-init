@@ -10,13 +10,13 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "ai": "^6.0.0",
-    "@ai-sdk/openai": "^3.0.0"
+    "ai": "7.0.130",
+    "@ai-sdk/openai": "4.0.86"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "@types/node": "^22.0.0",
-    "eslint": "^9.0.0",
+    "typescript": "6.0.3",
+    "@types/node": "22.20.5",
+    "eslint": "9.39.5",
     "@workspace/eslint-config": "workspace:*"
   }
 }

@@ -158,7 +158,7 @@ export async function scaffoldMobile(root: string, options: ProjectOptions): Pro
             lint: 'eslint app components lib --max-warnings 0',
         },
         dependencies: { ...MOBILE_APP_DEPENDENCIES.dependencies, ...MOBILE_NATIVEWIND_DEPENDENCIES.dependencies },
-        devDependencies: { ...MOBILE_APP_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*', eslint: '9.39.1' },
+        devDependencies: { ...MOBILE_APP_DEPENDENCIES.devDependencies, '@workspace/eslint-config': 'workspace:*', eslint: '9.39.5' },
     }, null, 2) + '\n');
     writeFile(path.join(dir, 'app.json'), JSON.stringify({
         expo: {
